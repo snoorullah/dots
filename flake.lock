@@ -8,10 +8,10 @@
         "quickshell": "quickshell"
       },
       "locked": {
-        "lastModified": 1782847321,
-        "narHash": "sha256-7fqisyiL7vt3lZrr9nEIRI9VN+JedNE/cywZcU+pKCY=",
+        "lastModified": 1782849559,
+        "narHash": "sha256-KlG2uvi1k9CPfr8kO3CE6xemcWJg1Jv6AicHggfC24g=",
         "ref": "feat/caelestia-widgets",
-        "rev": "1f175e861bf821caf34fa71bf39993282b6252cc",
+        "rev": "e102da4a44ddbca20de223fa32d940bd1de74bcf",
         "shallow": true,
         "type": "git",
         "url": "file:///home/devsupreme/src/caelestia-shell"
