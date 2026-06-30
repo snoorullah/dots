@@ -8,17 +8,19 @@
         "quickshell": "quickshell"
       },
       "locked": {
-        "lastModified": 1782048179,
-        "narHash": "sha256-8RSk3Jr5Ud+zJKinu4400dz7J0wWBIuqZ2Ulst7IPuI=",
-        "owner": "caelestia-dots",
-        "repo": "shell",
-        "rev": "ddcfd10661e02b53705c0264e982debac04e215e",
-        "type": "github"
+        "lastModified": 1782847321,
+        "narHash": "sha256-7fqisyiL7vt3lZrr9nEIRI9VN+JedNE/cywZcU+pKCY=",
+        "ref": "feat/caelestia-widgets",
+        "rev": "1f175e861bf821caf34fa71bf39993282b6252cc",
+        "shallow": true,
+        "type": "git",
+        "url": "file:///home/devsupreme/src/caelestia-shell"
       },
       "original": {
-        "owner": "caelestia-dots",
-        "repo": "shell",
-        "type": "github"
+        "ref": "feat/caelestia-widgets",
+        "shallow": true,
+        "type": "git",
+        "url": "file:///home/devsupreme/src/caelestia-shell"
       }
     },
     "caelestia-cli": {
