@@ -10,7 +10,7 @@
 
     # caelestia keeps its OWN pinned nixpkgs/quickshell (do NOT follows) so we
     # reuse the build already compiled, instead of rebuilding quickshell.
-    caelestia.url = "github:caelestia-dots/shell";
+    caelestia.url = "git+file:///home/devsupreme/src/caelestia-shell?ref=feat/caelestia-widgets&shallow=1";
 
     # nix-gl-host: lets Nix-built GPU apps use the host nvidia driver on Ubuntu.
     nix-gl-host.url = "github:numtide/nix-gl-host";
