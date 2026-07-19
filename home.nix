@@ -26,6 +26,9 @@ in {
   home.packages = [
     pkgs.ripgrep
     pkgs.fastfetch
+    pkgs.waybar
+    pkgs.mako
+    pkgs.swayosd
     caelestiaWrapped # puts the nixGL-wrapped `caelestia-shell` on PATH
   ];
 
