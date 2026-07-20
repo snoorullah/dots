@@ -1,0 +1,23 @@
+# First match wins. Each rule matches ANY of the provided fields (regex, case-insensitive).
+# Fields: match_app, match_title, match_domain. Unmatched -> "Uncategorized".
+[[rule]]
+category = "Salah"
+match_title = "salah|fajr|dhuhr|asr|maghrib|isha"
+
+[[rule]]
+category = "Infra"
+match_title = "ovh|k8s|kubectl|cluster|argo|proxmox|ansible|terraform|kube"
+
+[[rule]]
+category = "Code"
+match_title = "dots|caelestia|nvim|vim |\\.py\\b|\\.rs\\b|\\.ts\\b|git |cargo|pnpm"
+match_domain = "github|gitlab|stackoverflow"
+
+[[rule]]
+category = "Comms"
+match_app = "slack|teams|discord|thunderbird|evolution"
+match_domain = "mail\\.google|outlook|slack"
+
+[[rule]]
+category = "Web"
+match_app = "brave|firefox|zen|chromium|chrome"

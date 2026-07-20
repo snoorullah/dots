@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-TASK=/home/linuxbrew/.linuxbrew/bin/task
+# TASK path patched Phase 5 (dotfiles/NixOS port): taskwarrior3 provides bare
+# `task` on PATH via home.packages (modules/timetrack.nix) — was hardcoded to
+# /home/linuxbrew/.linuxbrew/bin/task on the live (non-Nix) box.
+TASK=task
 CTXS=(none work lab agents personal)
 cur="$("$TASK" _get rc.context 2>/dev/null)"; cur="${cur:-none}"
 if [ "${1:-}" = "cycle" ]; then

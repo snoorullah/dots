@@ -1,0 +1,53 @@
+# ~/.taskrc — managed by home-manager (Phase 5 dotfiles port)
+data.location=~/.task
+news.version=2.6.0
+
+# UDAs
+uda.estimate.type=duration
+uda.estimate.label=Est
+
+# Salah quality tracking (Stage-2 time-tracking system)
+uda.salah_status.type=string
+uda.salah_status.label=Salah
+uda.salah_status.values=jamaah,alone,qaza,missed
+
+# Contexts (work/lab/agents/personal) — read filters
+context.work.read=project ~ work
+context.lab.read=project ~ lab
+context.agents.read=project ~ agents
+context.personal.read=project ~ personal
+
+# ADHD: a small curated Today list via the +today tag; near-term urgency boosts
+urgency.user.tag.today.coefficient=15.0
+urgency.user.tag.next.coefficient=8.0
+urgency.due.coefficient=12.0
+# never shame: no overdue color screaming
+color.overdue=
+report.today.description=Today
+report.today.columns=id,project,description,estimate
+report.today.filter=+today status:pending
+report.today.sort=urgency-
+
+# ── Dracula theme (taskwarrior + taskwarrior-tui) — added 2026-07-18 ──
+rc.color=on
+color.label=bold color231 on color238 # column-header row (ID/Active/Age/…): bold white on a Dracula current-line bar — taskwarrior-tui reads color.label for its header style
+color.active=color16 on color141      # active/started task: black on Dracula purple (was default orange)
+color.due.today=color215              # orange
+color.due=color228                    # yellow
+color.scheduled=color84               # green
+color.blocked=color210                # soft red
+color.blocking=color215               # orange
+color.recurring=color141              # light purple
+color.tagged=color141                 # light purple
+color.tag.salah=color117              # cyan for salah rows
+color.completed=color103              # dim
+color.deleted=color238                # dark gray
+color.alternate=                      # no alternating-row shading (cleaner)
+# (color.overdue intentionally left empty above — no overdue-shaming)
+uda.taskwarrior-tui.task-report.use-alternate-style=false
+uda.taskwarrior-tui.task-report.info-location=bottom   # details pane BELOW the list (stacked), not side-by-side
+uda.taskwarrior-tui.task-report.prompt-on-delete=yes   # confirm before deleting a task (safety)
+uda.taskwarrior-tui.selection.indicator=▌              # bar cursor (matches otter/clipse menus)
+uda.taskwarrior-tui.selection.reverse=yes              # selected row = filled highlight bar (was a faint dot)
+uda.taskwarrior-tui.style.navbar=color231 on color55
+uda.taskwarrior-tui.style.context.active=bold color84
