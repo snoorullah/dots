@@ -26,6 +26,7 @@ in {
   home.packages = [
     pkgs.ripgrep
     pkgs.fastfetch
+    pkgs.papirus-icon-theme   # app icons for mako notifications (slack/discord/etc.)
     pkgs.waybar
     pkgs.mako
     pkgs.swayosd
