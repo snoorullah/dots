@@ -8,7 +8,11 @@
 #   Phase 5 → ./modules/timetrack.nix
 {
   imports = [
-    # (filled in as phases land)
+    ./modules/desktop      # Phase 2 — hyprland, waybar, mako, swayosd, otter, kitty, lock/idle
+    ./modules/dev.nix      # Phase 3 — node/python/rust/go + k8s/cloud/iac + devenv
+    ./modules/editors.nix  # Phase 3 — vscode, zed, neovim
+    ./modules/apps.nix     # Phase 4 — browsers, comms, media, utilities
+    ./modules/shell.nix    # Phase 4 — zsh, starship, fzf, git, tmux
   ];
 
   home.username = "devsupreme";

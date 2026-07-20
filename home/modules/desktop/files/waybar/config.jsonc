@@ -1,0 +1,18 @@
+{
+  "layer": "top",
+  "position": "top",
+  "height": 30,
+  "spacing": 6,
+  "modules-left": ["hyprland/workspaces"],
+  "modules-center": ["clock", "custom/salah"],
+  "modules-right": ["custom/tracking", "custom/project", "custom/ctx", "wireplumber", "network", "tray"],
+  "hyprland/workspaces": { "on-click": "activate", "format": "{name}" },
+  "clock": { "format": "{:%a %d %b  %H:%M}", "tooltip-format": "<tt>{calendar}</tt>" },
+  "custom/salah":    { "exec": "/home/devsupreme/.local/bin/waybar-salah.sh",    "return-type": "json", "interval": 60, "on-click": "kitty --class otter --config ~/.config/kitty/otter.conf -e ~/.local/bin/adhd-focus.sh status" },
+  "custom/tracking": { "exec": "/home/devsupreme/.local/bin/waybar-tracking.sh", "return-type": "json", "interval": 15, "on-click": "kitty --class tasktui --config ~/.config/kitty/tasktui.conf -e ~/.local/bin/tw-tui" },
+  "custom/project":  { "exec": "/home/devsupreme/.local/bin/waybar-project.sh",  "return-type": "json", "interval": 10, "on-click": "kitty --class otter --config ~/.config/kitty/otter.conf -e ~/.cargo/bin/otter-launcher pj" },
+  "custom/ctx":      { "exec": "/home/devsupreme/.local/bin/waybar-ctx.sh",      "return-type": "json", "interval": 30, "signal": 8, "on-click": "/home/devsupreme/.local/bin/waybar-ctx.sh cycle" },
+  "wireplumber": { "format": "{icon} {volume}%", "format-muted": "󰝟", "format-icons": ["󰕿","󰖀","󰕾"], "on-click": "swayosd-client --output-volume mute-toggle" },
+  "network": { "format-wifi": "  {signalStrength}%", "format-ethernet": "󰈀", "format-disconnected": "󰤭", "tooltip-format": "{ifname}: {ipaddr}" },
+  "tray": { "spacing": 8 }
+}

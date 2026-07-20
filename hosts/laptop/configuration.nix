@@ -103,6 +103,9 @@
     shell = pkgs.zsh;
   };
 
+  # ── Containers ── (client tools live in the home dev layer; daemon here)
+  virtualisation.docker.enable = true;
+
   # Minimal system-wide tooling; everything else is in the home layer.
   environment.systemPackages = with pkgs; [ git vim wget ];
 
