@@ -27,6 +27,12 @@ in {
     pkgs.ripgrep
     pkgs.fastfetch
     pkgs.papirus-icon-theme   # app icons for mako notifications (slack/discord/etc.)
+    # yazi file manager + preview helpers (image previews use kitty's graphics protocol)
+    pkgs.yazi
+    pkgs.ffmpegthumbnailer    # video thumbnails
+    pkgs.unar                 # archive preview/extract
+    pkgs.fd                   # yazi's find/filter backend
+    pkgs.file                 # mime detection fallback
     pkgs.waybar
     pkgs.mako
     pkgs.swayosd
