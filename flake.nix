@@ -14,6 +14,13 @@
 
     # nix-gl-host: lets Nix-built GPU apps use the host nvidia driver on Ubuntu.
     nix-gl-host.url = "github:numtide/nix-gl-host";
+
+    # Thunderbird tracks nixos-unstable HEAD, which already carries 153.0 —
+    # ahead of the pinned `nixpkgs` above. Pulling TB (and ONLY TB) from this
+    # separate input gives the current version without churning every other
+    # package's pin on a full channel bump. Drop this input once the main
+    # `nixpkgs` lock is next updated past the 153.0 landing.
+    nixpkgs-tb.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
   outputs = inputs@{ nixpkgs, home-manager, ... }:

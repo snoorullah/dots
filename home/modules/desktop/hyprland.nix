@@ -133,6 +133,7 @@
         "workspace 2 silent,class:^(zen-alpha|zen-browser|firefox|Firefox)$"
         "workspace 3 silent,class:^([Cc]ode|code-oss|Cursor)$"
         "workspace 4 silent,class:^([Ss]lack)$"
+        "workspace 5 silent,class:^([Tt]hunderbird)$"
         "workspace 7 silent,class:^([Oo]bsidian)$"
         "workspace 8 silent,class:^([Ss]potify|YoutubeMusic|youtube-music)$"
         "float,class:^([Pp]avucontrol|[Nn]m-connection-editor|file-roller)$"
@@ -191,6 +192,11 @@
         # (clipse -listen); cliphist is installed too as a fallback consumer
         # for `wl-paste --watch cliphist store` if clipse gets swapped out.
         "clipse -listen"
+
+        # Thunderbird autostart (installed via ./apps.nix). The windowrulev2
+        # above already pins it to ws5; the [workspace 5 silent] prefix here is
+        # belt-and-suspenders so it lands on ws5 even before the rule matches.
+        "[workspace 5 silent] thunderbird"
       ];
 
       bind = [
