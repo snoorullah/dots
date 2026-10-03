@@ -1,0 +1,168 @@
+# ~/.zshrc  (PROPOSED, plain file; later: programs.zsh.initContent + the options
+# named in "HM:" comments). Interactive shells only. PATH/EDITOR live in ~/.zshenv.
+# Order matters: history/options -> fpath -> compinit -> zstyle -> keys -> prompt
+# -> tool hooks -> aliases -> autosuggestions -> syntax-highlighting (LAST).
+
+[[ -o interactive ]] || return
+
+# ============================================================================
+# History   HM: programs.zsh.history { size, save, ignoreDups, share, ... }
+# ============================================================================
+HISTFILE="${HISTFILE:-$HOME/.zsh_history}"   # unchanged location (existing file kept)
+HISTSIZE=100000
+SAVEHIST=100000
+setopt share_history          # implies incremental append + read of other shells' lines
+setopt extended_history       # timestamps + duration
+setopt hist_ignore_dups hist_expire_dups_first
+setopt hist_ignore_space      # " secret-cmd" is not saved
+setopt hist_reduce_blanks
+setopt hist_verify            # show !! expansion before running it
+
+# ============================================================================
+# Options (kept small; extended_glob deliberately OFF: it breaks `git show HEAD^`)
+# ============================================================================
+setopt no_beep
+setopt no_flow_control        # frees Ctrl-S / Ctrl-Q for tmux/vim
+setopt auto_pushd pushd_ignore_dups   # `cd -` / `cd -2` history
+setopt complete_in_word always_to_end
+WORDCHARS=${WORDCHARS//[\/]}  # Ctrl-W / Alt-Backspace stop at "/"
+
+# ============================================================================
+# Completion   HM: programs.zsh.enableCompletion
+# ============================================================================
+# Arch ships most completions in /usr/share/zsh/site-functions (already on fpath).
+fpath=(
+  $HOME/.grok/completions/zsh(N-/)       # grok CLI
+  $XDG_DATA_HOME/zsh/site-functions(N-/) # your own _completions, if any
+  $fpath
+)
+autoload -Uz compinit
+() {
+  emulate -L zsh
+  setopt extended_glob
+  local dump="$XDG_CACHE_HOME/zsh/zcompdump"
+  [[ -d ${dump:h} ]] || mkdir -p "${dump:h}"
+  # Full rebuild if the dump is missing or >24h old; otherwise trust it (fast).
+  if [[ -s $dump && -n $dump(#qN.mh-24) ]]; then
+    compinit -C -d "$dump"
+  else
+    compinit -d "$dump"
+  fi
+}
+_comp_options+=(globdots)    # complete dotfiles without typing the dot
+zstyle ':completion:*' menu select
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|[._-]=* r:|=*'
+zstyle ':completion:*' use-cache yes
+zstyle ':completion:*' cache-path "$XDG_CACHE_HOME/zsh/zcompcache"
+zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
+
+# ============================================================================
+# Key bindings: emacs mode (zsh default; tmux is vi-mode, shell stays emacs).
+# For vi mode instead: `bindkey -v; KEYTIMEOUT=20` and re-test fzf (Ctrl-R).
+# ============================================================================
+bindkey -e
+autoload -Uz up-line-or-beginning-search down-line-or-beginning-search edit-command-line
+zle -N up-line-or-beginning-search
+zle -N down-line-or-beginning-search
+zle -N edit-command-line
+# Both normal ([) and application (O) cursor-key sequences: kitty and tmux differ.
+bindkey '^[[A' up-line-or-beginning-search   ; bindkey '^[OA' up-line-or-beginning-search
+bindkey '^[[B' down-line-or-beginning-search ; bindkey '^[OB' down-line-or-beginning-search
+bindkey '^[[1;5C' forward-word  ; bindkey '^[[1;5D' backward-word   # Ctrl-Right/Left
+bindkey '^[[5C'   forward-word  ; bindkey '^[[5D'   backward-word
+bindkey '^[OC'    forward-word  ; bindkey '^[OD'    backward-word   # (your old binds.zsh)
+bindkey '^[[H' beginning-of-line ; bindkey '^[OH' beginning-of-line ; bindkey '^[[1~' beginning-of-line
+bindkey '^[[F' end-of-line       ; bindkey '^[OF' end-of-line       ; bindkey '^[[4~' end-of-line
+bindkey '^[[3~' delete-char
+bindkey '^[[Z'  reverse-menu-complete        # Shift-Tab
+bindkey '^X^E'  edit-command-line            # edit the line in $EDITOR
+
+# ============================================================================
+# Prompt: starship (newest choice: dots shell.nix, programs.starship.enable).
+# No ~/.config/starship.toml exists (nor in dots) => starship defaults.
+# Fallback: p10k is installed (AUR zsh-theme-powerlevel10k-git) and ~/.p10k.zsh is
+# intact. Try it per-shell:  ZSH_PROMPT=p10k zsh -i
+# ============================================================================
+: ${ZSH_PROMPT:=starship}
+case $ZSH_PROMPT in
+  p10k)
+    if [[ -r /usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme ]]; then
+      source /usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme
+      [[ -r $HOME/.p10k.zsh ]] && source $HOME/.p10k.zsh
+    fi ;;
+  *)
+    (( $+commands[starship] )) && eval "$(starship init zsh)" ;;
+esac
+
+# ============================================================================
+# Tool hooks (each guarded; HM: programs.zoxide / fzf / direnv .enable)
+# ============================================================================
+(( $+commands[zoxide] )) && eval "$(zoxide init zsh)"      # z, zi
+
+if (( $+commands[fzf] )); then
+  # fd is installed; fall back to fzf's own walker if it ever goes missing.
+  if (( $+commands[fd] )); then
+    export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git'
+    export FZF_CTRL_T_COMMAND=$FZF_DEFAULT_COMMAND
+    export FZF_ALT_C_COMMAND='fd --type d --hidden --follow --exclude .git'
+  fi
+  export FZF_DEFAULT_OPTS='--height 40% --layout=reverse --border'
+  (( $+commands[bat] )) && export FZF_CTRL_T_OPTS="--preview 'bat --style=numbers --color=always --line-range :200 {}'"
+  source <(fzf --zsh)       # Ctrl-R history, Ctrl-T files, Alt-C cd, ** completion
+fi
+
+(( $+commands[direnv] )) && eval "$(direnv hook zsh)"      # dots enables it; not installed on Arch yet
+if (( $+commands[kubectl] )); then                         # not installed yet; lights up when it is
+  source <(kubectl completion zsh)
+  alias k=kubectl
+  compdef k=kubectl 2>/dev/null
+fi
+
+# tmuxinator (installed): completion ships inside the gem dir, not site-functions.
+if (( $+commands[tmuxinator] )); then
+  alias mux=tmuxinator
+  for _f in /usr/lib/ruby/gems/*/gems/tmuxinator-*/completion/tmuxinator.zsh(N[-1]); do
+    source $_f
+  done
+  unset _f
+fi
+
+# Secrets (API keys). Convention from your dotfiles repo; file absent on this PC
+# right now (encrypted copy needs an age key that is not here). Never commit it.
+[[ -r $HOME/.secrets ]] && source $HOME/.secrets
+
+# ============================================================================
+# Aliases   HM: programs.zsh.shellAliases (dots has ls, ll, lg already)
+# NOT carried over: cat=bat (review decision), mkdir=-p, HyDE in/un/up/pl/pa
+# (in=`pacman -S`: dangerous while the box is ~760 packages behind),
+# --help|bat global alias, `?` binding, command_not_found_handler (hyde-shell).
+# ============================================================================
+if (( $+commands[eza] )); then
+  alias ls='eza --icons=auto'
+  alias ll='eza -la --git --icons=auto'
+  alias lt='eza --tree --level=2 --icons=auto'
+fi
+(( $+commands[lazygit] )) && alias lg=lazygit
+alias c=clear
+alias ..='cd ..' ...='cd ../..'
+
+# platform-prep lab shortcuts (Day 0), unchanged
+alias lab='incus exec laptop:lab-ubuntu -- su -l me'
+alias rocky='incus exec laptop:lab-rocky -- su -l me'
+
+# tmux: NO auto-attach (kitty `shell .`, no startup_session, no autostart found
+# in tmux-config). Opt-in helper instead; nothing runs at shell start.
+ta() { tmux new-session -A -s "${1:-main}"; }
+
+# ============================================================================
+# Plugins from distro packages (guarded). HM: autosuggestion.enable,
+# syntaxHighlighting.enable. NOT installed yet: zsh-autosuggestions,
+# zsh-completions (install only after the full -Syu in Stage 1d).
+# ============================================================================
+ZSH_AUTOSUGGEST_STRATEGY=(history completion)
+[[ -r /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh ]] \
+  && source /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
+
+# Syntax highlighting MUST be the last thing sourced.
+[[ -r /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]] \
+  && source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
