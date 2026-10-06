@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Excalidraw
+Comment=Virtual whiteboard (Chrome app window)
+Exec=google-chrome-stable --app=https://excalidraw.com --class=dots.excalidraw
+Icon=applications-graphics
+Terminal=false
+StartupWMClass=dots.excalidraw
+Categories=Graphics;

@@ -20,7 +20,18 @@ let
     ln -s ${zen}/bin/zen-beta $out/bin/zen
     ln -s ${zen}/bin/zen-beta $out/bin/zen-browser
   '';
-  zen = gl inputs.zen-browser.packages.${pkgs.system}.default;
+  # Browser policies (spec D3, R11): the keys of the live /etc/firefox/policies/policies.json (the only
+  # policies.json on the machine; zen has none) + force-installed ActivityWatch web watcher.
+  browserPolicies = {
+    DisablePrivateBrowsing = true;
+    PrivateBrowsingModeAvailability = 1;
+    ExtensionSettings."{ef87d84c-2127-493f-b952-5b4e744245bc}" = {
+      installation_mode = "force_installed";
+      install_url = "https://addons.mozilla.org/firefox/downloads/latest/aw-watcher-web/latest.xpi";
+    };
+  };
+  zen = gl (inputs.zen-browser.packages.${pkgs.system}.default.override { extraPolicies = browserPolicies; });
+  aether = gl (pkgs.aether.override { extraPolicies = browserPolicies; });
 in {
   home.stateVersion = "25.11";
   programs.home-manager.enable = true;
@@ -42,7 +53,14 @@ in {
 
     # --- owner picks (addendum) ---
     # browsers / chat / mail
-    zen compat (gl google-chrome) brotab slack teams-for-linux thunderbird
+    zen aether compat (gl google-chrome) brotab slack teams-for-linux thunderbird
+    (gl legcord) (gl beeper) (gl telegram-desktop) zapzap nchat tg
+    (weechat.override { configure = { availablePlugins, ... }: { scripts = [ weechatScripts.wee-slack ]; }; })
+    # calendar / tasks / sync
+    gcalcli gnome-calendar khal tasksh python3Packages.bugwarrior taskchampion-sync-server
+    kdePackages.kdeconnect-kde
+    # containers
+    buildah skopeo dive
     # CLI utilities
     p7zip ast-grep buf doxygen ffmpeg glslang imagemagick ipmitool lm_sensors pandoc
     qalculate-gtk restic yt-dlp zip unzip
@@ -60,7 +78,9 @@ in {
     bun check-jsonschema clang cmake deno go golangci-lint gopls go-tools llvm
     lua luarocks (lib.lowPrio luajit) meson ninja nodejs_24 pipx pnpm ruff rustup shellcheck shfmt uv yamllint
     # media
-    (gl blender) loupe (gl mpv) swappy
+    (gl blender) loupe (gl mpv)
+    (gl obs-studio) (gl kdePackages.kdenlive) (gl krita) (gl gimp3) (gl inkscape) (gl handbrake)
+    font-manager
     # office
     hoppscotch libreoffice-fresh
     # secrets

@@ -86,3 +86,4 @@ f all .config/systemd/user/onprem-kube-tunnel.service
 f all .config/systemd/user/ovh-k8s-tunnel.service
 f tmux .config/systemd/user/tmux.service
 f herdr .config/systemd/user/herdr.service
+f all .local/share/applications/excalidraw.desktop
