@@ -16,10 +16,11 @@ let
     mkdir -p $out/bin
     ln -s ${pkgs.awww}/bin/awww $out/bin/swww
     ln -s ${pkgs.awww}/bin/awww-daemon $out/bin/swww-daemon
+    ln -s ${pkgs.go-task}/bin/task $out/bin/go-task
     ln -s ${zen}/bin/zen-beta $out/bin/zen
     ln -s ${zen}/bin/zen-beta $out/bin/zen-browser
   '';
-  zen = inputs.zen-browser.packages.${pkgs.system}.default;
+  zen = gl inputs.zen-browser.packages.${pkgs.system}.default;
 in {
   home.stateVersion = "25.11";
   programs.home-manager.enable = true;
@@ -41,9 +42,9 @@ in {
 
     # --- owner picks (addendum) ---
     # browsers / chat / mail
-    zen compat google-chrome brotab slack teams-for-linux thunderbird
+    zen compat (gl google-chrome) brotab slack teams-for-linux thunderbird
     # CLI utilities
-    p7zip ast-grep buf doxygen ffmpeg glslang (lib.lowPrio go-task) imagemagick ipmitool lm_sensors pandoc
+    p7zip ast-grep buf doxygen ffmpeg glslang imagemagick ipmitool lm_sensors pandoc
     qalculate-gtk restic yt-dlp zip unzip
     # desktop
     kdePackages.qtstyleplugin-kvantum pavucontrol kdePackages.qt6ct yad
@@ -56,10 +57,10 @@ in {
     docker-client docker-compose kubernetes-helm kapp kbld kcl kind kubeconform kubectx kustomize
     lens minio-client molecule packer postgresql powershell qemu redis sqlite stern talhelper talosctl terraform
     # languages & toolchains
-    bun check-jsonschema clang cmake cudaPackages.cudatoolkit deno go golangci-lint gopls go-tools llvm
+    bun check-jsonschema clang cmake deno go golangci-lint gopls go-tools llvm
     lua luarocks (lib.lowPrio luajit) meson ninja nodejs_24 pipx pnpm ruff rustup shellcheck shfmt uv yamllint
     # media
-    blender loupe mpv swappy
+    (gl blender) loupe (gl mpv) swappy
     # office
     hoppscotch libreoffice-fresh
     # secrets
@@ -71,6 +72,6 @@ in {
     # TUIs
     btop cava duf dust fastfetch lazydocker
     # AI
-    claude-code codex ollama-cuda
-  ];
+    claude-code codex
+  ] ++ (if gpu == "nvidia" then [ pkgs.cudaPackages.cudatoolkit pkgs.ollama-cuda ] else [ pkgs.ollama ]);
 }

@@ -53,3 +53,4 @@ codex
 ollama
 keepassxc
 restic
+go-task
