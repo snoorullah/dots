@@ -15,18 +15,12 @@ TZ="Asia/Kolkata"
 METHOD=KARACHI      # CalculationMethod name (KARACHI = University of Islamic Sciences)
 MADHAB=HANAFI       # HANAFI (later Asr) or SHAFI
 
-VDIR="$HOME/.local/share/adhd/venv"
 CONF="$HOME/.config/adhd/prayer-times.conf"
 IQCONF="$HOME/.config/adhd/iqamah.conf"
 mkdir -p "$(dirname "$CONF")"
 
-# one-time bootstrap (needs network once); fully offline thereafter
-if [ ! -x "$VDIR/bin/python" ]; then
-    python3 -m venv "$VDIR"
-    "$VDIR/bin/pip" install -q --disable-pip-version-check adhanpy
-fi
 
-"$VDIR/bin/python" - "$LAT" "$LON" "$TZ" "$METHOD" "$MADHAB" "$CONF" "$IQCONF" <<'PY'
+python3 - "$LAT" "$LON" "$TZ" "$METHOD" "$MADHAB" "$CONF" "$IQCONF" <<'PY'
 import sys, re
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo

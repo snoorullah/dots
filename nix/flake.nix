@@ -43,7 +43,6 @@
         ];
       };
       checks.${system} = { deps-nvidia = depsCheck "nvidia"; deps-mesa = depsCheck "mesa"; };
-      # otter-launcher comes from the overlay (empty until the packages task lands)
-      packages.${system} = nixpkgs.lib.optionalAttrs (pkgs ? otter-launcher) { inherit (pkgs) otter-launcher; };
+      packages.${system} = { inherit (pkgs) otter-launcher; };
     };
 }

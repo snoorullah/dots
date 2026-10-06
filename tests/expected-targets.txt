@@ -3,8 +3,8 @@ f all .config/hypr/hypridle.conf
 f all .config/hypr/hyprlock.conf
 f all .config/waybar/config.jsonc
 f all .config/waybar/style.css
-f all .config/foot/foot.ini
-f all .config/foot/popup.ini
+f all .config/ghostty/config
+f all .config/ghostty/popup
 f all .config/otter-launcher/config.toml
 f all .config/otter-launcher/git-profiles.conf
 f all .config/otter-launcher/images/otter.png
@@ -81,7 +81,6 @@ f all .config/systemd/user/adhd-salah-schedule.service
 f all .config/systemd/user/adhd-salah-schedule.timer
 f all .config/systemd/user/aw-server.service
 f all .config/systemd/user/awatcher.service
-f all .config/systemd/user/foot-server.service
 f all .config/systemd/user/hyprpolkitagent.service
 f all .config/systemd/user/onprem-kube-tunnel.service
 f all .config/systemd/user/ovh-k8s-tunnel.service
