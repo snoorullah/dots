@@ -1,0 +1,21 @@
+{{- $gpu := "mesa" -}}
+{{- if stat "/etc/NIXOS" -}}
+{{-   $gpu = "nixos" -}}
+{{- else if lookPath "lspci" -}}
+{{-   if regexMatch "(?i)nvidia" (output "lspci") -}}{{ $gpu = "nvidia" }}{{- end -}}
+{{- end -}}
+{{- $mux := promptChoiceOnce . "multiplexer" "Multiplexer" (list "tmux" "herdr") "tmux" -}}
+{{- $key := joinPath .chezmoi.homeDir ".config/chezmoi/key.txt" }}
+sourceDir = {{ .chezmoi.sourceDir | quote }}
+{{- if stat $key }}
+encryption = "age"
+[age]
+  identity = {{ $key | quote }}
+  recipient = "AGE_RECIPIENT"
+{{- end }}
+[data]
+  gpu = {{ $gpu | quote }}
+  multiplexer = {{ $mux | quote }}
+  footLigatures = true
+  timetrack = false
+  hasAgeKey = {{ if stat $key }}true{{ else }}false{{ end }}

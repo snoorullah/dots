@@ -1,0 +1,21 @@
+README.md
+{{- if not .hasAgeKey }}
+.secrets
+.kube/config
+.kube/onprem-s2a.yaml
+.kube/ovh-k8s.conf
+{{- end }}
+{{- if ne .multiplexer "herdr" }}
+.config/herdr
+.config/systemd/user/herdr.service
+{{- end }}
+{{- if ne .multiplexer "tmux" }}
+.config/tmux
+.tmux.conf
+.config/systemd/user/tmux.service
+.config/otter-launcher/scripts/otter-tmux.sh
+{{- end }}
+{{- if not .timetrack }}
+.config/systemd/user/timetrack-*
+.config/timetrack
+{{- end }}

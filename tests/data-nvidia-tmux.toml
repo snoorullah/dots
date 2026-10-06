@@ -1,0 +1,6 @@
+[data]
+  gpu = "nvidia"
+  multiplexer = "tmux"
+  footLigatures = true
+  timetrack = false
+  hasAgeKey = false

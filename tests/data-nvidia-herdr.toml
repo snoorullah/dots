@@ -1,0 +1,6 @@
+[data]
+  gpu = "nvidia"
+  multiplexer = "herdr"
+  footLigatures = true
+  timetrack = false
+  hasAgeKey = false
