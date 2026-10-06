@@ -1,320 +1,380 @@
-# dots Consolidation Implementation Plan
+# dots Consolidation Implementation Plan (rev 2)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** One Nix/home-manager repo (`dots`) reproduces the work PC's current desktop + shell setup identically on Arch, Ubuntu, Debian, Fedora/RHEL/Rocky and NixOS, absorbing `ubuntu-dots`, `hyprland-config` and `tmux-config`.
+**Goal:** One repo (`dots`) — chezmoi for every file, Nix/home-manager for every package — gives the work PC's setup, minimalized (foot, plain zsh, no rofi, one multiplexer), identically on Arch, Ubuntu, Debian, Fedora/RHEL/Rocky and NixOS, absorbing `ubuntu-dots`, `hyprland-config`, `tmux-config`.
 
-**Architecture:** A standalone home-manager flake owns everything under `$HOME` (configs, scripts as `writeShellApplication`, packages, user services, Hyprland itself), pinned by `flake.lock`. A thin per-distro `bootstrap/` script (or `nixosModules.base` on NixOS) does only the root-level parts: Nix, GPU driver, PAM, session file, display manager, keyd. Live files from the work PC are snapshotted verbatim first, then normalized under tests.
+**Architecture:** `.chezmoiroot` = `home/` (chezmoi source state). `nix/` is a home-manager flake that installs packages only. chezmoi `run_once_`/`run_onchange_` scripts do the root layer per distro and run `home-manager switch` when `nix/` changes. Live work-PC files are imported with `chezmoi add`, then templated/normalized under tests. Multiplexer is a data switch (`tmux` default, `herdr` on trial).
 
-**Tech Stack:** Nix flakes (Determinate Nix ≥2.34), home-manager (nixos-unstable), nix-gl-host / nixGL, sops-nix (age), Hyprland (latest release, Lua config), bash, GitHub Actions.
+**Tech Stack:** chezmoi ≥2.50 (age encryption, templates), Nix (Determinate ≥2.34) + home-manager (nixos-unstable), nix-gl-host / nixGL, foot (barsmonster fork), Hyprland (latest, Lua), tmux / Herdr 0.9.3, bash, GitHub Actions.
 
-**Spec:** `docs/superpowers/specs/2026-10-07-dots-consolidation-design.md`
+**Spec:** `docs/superpowers/specs/2026-10-07-dots-consolidation-design.md` (rev 2)
 
 ## Global Constraints
 
-- Precedence: work-PC live files (2026-10-07) > `tmux-config@archdesk` (2026-10-04, tmux only) > repos.
-- Hyprland: **latest release** from nixpkgs-unstable (0.56.2 at time of writing), same build on every host via `flake.lock`.
-- Every `~/.local/bin` script ships via `writeShellApplication` with explicit `runtimeInputs`.
-- Managed files must not contain: `/home/linuxbrew`, `/home/devsupreme`, `/snap/`, `.cargo/bin`, `.nix-profile/bin`, `/run/user/1001`, `/usr/bin/{task,timew,python3,kubectl,tmux,gh,kitty,swww}`.
-- Git identity everywhere: `Shaik Noorullah <snoorullah@proficientnow.com>`. Commit with that identity (the clone lives under `~/work/`, so `~/.gitconfig-work` applies).
-- No secret material in git except sops-encrypted files. Never print secret contents in logs.
-- `home.stateVersion = "25.11"`. System: `x86_64-linux`.
-- Commit after each task; push branch `consolidate` to `origin` (`snoorullah/dots`). Never push to `main`.
+- Precedence: work-PC live files (2026-10-07) > `tmux-config@archdesk` (tmux only) > repos; rev-2 tool replacements (kitty→foot, oh-my-zsh→plain zsh, rofi→fzf, Hyprland→latest) override live.
+- chezmoi owns files, Nix owns packages; no path managed by both (`tests/overlap.sh`).
+- PATH contract: `$HOME/.local/bin:$HOME/.nix-profile/bin` precede `/usr/bin` in `environment.d`, `hyprland.lua` and `.zshenv`.
+- Rendered files must not contain `/home/devsupreme`, `/home/linuxbrew`, `/snap/`, `.cargo/bin`, `/run/user/1001`, `/usr/bin/{task,timew,python3,kubectl,tmux,gh,kitty,swww}`, `kitty`, `rofi`, `oh-my-zsh`.
+- Git identity everywhere: `Shaik Noorullah <snoorullah@proficientnow.com>` (clone lives under `~/work/` so `~/.gitconfig-work` applies).
+- No plaintext secrets in git; owner runs secret-handling steps; never print secret contents.
+- `signoz-tunnel.service` is not managed.
+- System: `x86_64-linux`; HM `home.stateVersion = "25.11"`.
+- Commit after each task; push branch `consolidate` to `origin` (`snoorullah/dots`); never push `main`.
 
 ## Review Focus
 
-1. **Pre-existing plain files at managed paths** (every current machine has them) → `home-manager switch` must not abort; it must move them to `*.pre-dots` and continue. Test: Task 10 matrix pre-creates `~/.config/waybar/config.jsonc` and `~/.zshrc`.
-2. **Scripts launched from Hyprland/waybar/systemd with a system-only PATH** (Hyprland's session PATH has no nix dirs) → must still work. Test: Task 4 `in-home.sh` runs every waybar script under `env -i PATH=/usr/bin:/bin` and validates JSON.
-3. **Fresh machine with no user data** (`~/.task`, `~/.cache/adhd`, `salah.log`, `prayer-times.conf`, `~/walls` absent) → status scripts exit 0 and print sane output, not errors. Test: Task 4 `in-home.sh` runs on an empty `$HOME` in the matrix.
-4. **Non-NVIDIA host receives NVIDIA env vars / GL wrapper** → black screen. Test: Task 6 flake check asserts `host.lua` for `archlaptop`/`generic` contains no `LIBVA_DRIVER_NAME`, and `workpc` does.
-5. **Distro binaries shadowing pinned ones** (Ubuntu's `/usr/bin/task` is taskwarrior 2.6.2; the data is a 3.x DB) → scripts must use the pinned tool. Test: Task 4 `in-home.sh` puts a fake `task` that exits 99 first on PATH and asserts `adhd-focus.sh status` still succeeds.
+1. **Existing plain files at managed paths** (every current machine) → `chezmoi apply` must not silently destroy local edits: cutover runs `chezmoi diff` first and the matrix pre-creates a stale `~/.config/waybar/config.jsonc` that apply must replace. Test: Task 11 `distro-matrix.sh`.
+2. **Scripts launched by Hyprland/waybar/systemd** get the PATH contract, not a login shell → pinned tools must win over `/usr/bin`. Test: Task 4 `in-home.sh` with a fake `task` (exit 99) placed *after* the Nix bin dir, plus a check that `10-dots-path.conf` orders Nix before `/usr/bin`.
+3. **Fresh machine with no user data** (`~/.task`, `~/.cache/adhd`, `salah.log`, `prayer-times.conf`, `~/walls`) → status scripts exit 0 with sane output. Test: Task 4 `in-home.sh` on an empty render.
+4. **Wrong GPU branch** (NVIDIA env on a mesa box = black screen; missing on NVIDIA = broken VA-API). Test: Task 2 `placement.sh` renders both `gpu=nvidia` and `gpu=mesa` and asserts `LIBVA_DRIVER_NAME` only in the nvidia render.
+5. **No age key** (CI, a new machine before the key is copied) → `chezmoi apply` must succeed and skip secrets, not abort. Test: Task 3 renders without a key and asserts `.secrets` absent and exit 0.
 
 ---
 
 ## File Structure (end state)
 
 ```
-flake.nix                      inputs + outputs (homeConfigurations.<host>, nixosConfigurations, checks, packages)
-lib/default.nix                mkPkgs, mkHome, mkHomes, mkNixos
-hosts/default.nix              host table: user, system, gpu, distro
-hosts/nixos-laptop/            NixOS system config (existing laptop config, moved)
-pkgs/overlay.nix               otter-launcher, adhanpy python env, tmux plugins
-pkgs/otter-launcher.nix
-pkgs/adhanpy.nix
-home/default.nix               imports all modules; username/homeDirectory from host
-home/modules/options.nix       dots.* options (host passthrough, timetrack.enable)
-home/modules/files.nix         deploys home/files/** verbatim (mirror of $HOME)
-home/modules/scripts.nix       home/scripts/* → writeShellApplication → ~/.local/bin
-home/modules/packages.nix      every binary the setup calls
-home/modules/gl.nix            GL wrapping per host.gpu
-home/modules/hypr.nix          Hyprland pkg + session wrapper + generated host.lua + hypridle/polkit services
-home/modules/shell.nix         zsh (oh-my-zsh from nix), starship, zoxide, fzf, nix-paths.zsh
-home/modules/git.nix           identity, gh credential helper, includeIf work
-home/modules/tmux.nix          tmux + pinned plugins + config/ subtree
-home/modules/services.nix      systemd user units (adhd timers, aw, tmux, tunnels)
-home/modules/adhd.nix          data dirs, walls clone, prayer-times venv replacement
-home/modules/timetrack.nix     laptop-only timetrack units (dots.timetrack.enable, default false)
-home/modules/secrets.nix       sops-nix: ~/.secrets, kubeconfigs
-home/modules/fonts.nix, theme.nix, apps.nix, dev.nix, editors.nix
-home/files/**                  verbatim live configs, path = path under $HOME
-home/scripts/*                 live ~/.local/bin scripts (bodies only, no shebang PATH hacks)
-home/modules/tmux/config/      git subtree of tmux-config@archdesk
-secrets/*.yaml, .sops.yaml     sops-encrypted
-bootstrap/{common,apt,pacman,dnf}.sh   system layer
-tests/expected-targets.txt     mode + path under $HOME
-tests/expected-commands.txt    commands that must be in home-path/bin
-tests/checks.nix               flake checks: placement, deps, lint, host-gpu
-tests/in-home.sh               runs inside a real switched $HOME (matrix + local)
-tests/live-diff.sh             built vs live $HOME on the work PC
-tests/allowed-diffs.txt
-tools/snapshot-live.sh         copies live files listed in expected-targets into home/files|scripts
-.github/workflows/matrix.yml
-docs/install.md
+.chezmoiroot                         "home"
+home/.chezmoi.toml.tmpl              data: gpu (auto), multiplexer, footLigatures, timetrack; age
+home/.chezmoiignore                  templated: secrets w/o key, multiplexer-specific files, timetrack
+home/.chezmoidata/palette.yaml       Dracula palette used by foot, herdr, hyprland templates
+home/.chezmoiscripts/
+  run_once_before_00-system.sh.tmpl  root layer per distro family (skips NixOS)
+  run_onchange_before_10-nix.sh.tmpl home-manager switch when nix/ changes
+  run_onchange_after_20-systemd.sh.tmpl daemon-reload + enable units when unit files change
+  run_once_after_30-userdata.sh.tmpl data dirs, prayer-times.conf, ~/walls clone
+home/dot_config/…, home/dot_local/bin/…, home/dot_zshrc.tmpl, home/dot_zshenv.tmpl, …
+home/dot_config/tmux/                tmux-config@archdesk (subtree, renamed to chezmoi attrs)
+home/dot_config/herdr/config.toml.tmpl
+nix/flake.nix, nix/flake.lock        homeConfigurations.{nvidia,mesa}; nixosConfigurations.nixos-laptop
+nix/home.nix                         home.packages, fonts, GL wrapping — no files
+nix/pkgs/{overlay,otter-launcher,adhanpy,foot-ligatures}.nix, nix/pkgs/tmux-plugins.json
+nix/hosts/nixos-laptop/              NixOS system config
+tests/{render,placement,lint,overlap,in-home,distro-matrix}.sh
+tests/{expected-targets,expected-commands}.txt, tests/data-*.toml
+tools/{pin-tmux-plugins,kitty-theme-to-foot}.sh
+docs/{install,herdr-trial}.md
+.github/workflows/ci.yml
 ```
-
-Removed: `home.nix`, `home/laptop.nix`, `home/modules/desktop/files/**` (superseded by `home/files/**`), caelestia inputs, `docs/superpowers/{plans,specs}/2026-06-*caelestia*`, `hosts/archdesk/files/zsh/*` (after Task 7).
 
 ---
 
-### Task 1: Flake skeleton, host table, and test harness
+### Task 1: Repo restructure, chezmoi + Nix skeletons, test harness (red)
 
 **Files:**
-- Modify: `flake.nix` (replace)
-- Create: `lib/default.nix`, `hosts/default.nix`, `home/default.nix`, `home/modules/options.nix`, `home/modules/files.nix`, `tests/checks.nix`, `tests/expected-targets.txt`, `tests/expected-commands.txt`
-- Move: `hosts/laptop/` → `hosts/nixos-laptop/`
+- Move: `home/` → `nix/legacy-home/` (mined in later tasks, deleted in Task 10); `hosts/laptop/` → `nix/hosts/nixos-laptop/`
+- Delete: `flake.nix`, `flake.lock`, `home.nix`, `hosts/archdesk/`, `docs/superpowers/{plans,specs}/2026-06-*`, `docs/superpowers/{plans,specs}/2026-07-01-*`, `docs/laptop-install.md`
+- Create: `.chezmoiroot`, `home/.chezmoi.toml.tmpl`, `home/.chezmoiignore`, `home/.chezmoidata/palette.yaml`, `nix/flake.nix`, `nix/home.nix`, `nix/pkgs/overlay.nix`, `tests/*`
 
 **Interfaces:**
-- Produces: `homeConfigurations.<host>` for `workpc archdesk archlaptop generic`; `nixosConfigurations.nixos-laptop`; module arg `host = { name user system gpu distro home }`; option `dots.timetrack.enable`; checks `placement-<host>`, `deps-<host>`, `lint-<host>`.
+- Produces: chezmoi data keys `.gpu` (`nvidia|mesa|nixos`), `.multiplexer` (`tmux|herdr`), `.footLigatures` (bool), `.timetrack` (bool), `.palette.*`; flake outputs `homeConfigurations.{nvidia,mesa}` (impure user/home), `nixosConfigurations.nixos-laptop`, `checks.x86_64-linux.deps-{nvidia,mesa}`; scripts `tests/render.sh <data-file> <out-dir>`.
 
-- [ ] **Step 1: Write the host table**
+- [ ] **Step 1: Restructure**
 
-`hosts/default.nix`:
-```nix
-# One entry per machine. gpu: "nvidia" | "mesa" | "nixos". user = null → $USER (needs --impure).
-{
-  workpc       = { user = "devsupreme"; system = "x86_64-linux"; gpu = "nvidia"; distro = "ubuntu"; };
-  archdesk     = { user = "devsupreme"; system = "x86_64-linux"; gpu = "nvidia"; distro = "arch";   }; # verify on box: Task 12 step 1
-  archlaptop   = { user = "devsupreme"; system = "x86_64-linux"; gpu = "mesa";   distro = "arch";   }; # verify on box: Task 12 step 1
-  generic      = { user = null;         system = "x86_64-linux"; gpu = "mesa";   distro = "any";    };
-  nixos-laptop = { user = "devsupreme"; system = "x86_64-linux"; gpu = "nixos";  distro = "nixos";  };
-}
+```bash
+git mv home nix/legacy-home
+git mv hosts/laptop nix/hosts/nixos-laptop
+git rm -rq hosts/archdesk flake.nix flake.lock home.nix docs/laptop-install.md
+git rm -q docs/superpowers/plans/2026-06-* docs/superpowers/plans/2026-07-01-* docs/superpowers/specs/2026-06-* docs/superpowers/specs/2026-07-01-*
+printf 'home\n' > .chezmoiroot
+mkdir -p home/.chezmoidata home/.chezmoiscripts tests tools
 ```
 
-- [ ] **Step 2: Write `lib/default.nix`**
+- [ ] **Step 2: `home/.chezmoi.toml.tmpl`**
 
-```nix
-{ inputs }:
-let
-  inherit (inputs) nixpkgs home-manager;
-  lib = nixpkgs.lib;
-in rec {
-  mkPkgs = system: import nixpkgs {
-    inherit system;
-    config.allowUnfree = true;
-    overlays = [ (import ../pkgs/overlay.nix) ];
-  };
+```
+{{- $gpu := "mesa" -}}
+{{- if stat "/etc/NIXOS" -}}
+{{-   $gpu = "nixos" -}}
+{{- else if lookPath "lspci" -}}
+{{-   if regexMatch "(?i)nvidia" (output "lspci") -}}{{ $gpu = "nvidia" }}{{- end -}}
+{{- end -}}
+{{- $mux := promptChoiceOnce . "multiplexer" "Multiplexer" (list "tmux" "herdr") "tmux" -}}
+{{- $key := joinPath .chezmoi.homeDir ".config/chezmoi/key.txt" }}
+sourceDir = {{ .chezmoi.sourceDir | quote }}
+{{- if stat $key }}
+encryption = "age"
+[age]
+  identity = {{ $key | quote }}
+  recipient = "AGE_RECIPIENT"
+{{- end }}
+[data]
+  gpu = {{ $gpu | quote }}
+  multiplexer = {{ $mux | quote }}
+  footLigatures = true
+  timetrack = false
+  hasAgeKey = {{ if stat $key }}true{{ else }}false{{ end }}
+```
+`AGE_RECIPIENT` is replaced in Task 3 Step 1 with the key's public half.
 
-  resolveHost = name: h:
-    let user = if h.user != null then h.user else builtins.getEnv "USER";
-        home = if h.user != null then "/home/${h.user}" else builtins.getEnv "HOME";
-    in h // { inherit name user home; };
+- [ ] **Step 3: `home/.chezmoiignore` and palette**
 
-  mkHome = name: h:
-    let host = resolveHost name h; in
-    home-manager.lib.homeManagerConfiguration {
-      pkgs = mkPkgs host.system;
-      extraSpecialArgs = { inherit inputs host; };
-      modules = [ ../home inputs.sops-nix.homeManagerModules.sops ];
-    };
-
-  mkHomes = hosts: lib.mapAttrs mkHome (lib.filterAttrs (_: h: h.distro != "nixos") hosts);
-
-  mkNixos = name: h:
-    let host = resolveHost name h; in
-    nixpkgs.lib.nixosSystem {
-      system = host.system;
-      specialArgs = { inherit inputs host; };
-      modules = [
-        ../hosts/${name}/configuration.nix
-        home-manager.nixosModules.home-manager
-        {
-          nixpkgs.overlays = [ (import ../pkgs/overlay.nix) ];
-          home-manager = {
-            useGlobalPkgs = true;
-            useUserPackages = true;
-            extraSpecialArgs = { inherit inputs host; };
-            sharedModules = [ inputs.sops-nix.homeManagerModules.sops ];
-            users.${host.user} = import ../home;
-          };
-        }
-      ];
-    };
-}
+`home/.chezmoiignore`:
+```
+README.md
+{{- if not .hasAgeKey }}
+.secrets
+.kube/config
+.kube/onprem-s2a.yaml
+.kube/ovh-k8s.conf
+{{- end }}
+{{- if ne .multiplexer "herdr" }}
+.config/herdr
+.config/systemd/user/herdr.service
+{{- end }}
+{{- if ne .multiplexer "tmux" }}
+.config/tmux
+.tmux.conf
+.config/systemd/user/tmux.service
+.config/otter-launcher/scripts/otter-tmux.sh
+{{- end }}
+{{- if not .timetrack }}
+.config/systemd/user/timetrack-*
+.config/timetrack
+{{- end }}
+```
+`home/.chezmoidata/palette.yaml` (values from live `~/.config/kitty/current-theme.conf`; Task 6 Step 1 verifies them):
+```yaml
+palette:
+  bg: "#282a36"
+  fg: "#f8f8f2"
+  sel: "#44475a"
+  comment: "#6272a4"
+  cyan: "#8be9fd"
+  green: "#50fa7b"
+  orange: "#ffb86c"
+  pink: "#ff79c6"
+  purple: "#bd93f9"
+  red: "#ff5555"
+  yellow: "#f1fa8c"
 ```
 
-- [ ] **Step 3: Replace `flake.nix`**
+- [ ] **Step 4: Nix skeleton**
 
+`nix/flake.nix`:
 ```nix
 {
-  description = "dots — one user setup on every Linux";
-
+  description = "dots — packages for one user setup on every Linux (files are chezmoi's)";
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     home-manager = { url = "github:nix-community/home-manager"; inputs.nixpkgs.follows = "nixpkgs"; };
     nix-gl-host  = { url = "github:numtide/nix-gl-host";        inputs.nixpkgs.follows = "nixpkgs"; };
     nixgl        = { url = "github:nix-community/nixGL";        inputs.nixpkgs.follows = "nixpkgs"; };
-    sops-nix     = { url = "github:Mic92/sops-nix";             inputs.nixpkgs.follows = "nixpkgs"; };
     zen-browser  = { url = "github:0xc000022070/zen-browser-flake"; inputs.nixpkgs.follows = "nixpkgs"; };
+    herdr.url    = "github:ogulcancelik/herdr/v0.9.3";
   };
-
-  outputs = inputs@{ self, nixpkgs, ... }:
+  outputs = inputs@{ self, nixpkgs, home-manager, ... }:
     let
-      dots  = import ./lib { inherit inputs; };
-      hosts = import ./hosts;
-      pkgs  = dots.mkPkgs "x86_64-linux";
+      system = "x86_64-linux";
+      pkgs = import nixpkgs { inherit system; config.allowUnfree = true; overlays = [ (import ./pkgs/overlay.nix) ]; };
+      mkHome = gpu: home-manager.lib.homeManagerConfiguration {
+        inherit pkgs;
+        extraSpecialArgs = { inherit inputs gpu; };
+        modules = [ ./home.nix {
+          home.username = builtins.getEnv "USER";
+          home.homeDirectory = builtins.getEnv "HOME";
+        } ];
+      };
+      act = gpu: (mkHome gpu).activationPackage;
+      depsCheck = gpu: pkgs.runCommand "deps-${gpu}" { } ''
+        fail=0
+        while read -r c; do [ -z "$c" ] && continue
+          [ -x "${act gpu}/home-path/bin/$c" ] || { echo "NO-CMD $c"; fail=1; }
+        done < ${../tests/expected-commands.txt}
+        [ $fail = 0 ] && touch $out
+      '';
     in {
-      homeConfigurations = dots.mkHomes hosts;
-      nixosConfigurations.nixos-laptop = dots.mkNixos "nixos-laptop" hosts.nixos-laptop;
-      packages.x86_64-linux = { inherit (pkgs) otter-launcher; };
-      checks.x86_64-linux = import ./tests/checks.nix { inherit self pkgs; lib = nixpkgs.lib; };
+      homeConfigurations = { nvidia = mkHome "nvidia"; mesa = mkHome "mesa"; };
+      nixosConfigurations.nixos-laptop = nixpkgs.lib.nixosSystem {
+        inherit system;
+        specialArgs = { inherit inputs; };
+        modules = [
+          ./hosts/nixos-laptop/configuration.nix
+          home-manager.nixosModules.home-manager
+          { nixpkgs.overlays = [ (import ./pkgs/overlay.nix) ];
+            home-manager = { useGlobalPkgs = true; useUserPackages = true;
+              extraSpecialArgs = { inherit inputs; gpu = "nixos"; };
+              users.devsupreme = import ./home.nix; }; }
+        ];
+      };
+      checks.${system} = { deps-nvidia = depsCheck "nvidia"; deps-mesa = depsCheck "mesa"; };
+      packages.${system} = { inherit (pkgs) otter-launcher; };
     };
 }
 ```
-`pkgs/overlay.nix` starts as `final: prev: { }` (filled in Task 5) so evaluation works now:
+`nix/home.nix` (filled in Task 5):
+```nix
+{ pkgs, lib, gpu, inputs, ... }: {
+  home.stateVersion = "25.11";
+  programs.home-manager.enable = true;
+  targets.genericLinux.enable = gpu != "nixos";
+  home.packages = [ ];
+}
+```
+`nix/pkgs/overlay.nix`:
 ```nix
 final: prev: { }
 ```
 
-- [ ] **Step 4: Write `home/default.nix`, `options.nix`, `files.nix`**
+- [ ] **Step 5: Test harness**
 
-`home/default.nix`:
-```nix
-{ host, lib, ... }: {
-  imports = [ ./modules/options.nix ./modules/files.nix ];
-  home.username = host.user;
-  home.homeDirectory = host.home;
-  home.stateVersion = "25.11";
-  programs.home-manager.enable = true;
-  targets.genericLinux.enable = host.distro != "nixos";
-  xdg.enable = true;
-}
+`tests/data-nvidia-tmux.toml` (and the same with `gpu = "mesa"` → `tests/data-mesa-tmux.toml`, and `multiplexer = "herdr"` → `tests/data-nvidia-herdr.toml`):
+```toml
+[data]
+  gpu = "nvidia"
+  multiplexer = "tmux"
+  footLigatures = true
+  timetrack = false
+  hasAgeKey = false
 ```
-`home/modules/options.nix`:
-```nix
-{ lib, ... }: {
-  options.dots.timetrack.enable = lib.mkEnableOption "laptop timetrack CLI + logind/rollup/sync units";
-}
+`tests/render.sh`:
+```bash
+#!/usr/bin/env bash
+# usage: tests/render.sh <data.toml> <out-dir>  — renders chezmoi source into out-dir (no scripts, no secrets)
+set -euo pipefail
+root="$(git rev-parse --show-toplevel)"; data="$1"; out="$2"
+mkdir -p "$out"
+cfg="$(mktemp)"; cat "$data" > "$cfg"
+chezmoi apply --source "$root/home" --destination "$out" --config "$cfg" \
+  --exclude=scripts,encrypted --force --no-tty
 ```
-`home/modules/files.nix` — deploys `home/files/**` verbatim; the path under `home/files/` is the path under `$HOME`:
-```nix
-{ lib, ... }:
-let
-  root = ../files;
-  rel  = p: lib.removePrefix "${toString root}/" (toString p);
-  all  = if builtins.pathExists root then lib.filesystem.listFilesRecursive root else [ ];
-in {
-  home.file = lib.listToAttrs (map (p: lib.nameValuePair (rel p) { source = p; }) all);
-}
+`tests/placement.sh`:
+```bash
+#!/usr/bin/env bash
+# usage: tests/placement.sh — renders each data file and checks expected targets + GPU branch
+set -uo pipefail
+root="$(git rev-parse --show-toplevel)"; fail=0
+for data in "$root"/tests/data-*.toml; do
+  out="$(mktemp -d)"; bash "$root/tests/render.sh" "$data" "$out" || { echo "RENDER-FAIL $data"; fail=1; continue; }
+  mux=$(sed -nE 's/ *multiplexer = "(.*)"/\1/p' "$data"); gpu=$(sed -nE 's/ *gpu = "(.*)"/\1/p' "$data")
+  while read -r mode tag path; do
+    case "$mode" in ""|\#*) continue ;; esac
+    [ "$tag" = all ] || [ "$tag" = "$mux" ] || continue
+    f="$out/$path"
+    [ -e "$f" ] || { echo "MISSING[$gpu/$mux] $path"; fail=1; continue; }
+    [ "$mode" != x ] || [ -x "$f" ] || { echo "NOT-EXEC[$gpu/$mux] $path"; fail=1; }
+  done < "$root/tests/expected-targets.txt"
+  h="$out/.config/hypr/hyprland.lua"
+  if [ -f "$h" ]; then
+    if [ "$gpu" = nvidia ]; then grep -q LIBVA_DRIVER_NAME "$h" || { echo "GPU: nvidia render lacks nvidia env"; fail=1; }
+    else ! grep -q LIBVA_DRIVER_NAME "$h" || { echo "GPU: $gpu render has nvidia env"; fail=1; }; fi
+  fi
+done
+exit $fail
 ```
-
-- [ ] **Step 5: Write the target and command lists (the spec of "what must exist")**
-
-`tests/expected-targets.txt` (mode `f` = file, `x` = executable). Full list from the 2026-10-07 live inventory:
+`tests/lint.sh`:
+```bash
+#!/usr/bin/env bash
+set -uo pipefail
+root="$(git rev-parse --show-toplevel)"; out="$(mktemp -d)"
+bash "$root/tests/render.sh" "$root/tests/data-nvidia-tmux.toml" "$out"
+pat='/home/devsupreme|/home/linuxbrew|/snap/|\.cargo/bin|/run/user/1001|/usr/bin/(task|timew|python3|kubectl|tmux|gh|kitty|swww)\b|\bkitty\b|\brofi\b|oh-my-zsh'
+if grep -rIlE "$pat" "$out"; then echo "LINT: files above contain forbidden patterns"; exit 1; fi
+echo "lint ok"
 ```
-f .config/hypr/hyprland.lua
-f .config/hypr/hypridle.conf
-f .config/hypr/hyprlock.conf
-f .config/hypr/host.lua
-f .config/waybar/config.jsonc
-f .config/waybar/style.css
-f .config/kitty/kitty.conf
-f .config/kitty/current-theme.conf
-f .config/kitty/otter.conf
-f .config/kitty/tasktui.conf
-f .config/kitty/bluetuith.conf
-f .config/kitty/images/bluetuith-bg.png
-f .config/otter-launcher/config.toml
-f .config/otter-launcher/git-profiles.conf
-f .config/otter-launcher/images/otter-bg.png
-f .config/otter-launcher/images/otter-full.png
-f .config/otter-launcher/images/otter.png
-x .config/otter-launcher/scripts/_otter-fzf.sh
-x .config/otter-launcher/scripts/otter-app.sh
-x .config/otter-launcher/scripts/otter-banner.sh
-x .config/otter-launcher/scripts/otter-bookmarks.sh
-x .config/otter-launcher/scripts/otter-files.sh
-x .config/otter-launcher/scripts/otter-git.sh
-x .config/otter-launcher/scripts/otter-header.sh
-x .config/otter-launcher/scripts/otter-media.sh
-x .config/otter-launcher/scripts/otter-obsidian.sh
-x .config/otter-launcher/scripts/otter-power.sh
-x .config/otter-launcher/scripts/otter-projects.sh
-x .config/otter-launcher/scripts/otter-run.sh
-x .config/otter-launcher/scripts/otter-stats.sh
-x .config/otter-launcher/scripts/otter-systemd.sh
-x .config/otter-launcher/scripts/otter-tabs.sh
-x .config/otter-launcher/scripts/otter-tmux.sh
-x .config/otter-launcher/scripts/otter-win.sh
-x .config/otter-launcher/scripts/otter-ytm.sh
-f .config/otter-launcher/scripts/zen-utils.sh
-f .config/yazi/theme.toml
-f .config/yazi/Dracula.tmTheme
-f .config/clipse/config.json
-f .config/clipse/custom_theme.json
-f .config/mako/config
-f .config/swayosd/style.css
-f .config/starship.toml
-x .config/starship/scripts/pipeline.sh
-f .config/gtk-3.0/settings.ini
-f .config/gtk-3.0/gtk.css
-f .config/gtk-4.0/settings.ini
-f .config/gtk-4.0/gtk.css
-f .config/qtengine/config.json
-f .config/qtengine/caelestia.colors
-f .config/nvim/init.lua
-f .config/adhd/iqamah.conf
-f .config/timewarrior/timewarrior.cfg
-f .config/onprem-kube-tunnel.conf
-f .taskrc
-x .task/hooks/on-modify.timewarrior
-f .tmux.conf
-f .config/tmux/tmux.conf
-f .zshrc
-f .zshenv
-f .config/zsh/nix-paths.zsh
-f .config/git/config
-x .local/bin/adhd-block-pick.sh
-x .local/bin/adhd-break.sh
-x .local/bin/adhd-break-end.sh
-x .local/bin/adhd-capture.sh
-x .local/bin/adhd-focus.sh
-x .local/bin/adhd-salah-pick.sh
-x .local/bin/adhd-prayer-times.sh
-x .local/bin/adhd-salah-schedule.sh
-x .local/bin/adhd-salah-nudge.sh
-x .local/bin/keybind-help.sh
-x .local/bin/screenshot.sh
-x .local/bin/yazi-launch.sh
-x .local/bin/tw-tui
-x .local/bin/wallpaper
-x .local/bin/waybar-ctx.sh
-x .local/bin/waybar-kube.sh
-x .local/bin/waybar-project.sh
-x .local/bin/waybar-salah.sh
-x .local/bin/waybar-tracking.sh
-x .local/bin/ctx
-x .local/bin/kube-tunnel.sh
-f .config/systemd/user/adhd-prayer-times.timer
-f .config/systemd/user/adhd-salah-schedule.timer
-f .config/systemd/user/aw-server.service
-f .config/systemd/user/awatcher.service
-f .config/systemd/user/tmux.service
-f .config/systemd/user/onprem-kube-tunnel.service
-f .config/systemd/user/ovh-k8s-tunnel.service
-f .config/systemd/user/signoz-tunnel.service
-f .config/systemd/user/hyprpolkitagent.service
+`tests/overlap.sh`:
+```bash
+#!/usr/bin/env bash
+set -uo pipefail
+root="$(git rev-parse --show-toplevel)"; out="$(mktemp -d)"
+bash "$root/tests/render.sh" "$root/tests/data-nvidia-tmux.toml" "$out"
+act=$(USER=devsupreme HOME=/home/devsupreme nix build --impure --no-link --print-out-paths "$root/nix#homeConfigurations.nvidia.activationPackage")
+comm -12 <(cd "$out" && find . -type f -o -type l | sort) <(cd "$act/home-files" && find -L . -type f | sort) | tee /dev/stderr | grep -q . && { echo "OVERLAP above"; exit 1; }
+echo "no overlap"
 ```
-`tests/expected-commands.txt` (must exist in the HM profile `home-path/bin`):
+`tests/expected-targets.txt` — `mode tag path`, tag = `all|tmux|herdr`:
+```
+f all .config/hypr/hyprland.lua
+f all .config/hypr/hypridle.conf
+f all .config/hypr/hyprlock.conf
+f all .config/waybar/config.jsonc
+f all .config/waybar/style.css
+f all .config/foot/foot.ini
+f all .config/foot/popup.ini
+f all .config/otter-launcher/config.toml
+f all .config/otter-launcher/git-profiles.conf
+f all .config/otter-launcher/images/otter.png
+x all .config/otter-launcher/scripts/_otter-fzf.sh
+x all .config/otter-launcher/scripts/otter-app.sh
+x all .config/otter-launcher/scripts/otter-banner.sh
+x all .config/otter-launcher/scripts/otter-bookmarks.sh
+x all .config/otter-launcher/scripts/otter-files.sh
+x all .config/otter-launcher/scripts/otter-git.sh
+x all .config/otter-launcher/scripts/otter-header.sh
+x all .config/otter-launcher/scripts/otter-media.sh
+x all .config/otter-launcher/scripts/otter-obsidian.sh
+x all .config/otter-launcher/scripts/otter-power.sh
+x all .config/otter-launcher/scripts/otter-projects.sh
+x all .config/otter-launcher/scripts/otter-run.sh
+x all .config/otter-launcher/scripts/otter-stats.sh
+x all .config/otter-launcher/scripts/otter-systemd.sh
+x all .config/otter-launcher/scripts/otter-tabs.sh
+x tmux .config/otter-launcher/scripts/otter-tmux.sh
+x all .config/otter-launcher/scripts/otter-win.sh
+x all .config/otter-launcher/scripts/otter-ytm.sh
+f all .config/otter-launcher/scripts/zen-utils.sh
+f all .config/yazi/theme.toml
+f all .config/yazi/Dracula.tmTheme
+f all .config/clipse/config.json
+f all .config/clipse/custom_theme.json
+f all .config/mako/config
+f all .config/swayosd/style.css
+f all .config/starship.toml
+x all .config/starship/scripts/pipeline.sh
+f all .config/gtk-3.0/settings.ini
+f all .config/gtk-4.0/settings.ini
+f all .config/qtengine/config.json
+f all .config/nvim/init.lua
+f all .config/adhd/iqamah.conf
+f all .config/timewarrior/timewarrior.cfg
+f all .config/onprem-kube-tunnel.conf
+f all .config/environment.d/10-dots-path.conf
+f all .config/zsh/aliases.zsh
+f all .config/git/config
+f all .taskrc
+x all .task/hooks/on-modify.timewarrior
+f all .zshrc
+f all .zshenv
+f tmux .tmux.conf
+f tmux .config/tmux/tmux.conf
+f herdr .config/herdr/config.toml
+x all .local/bin/adhd-block-pick.sh
+x all .local/bin/adhd-break.sh
+x all .local/bin/adhd-break-end.sh
+x all .local/bin/adhd-capture.sh
+x all .local/bin/adhd-focus.sh
+x all .local/bin/adhd-salah-pick.sh
+x all .local/bin/adhd-prayer-times.sh
+x all .local/bin/adhd-salah-schedule.sh
+x all .local/bin/adhd-salah-nudge.sh
+x all .local/bin/keybind-help.sh
+x all .local/bin/screenshot.sh
+x all .local/bin/yazi-launch.sh
+x all .local/bin/tw-tui
+x all .local/bin/wallpaper
+x all .local/bin/waybar-ctx.sh
+x all .local/bin/waybar-kube.sh
+x all .local/bin/waybar-project.sh
+x all .local/bin/waybar-salah.sh
+x all .local/bin/waybar-tracking.sh
+x all .local/bin/ctx
+x all .local/bin/kube-tunnel.sh
+x all .local/bin/start-hyprland-dots
+f all .config/systemd/user/adhd-prayer-times.service
+f all .config/systemd/user/adhd-prayer-times.timer
+f all .config/systemd/user/adhd-salah-schedule.service
+f all .config/systemd/user/adhd-salah-schedule.timer
+f all .config/systemd/user/aw-server.service
+f all .config/systemd/user/awatcher.service
+f all .config/systemd/user/foot-server.service
+f all .config/systemd/user/hyprpolkitagent.service
+f all .config/systemd/user/onprem-kube-tunnel.service
+f all .config/systemd/user/ovh-k8s-tunnel.service
+f tmux .config/systemd/user/tmux.service
+f herdr .config/systemd/user/herdr.service
+```
+`tests/expected-commands.txt`:
 ```
 Hyprland
 hyprctl
@@ -325,7 +385,9 @@ swayosd-server
 swayosd-client
 swww
 swww-daemon
-kitty
+foot
+footclient
+chafa
 otter-launcher
 clipse
 yazi
@@ -338,6 +400,7 @@ kubectl
 starship
 zsh
 tmux
+herdr
 grim
 slurp
 wl-copy
@@ -353,92 +416,637 @@ gh
 nvim
 aw-server
 awatcher
-rofi
 python3
 git
 zen
 code
 obsidian
+chezmoi
 ```
+`chmod +x tests/*.sh`.
 
-- [ ] **Step 6: Write `tests/checks.nix`**
-
-```nix
-{ self, pkgs, lib }:
-let
-  hostsToCheck = [ "workpc" "archdesk" "archlaptop" ];  # generic needs --impure; covered by the matrix
-  act = h: self.homeConfigurations.${h}.activationPackage;
-  forbidden = "/home/linuxbrew|/home/devsupreme|/snap/|\\.cargo/bin|\\.nix-profile/bin|/run/user/1001|/usr/bin/(task|timew|python3|kubectl|tmux|gh|kitty|swww)\\b";
-  perHost = h: {
-    "placement-${h}" = pkgs.runCommand "placement-${h}" { } ''
-      fail=0
-      while read -r mode path; do
-        case "$mode" in ""|\#*) continue ;; esac
-        f="${act h}/home-files/$path"
-        if [ ! -e "$f" ]; then echo "MISSING $path"; fail=1; continue; fi
-        if [ "$mode" = x ] && [ ! -x "$f" ]; then echo "NOT-EXEC $path"; fail=1; fi
-      done < ${../tests/expected-targets.txt}
-      [ $fail = 0 ] && touch $out
-    '';
-    "deps-${h}" = pkgs.runCommand "deps-${h}" { } ''
-      fail=0
-      while read -r c; do
-        [ -z "$c" ] && continue
-        [ -x "${act h}/home-path/bin/$c" ] || { echo "NO-CMD $c"; fail=1; }
-      done < ${../tests/expected-commands.txt}
-      [ $fail = 0 ] && touch $out
-    '';
-    "lint-${h}" = pkgs.runCommand "lint-${h}" { } ''
-      if ${pkgs.gnugrep}/bin/grep -rIlE '${forbidden}' -R ${act h}/home-files/; then
-        echo "portability lint: the files above contain host-specific paths"; exit 1
-      fi
-      touch $out
-    '';
-  };
-in lib.foldl' (a: h: a // perHost h) { } hostsToCheck
-```
-
-- [ ] **Step 7: Move the NixOS host and run checks (expect failure)**
+- [ ] **Step 6: Run (expect red)**
 
 ```bash
-git mv hosts/laptop hosts/nixos-laptop
-nix flake lock
-nix flake check 2>&1 | tail -20
+(cd nix && nix flake lock)
+bash tests/placement.sh | tail -5; echo "placement exit=$?"
+(cd nix && nix flake check --impure 2>&1 | grep -c NO-CMD)
 ```
-Expected: evaluation succeeds; `placement-workpc` FAILS with many `MISSING …` lines and `deps-workpc` FAILS with `NO-CMD …` (nothing is deployed yet). If evaluation itself fails, fix that before continuing.
+Expected: placement prints `MISSING…` lines (nothing imported yet); `nix flake check` reports `NO-CMD` lines. Evaluation itself must succeed — fix any eval error before committing.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add -A
-git commit -m "feat(flake): host table, mkHome/mkNixos, placement/deps/lint checks (red)"
+git add -A && git commit -m "refactor: chezmoi root + packages-only nix flake skeleton; render/placement/lint/overlap tests (red)"
 ```
 
 ---
 
-### Task 2: Import tmux-config@archdesk with history
+### Task 2: Import live files with `chezmoi add`
+
+**Files:** Create `home/**` (chezmoi source state for every non-generated `all`/`tmux` target except foot, herdr, environment.d, aliases.zsh, start-hyprland-dots, foot-server/herdr/hyprpolkitagent units — later tasks create those).
+
+**Interfaces:** Produces chezmoi-named source files (`dot_`, `executable_`, `private_`) mirroring the live work PC.
+
+- [ ] **Step 1: Add live files**
+
+```bash
+cfg=$(mktemp); : > "$cfg"
+add() { chezmoi --source "$PWD/home" --destination "$HOME" --config "$cfg" add --follow "$@"; }
+add ~/.config/hypr/hyprland.lua ~/.config/hypr/hypridle.conf ~/.config/hypr/hyprlock.conf \
+    ~/.config/waybar ~/.config/otter-launcher ~/.config/yazi/theme.toml ~/.config/yazi/Dracula.tmTheme \
+    ~/.config/clipse/config.json ~/.config/clipse/custom_theme.json ~/.config/mako/config \
+    ~/.config/swayosd/style.css ~/.config/starship.toml ~/.config/starship/scripts/pipeline.sh \
+    ~/.config/gtk-3.0 ~/.config/gtk-4.0 ~/.config/qtengine ~/.config/nvim ~/.config/adhd/iqamah.conf \
+    ~/.config/timewarrior/timewarrior.cfg ~/.config/onprem-kube-tunnel.conf ~/.taskrc \
+    ~/.task/hooks/on-modify.timewarrior ~/.zshrc ~/.zshenv ~/.tmux.conf
+for s in adhd-block-pick.sh adhd-break.sh adhd-break-end.sh adhd-capture.sh adhd-focus.sh adhd-salah-pick.sh \
+         adhd-prayer-times.sh adhd-salah-schedule.sh adhd-salah-nudge.sh keybind-help.sh screenshot.sh \
+         yazi-launch.sh tw-tui wallpaper waybar-ctx.sh waybar-kube.sh waybar-project.sh waybar-salah.sh \
+         waybar-tracking.sh ctx kube-tunnel.sh; do add ~/.local/bin/$s; done
+for u in adhd-prayer-times.service adhd-prayer-times.timer adhd-salah-schedule.service adhd-salah-schedule.timer \
+         aw-server.service awatcher.service onprem-kube-tunnel.service ovh-k8s-tunnel.service tmux.service; do
+  add ~/.config/systemd/user/$u; done
+```
+
+- [ ] **Step 2: Remove what must not be committed or is obsolete**
+
+```bash
+find home -name '*.bak' -o -name 'wtfrc-intercept*' -o -name 'clipboard_history.json' | xargs -r rm -f
+rm -f home/dot_config/nvim/plugin/wtfrc-coach.lua
+grep -rIlE 'BEGIN (OPENSSH|RSA|EC) PRIVATE KEY|AGE-SECRET-KEY|ghp_[A-Za-z0-9]{20}|xox[bp]-' home || echo "no secrets"
+```
+Expected: `no secrets` (`.zshrc` only *sources* `~/.secrets`).
+
+- [ ] **Step 3: Fix the known dangling references**
+
+Delete the line calling `adhd-tasks-export.sh` in `home/dot_task/hooks/executable_on-modify.timewarrior`; delete the `timetrack-datasette` module from `home/dot_config/otter-launcher/config.toml`.
+```bash
+grep -rn 'adhd-tasks-export\|timetrack-datasette' home || echo clean
+```
+
+- [ ] **Step 4: Run placement**
+
+```bash
+bash tests/placement.sh 2>&1 | grep -E 'MISSING|NOT-EXEC' | sort -u
+```
+Expected: only the targets created by later tasks remain: `.config/foot/*`, `.config/herdr/config.toml`, `.config/environment.d/10-dots-path.conf`, `.config/zsh/aliases.zsh`, `.config/git/config`, `.config/tmux/tmux.conf`, `.local/bin/start-hyprland-dots`, units `foot-server`, `herdr`, `hyprpolkitagent`. `tests/lint.sh` fails (expected red for Task 4).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add -A && git commit -m "feat(chezmoi): import live work-PC files verbatim (2026-10-07)"
+```
+
+---
+
+### Task 3: Secrets with chezmoi age (owner runs Step 1–2)
+
+**Files:** Modify `home/.chezmoi.toml.tmpl` (recipient); create `home/encrypted_private_dot_secrets.age`, `home/dot_kube/encrypted_private_config.age`, `home/dot_kube/encrypted_private_onprem-s2a.yaml.age`, `home/dot_kube/encrypted_private_ovh-k8s.conf.age`.
+
+- [ ] **Step 1 (owner): set the recipient**
+
+```bash
+PUB=$(nix shell nixpkgs#age -c age-keygen -y ~/.config/chezmoi/key.txt)
+sed -i "s/AGE_RECIPIENT/$PUB/" home/.chezmoi.toml.tmpl
+grep -c 'recipient = "age1' home/.chezmoi.toml.tmpl
+```
+Expected: `1`.
+
+- [ ] **Step 2 (owner): add encrypted files**
+
+```bash
+cfg=$(mktemp); chezmoi --source "$PWD/home" execute-template --init < home/.chezmoi.toml.tmpl > "$cfg"
+chezmoi --source "$PWD/home" --config "$cfg" add --encrypt ~/.secrets ~/.kube/config ~/.kube/onprem-s2a.yaml ~/.kube/ovh-k8s.conf
+grep -L 'age-encryption.org' home/encrypted_private_dot_secrets.age home/dot_kube/encrypted_* || echo "all encrypted"
+```
+Expected: `all encrypted`.
+
+- [ ] **Step 3: Test the no-key path (Review Focus 5)**
+
+```bash
+out=$(mktemp -d); bash tests/render.sh tests/data-nvidia-tmux.toml "$out"; echo exit=$?
+test ! -e "$out/.secrets" && echo "secrets skipped"
+```
+Expected: `exit=0`, `secrets skipped`.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add -A && git commit -m "feat(secrets): chezmoi age-encrypted ~/.secrets and kubeconfigs; skipped without key"
+```
+
+---
+
+### Task 4: Normalize to the PATH contract; templates for host paths
 
 **Files:**
-- Create: `home/modules/tmux/config/` (git subtree), `home/modules/tmux.nix`, `tools/pin-tmux-plugins.sh`, `pkgs/tmux-plugins.json`
-- Modify: `pkgs/overlay.nix` (tmux plugins), `home/default.nix` (import)
+- Create: `home/dot_config/environment.d/10-dots-path.conf.tmpl`, `tests/in-home.sh`
+- Modify (convert to `.tmpl` where noted): `home/dot_local/bin/*`, `home/dot_config/otter-launcher/scripts/*`, `home/dot_config/waybar/config.jsonc`, `home/dot_config/otter-launcher/config.toml`, `home/dot_config/yazi/theme.toml`, `home/dot_config/mako/config`, `home/dot_config/starship/scripts/executable_pipeline.sh`, `home/dot_config/systemd/user/*`
 
-**Interfaces:**
-- Consumes: `home/files` mechanism (Task 1).
-- Produces: `~/.config/tmux` = the subtree; `programs.tmux` disabled (config is file-based); `pkgs.dotsTmuxPlugins` attrset.
+**Interfaces:** Produces `10-dots-path.conf` = `PATH=$HOME/.local/bin:$HOME/.nix-profile/bin:…`.
 
-- [ ] **Step 1: Add the subtree from the archdesk branch**
+- [ ] **Step 1: Write the failing behavioural test**
+
+`tests/in-home.sh`:
+```bash
+#!/usr/bin/env bash
+# usage: HOME=<rendered-or-real home> NIXBIN=<dir with pinned tools> tests/in-home.sh
+# Review Focus 2, 3: PATH contract with a hostile /usr/bin-like dir *after* Nix; empty user data.
+set -uo pipefail
+fail=0; B="$HOME/.local/bin"; NIXBIN="${NIXBIN:-$HOME/.nix-profile/bin}"
+fake="$(mktemp -d)"; printf '#!/bin/sh\nexit 99\n' > "$fake/task"; chmod +x "$fake/task"
+P="$B:$NIXBIN:$fake:/usr/bin:/bin"
+grep -qE '^PATH=\$\{?HOME\}?/\.local/bin:\$\{?HOME\}?/\.nix-profile/bin:' "$HOME/.config/environment.d/10-dots-path.conf" \
+  || { echo "FAIL environment.d PATH order"; fail=1; }
+run() { env -i HOME="$HOME" USER="${USER:-u}" XDG_RUNTIME_DIR=/tmp PATH="$P" "$@"; }
+for s in waybar-salah.sh waybar-ctx.sh waybar-tracking.sh waybar-project.sh waybar-kube.sh; do
+  out="$(run "$B/$s" 2>/dev/null)"
+  printf '%s' "$out" | run jq -e '.text != null' >/dev/null || { echo "FAIL $s -> '$out'"; fail=1; }
+done
+run "$B/adhd-focus.sh" status >/dev/null || { echo "FAIL adhd-focus.sh status"; fail=1; }
+exit $fail
+```
+Run against a render + built packages:
+```bash
+out=$(mktemp -d); bash tests/render.sh tests/data-nvidia-tmux.toml "$out"
+act=$(cd nix && USER=$USER HOME=$HOME nix build --impure --no-link --print-out-paths .#homeConfigurations.nvidia.activationPackage)
+HOME=$out NIXBIN=$act/home-path/bin bash tests/in-home.sh; echo exit=$?
+```
+Expected now: FAIL (no environment.d file; packages empty until Task 5 — re-run there).
+
+- [ ] **Step 2: environment.d**
+
+`home/dot_config/environment.d/10-dots-path.conf.tmpl`:
+```
+PATH=${HOME}/.local/bin:${HOME}/.nix-profile/bin:/usr/local/bin:/usr/bin:/bin
+XDG_DATA_DIRS=${HOME}/.nix-profile/share:/usr/local/share:/usr/share
+KUBECONFIG=${HOME}/.kube/onprem-s2a.yaml
+```
+Delete the old live `20-kubeconfig.conf` if `chezmoi add` imported it (`git rm -q home/dot_config/environment.d/20-kubeconfig.conf 2>/dev/null; true`).
+
+- [ ] **Step 3: Strip absolute tool paths from scripts**
+
+```bash
+files=$(ls home/dot_local/bin/* home/dot_config/otter-launcher/scripts/* home/dot_config/starship/scripts/*)
+sed -i -E \
+  -e 's#/home/linuxbrew/\.linuxbrew/bin/(task|python3|pactl)#\1#g' \
+  -e 's#"?\$\{TASK_BIN:-[^}]*\}"?#task#g' \
+  -e 's#/usr/bin/(timew|python3|task|kubectl|tmux|swww)\b#\1#g' \
+  -e 's#(\$HOME|~)/\.cargo/bin/##g' \
+  -e 's#(\$HOME|~)/\.fzf/bin:?##g' \
+  -e 's#/run/user/1001#${XDG_RUNTIME_DIR}#g' \
+  -e '/^export PATH=.*(linuxbrew|\.fzf|\.cargo).*$/d' $files
+grep -nE '/home/linuxbrew|/usr/bin/(task|timew|python3)|\.cargo/bin|/run/user/1001' $files || echo clean
+```
+Expected: `clean`. Review `git diff --stat` and spot-check `git diff home/dot_local/bin/executable_adhd-focus.sh` (paths only).
+
+- [ ] **Step 4: Template host paths in configs**
+
+```bash
+for f in home/dot_config/waybar/config.jsonc home/dot_config/otter-launcher/config.toml home/dot_config/yazi/theme.toml home/dot_config/mako/config; do
+  sed -i 's#/home/devsupreme#{{ .chezmoi.homeDir }}#g' "$f"; git mv "$f" "$f.tmpl"; done
+sed -i -E 's#/home/devsupreme#%h#g; s#/usr/bin/(tmux|ssh|kubectl)#%h/.nix-profile/bin/\1#g' home/dot_config/systemd/user/*
+grep -rn '/home/devsupreme' home --include='*.tmpl' --include='*.service' || echo clean
+```
+In `mako/config.tmpl` the icon line becomes `icon-path={{ .chezmoi.homeDir }}/.nix-profile/share/icons/Papirus-Dark`.
+
+- [ ] **Step 5: Commit** (in-home goes green after Task 5)
+
+```bash
+bash tests/lint.sh || true
+git add -A && git commit -m "feat: PATH contract via environment.d; strip host tool paths; template home paths"
+```
+
+---
+
+### Task 5: Packages (Nix), incl. otter-launcher, adhanpy, foot fork, Herdr
+
+**Files:** Create `nix/pkgs/otter-launcher.nix`, `nix/pkgs/adhanpy.nix`, `nix/pkgs/foot-ligatures.nix`; modify `nix/pkgs/overlay.nix`, `nix/home.nix`, `home/dot_local/bin/executable_adhd-prayer-times.sh`.
+
+**Interfaces:** Produces `pkgs.otter-launcher`, `pkgs.dotsAdhanPython`, `pkgs.foot-ligatures`; HM profile contains every command in `tests/expected-commands.txt`.
+
+- [ ] **Step 1: otter-launcher (crates.io 0.7.5 = live)**
+
+`nix/pkgs/otter-launcher.nix`:
+```nix
+{ lib, rustPlatform, fetchCrate }:
+rustPlatform.buildRustPackage rec {
+  pname = "otter-launcher"; version = "0.7.5";
+  src = fetchCrate { inherit pname version; hash = lib.fakeHash; };
+  cargoHash = lib.fakeHash;
+  meta.mainProgram = "otter-launcher";
+}
+```
+
+- [ ] **Step 2: adhanpy (version from the live venv)**
+
+```bash
+~/.local/share/adhd/venv/bin/pip show adhanpy | grep Version
+```
+`nix/pkgs/adhanpy.nix` (set `version` to that output):
+```nix
+{ python3Packages, fetchPypi, lib }:
+python3Packages.buildPythonPackage rec {
+  pname = "adhanpy"; version = "1.0.5";
+  pyproject = true;
+  src = fetchPypi { inherit pname version; hash = lib.fakeHash; };
+  build-system = [ python3Packages.setuptools ];
+  pythonImportsCheck = [ "adhanpy" ];
+}
+```
+
+- [ ] **Step 3: foot with ligatures (fork, pinned)**
+
+```bash
+git ls-remote https://codeberg.org/barsmonster/foot HEAD   # copy the sha
+```
+`nix/pkgs/foot-ligatures.nix` (put the sha in `rev`):
+```nix
+{ foot, fetchFromGitea, lib }:
+foot.overrideAttrs (_: {
+  pname = "foot-ligatures";
+  src = fetchFromGitea { domain = "codeberg.org"; owner = "barsmonster"; repo = "foot"; rev = "SHA_FROM_LS_REMOTE"; hash = lib.fakeHash; };
+})
+```
+Replace `SHA_FROM_LS_REMOTE` with the sha printed above before building.
+
+- [ ] **Step 4: Overlay**
+
+```nix
+final: prev: {
+  otter-launcher  = final.callPackage ./otter-launcher.nix { };
+  foot-ligatures  = final.callPackage ./foot-ligatures.nix { };
+  dotsAdhanPython = final.python3.withPackages (ps: [ (final.callPackage ./adhanpy.nix { python3Packages = ps; }) ]);
+}
+```
+Resolve each `lib.fakeHash` by building and pasting the `got:` hash:
+```bash
+cd nix && nix build .#otter-launcher 2>&1 | grep 'got:'; cd ..
+```
+
+- [ ] **Step 5: `nix/home.nix` package set**
+
+```nix
+{ config, pkgs, lib, gpu, inputs, ... }:
+let
+  glhost = inputs.nix-gl-host.packages.${pkgs.system}.default;
+  wrapNvidia = drv: pkgs.symlinkJoin {
+    name = "${drv.name}-nixglhost"; paths = [ drv ]; nativeBuildInputs = [ pkgs.makeWrapper ];
+    postBuild = ''for b in $out/bin/*; do t=$(readlink -f "$b"); rm "$b"; makeWrapper ${glhost}/bin/nixglhost "$b" --add-flags "$t"; done'';
+  };
+  # GPU-dependent GL wrapper (spec D2): nvidia → nix-gl-host, mesa → nixGL, nixos → none.
+  gl = drv:
+    if gpu == "nvidia" then wrapNvidia drv
+    else if gpu == "mesa" then config.lib.nixGL.wrap drv
+    else drv;
+in {
+  home.stateVersion = "25.11";
+  programs.home-manager.enable = true;
+  targets.genericLinux.enable = gpu != "nixos";
+  targets.genericLinux.nixGL = lib.mkIf (gpu == "mesa") { packages = inputs.nixgl.packages; defaultWrapper = "mesa"; };
+  fonts.fontconfig.enable = true;
+  home.packages = with pkgs; [
+    (gl hyprland)
+    hypridle hyprpolkitagent xdg-desktop-portal-hyprland hyprpicker
+    waybar mako swayosd swww foot-ligatures chafa otter-launcher clipse yazi ffmpegthumbnailer unar file fd
+    grim slurp wl-clipboard playerctl brightnessctl networkmanagerapplet bluetuith libnotify papirus-icon-theme
+    taskwarrior3 timewarrior taskwarrior-tui aw-server-rust awatcher dotsAdhanPython
+    zsh zsh-autosuggestions zsh-fast-syntax-highlighting starship zoxide fzf eza bat ripgrep jq gh neovim git chezmoi
+    tmux inputs.herdr.packages.${pkgs.system}.default
+    kubectl k9s openssh
+    inputs.zen-browser.packages.${pkgs.system}.default vscode obsidian slack thunderbird
+    nerd-fonts.jetbrains-mono nerd-fonts.fantasque-sans-mono victor-mono material-symbols noto-fonts noto-fonts-color-emoji
+    kdePackages.breeze kdePackages.breeze-icons
+  ];
+}
+```
+Verify the herdr flake output name first:
+```bash
+nix flake show github:ogulcancelik/herdr/v0.9.3 2>/dev/null | grep -A3 packages
+```
+If the default package attribute differs, use the name shown.
+
+- [ ] **Step 6: Point prayer times at the Nix python**
+
+In `home/dot_local/bin/executable_adhd-prayer-times.sh` delete the venv bootstrap (`VDIR=…` and the `if [ ! -x "$VDIR/bin/python" ] … fi` block) and replace `"$VDIR/bin/python" -` with `python3 -`.
+
+- [ ] **Step 7: Checks**
+
+```bash
+(cd nix && nix flake check --impure 2>&1 | grep NO-CMD || echo "deps green")
+out=$(mktemp -d); bash tests/render.sh tests/data-nvidia-tmux.toml "$out"
+act=$(cd nix && nix build --impure --no-link --print-out-paths .#homeConfigurations.nvidia.activationPackage)
+HOME=$out NIXBIN=$act/home-path/bin bash tests/in-home.sh; echo in-home=$?
+bash tests/overlap.sh
+```
+Expected: `deps green` (foot/herdr/chafa present; Task 6 adds the foot configs), `in-home=0`, `no overlap`. Typical fix: an empty-home waybar script errors → add a guard printing `{"text":""}`.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add -A && git commit -m "feat(nix): packages-only HM: otter-launcher, adhanpy, foot-ligatures, herdr, GL wrapping"
+```
+
+---
+
+### Task 6: Terminal → foot (kitty removed)
+
+**Files:** Create `tools/kitty-theme-to-foot.sh`, `home/dot_config/foot/foot.ini.tmpl`, `home/dot_config/foot/popup.ini.tmpl`, `home/dot_config/systemd/user/foot-server.service`; modify every file invoking `kitty`; delete kitty configs.
+
+**Interfaces:** Popup invocation everywhere: `foot -a <app-id> -c ~/.config/foot/popup.ini <cmd…>`; main terminal: `footclient`.
+
+- [ ] **Step 1: Confirm palette against the live kitty theme**
+
+```bash
+grep -E '^(foreground|background|selection_background|color[0-9]+)\s' ~/.config/kitty/current-theme.conf
+```
+Make `home/.chezmoidata/palette.yaml` match these values exactly (live wins).
+
+- [ ] **Step 2: foot configs**
+
+`home/dot_config/foot/foot.ini.tmpl`:
+```ini
+font=JetBrainsMono Nerd Font:size=11
+pad=10x8
+term=foot
+{{- if .footLigatures }}
+[tweak]
+ligatures=yes
+{{- end }}
+[colors]
+alpha=0.92
+foreground={{ trimPrefix "#" .palette.fg }}
+background={{ trimPrefix "#" .palette.bg }}
+selection-background={{ trimPrefix "#" .palette.sel }}
+regular0=21222c
+regular1={{ trimPrefix "#" .palette.red }}
+regular2={{ trimPrefix "#" .palette.green }}
+regular3={{ trimPrefix "#" .palette.yellow }}
+regular4={{ trimPrefix "#" .palette.purple }}
+regular5={{ trimPrefix "#" .palette.pink }}
+regular6={{ trimPrefix "#" .palette.cyan }}
+regular7={{ trimPrefix "#" .palette.fg }}
+bright0={{ trimPrefix "#" .palette.comment }}
+bright1=ff6e6e
+bright2=69ff94
+bright3=ffffa5
+bright4=d6acff
+bright5=ff92df
+bright6=a4ffff
+bright7=ffffff
+[key-bindings]
+spawn-terminal=none
+```
+(`spawn-terminal=none`: no terminal-level window spawning; tmux/herdr own multiplexing.) If the live kitty `color0`–`color15` differ from the Dracula values above, copy the live values.
+
+`home/dot_config/foot/popup.ini.tmpl` (replaces kitty `otter.conf`, `tasktui.conf`, `bluetuith.conf`; background images dropped, glass via alpha + Hyprland blur):
+```ini
+[main]
+include=~/.config/foot/foot.ini
+pad=18x14
+[colors]
+alpha=0.80
+```
+`home/dot_config/systemd/user/foot-server.service`:
+```ini
+[Unit]
+Description=foot terminal server
+PartOf=graphical-session.target
+[Service]
+ExecStart=%h/.nix-profile/bin/foot --server
+Restart=on-failure
+[Install]
+WantedBy=graphical-session.target
+```
+
+- [ ] **Step 3: Replace every kitty invocation**
+
+```bash
+grep -rlE '\bkitty\b' home | sort
+```
+Rewrite rules (apply to each listed file; `.lua` binds, waybar `on-click`, otter `config.toml.tmpl` and scripts, `keybind-help.sh`, `wallpaper`):
+- `kitty --class X --config ~/.config/kitty/<any>.conf -e CMD…` → `foot -a X -c ~/.config/foot/popup.ini CMD…`
+- `kitty --class X -e CMD…` → `foot -a X -c ~/.config/foot/popup.ini CMD…`
+- bare `kitty` (Super+Return, autostart) → `footclient`
+- `kitty +kitten icat … FILE` (wallpaper preview, otter banner) → `chafa -f sixel -s "${FZF_PREVIEW_COLUMNS}x${FZF_PREVIEW_LINES}" FILE`
+```bash
+git rm -rq home/dot_config/kitty 2>/dev/null; true
+grep -rnE '\bkitty\b' home || echo "kitty gone"
+```
+Hyprland window rules keep matching the same names because foot's `-a` sets the Wayland app-id that Hyprland's `class` matches.
+
+- [ ] **Step 4: Tests**
+
+```bash
+bash tests/lint.sh && bash tests/placement.sh | grep -E 'foot' || echo "foot targets present"
+```
+Expected: `lint ok` may still fail only on `rofi`/`oh-my-zsh` (Task 7).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add -A && git commit -m "feat(foot): replace kitty — foot (ligature fork), popup.ini glass popups, chafa sixel previews"
+```
+
+---
+
+### Task 7: Minimal zsh, no rofi, git identity
+
+**Files:** Modify `home/dot_zshrc` → `home/dot_zshrc.tmpl`, `home/dot_zshenv` → `home/dot_zshenv.tmpl`, `home/dot_local/bin/executable_adhd-capture.sh`, `home/dot_config/hypr/hyprland.lua`; create `home/dot_config/zsh/aliases.zsh`, `home/dot_config/git/config.tmpl`.
+
+- [ ] **Step 1: `.zshenv`**
+
+`home/dot_zshenv.tmpl`:
+```zsh
+# PATH contract (spec): local scripts, then pinned Nix tools, then the distro.
+typeset -U path PATH
+path=($HOME/.local/bin(N-/) $HOME/.nix-profile/bin(N-/) $path)
+[ -r "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+export KUBECONFIG="$HOME/.kube/onprem-s2a.yaml"
+export EDITOR=nvim VISUAL=nvim
+```
+
+- [ ] **Step 2: `.zshrc` without a framework**
+
+Rewrite `home/dot_zshrc.tmpl` keeping every live behaviour that is not oh-my-zsh: history-disabled block (live 2026-09-22), starship + zoxide init, fzf keybindings, kubectl completion, `~/.secrets` sourcing, user aliases. Structure:
+```zsh
+# ~/.zshrc — no framework. Plugins are pinned by Nix (nix/home.nix).
+P="$HOME/.nix-profile/share"
+autoload -Uz compinit && compinit -d "${XDG_CACHE_HOME:-$HOME/.cache}/zcompdump"
+bindkey -v; export KEYTIMEOUT=1
+[[ -r $P/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && source $P/zsh-autosuggestions/zsh-autosuggestions.zsh
+source "$HOME/.config/zsh/aliases.zsh"
+[[ -r ~/.secrets ]] && source ~/.secrets
+(( $+commands[kubectl] )) && source <(kubectl completion zsh)
+(( $+commands[fzf] ))     && source <(fzf --zsh)
+eval "$(zoxide init zsh)"
+eval "$(starship init zsh)"
+# --- live: history disabled (2026-09-22) — copied verbatim from the old .zshrc ---
+HISTSIZE=0
+setopt no_share_history no_inc_append_history no_append_history no_extended_history
+# fast-syntax-highlighting must be last
+for f in $P/zsh/plugins/fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh \
+         $P/zsh/site-functions/fast-syntax-highlighting.plugin.zsh; do [[ -r $f ]] && { source $f; break; }; done
+```
+Find the real plugin paths in the built profile and keep only the correct one:
+```bash
+act=$(cd nix && nix build --impure --no-link --print-out-paths .#homeConfigurations.nvidia.activationPackage)
+find -L $act/home-path/share -name 'fast-syntax-highlighting.plugin.zsh' -o -name 'zsh-autosuggestions.zsh'
+```
+Move every non-oh-my-zsh alias/function from the old `.zshrc` into `home/dot_config/zsh/aliases.zsh`, plus the replacements for the dropped oh-my-zsh plugins actually used:
+```zsh
+alias ls='eza' ll='eza -l --git' la='eza -la --git' cat='bat --paging=never' lg='lazygit' k='kubectl'
+alias g='git' gs='git status -sb' ga='git add' gc='git commit' gp='git push' gl='git pull' gd='git diff' gco='git checkout'
+copyfile() { wl-copy < "$1"; }
+web()      { xdg-open "https://duckduckgo.com/?q=${*// /+}"; }
+```
+```bash
+zsh -n home/dot_zshrc.tmpl && echo syntax-ok
+grep -nE 'oh-my-zsh|ZSH_CUSTOM|plugins=\(|asdf|envman|linuxbrew|batcat' home/dot_zshrc.tmpl || echo clean
+```
+Startup-time check after Task 10 cutover: `for i in 1 2 3; do /usr/bin/time -f %e zsh -i -c exit; done` → each < 0.15 s.
+
+- [ ] **Step 3: rofi → fzf capture**
+
+In `home/dot_local/bin/executable_adhd-capture.sh` replace the rofi block (the `theme=…rofi…` line and both `rofi -dmenu` lines) with:
+```bash
+text=$(fzf --print-query --prompt='  capture › ' --height=100% --reverse --no-info < /dev/null | head -1) || true
+[ -n "$text" ] || exit 0
+```
+In `hyprland.lua` change the `Super+Shift+A` bind to `foot -a capture -c ~/.config/foot/popup.ini ~/.local/bin/adhd-capture.sh` and add a float + center + `size 700 120` window rule for class `capture`. Delete the `rofi` layer rule.
+
+- [ ] **Step 4: git config (work identity)**
+
+`home/dot_config/git/config.tmpl` (replaces `~/.gitconfig`; remove `home/dot_gitconfig` if it was imported):
+```ini
+[user]
+	name = Shaik Noorullah
+	email = snoorullah@proficientnow.com
+[init]
+	defaultBranch = main
+[credential "https://github.com"]
+	helper =
+	helper = !gh auth git-credential
+[credential "https://gist.github.com"]
+	helper =
+	helper = !gh auth git-credential
+[includeIf "gitdir:~/work/"]
+	path = ~/.config/git/work
+```
+`home/dot_config/git/work`:
+```ini
+[user]
+	name = Shaik Noorullah
+	email = snoorullah@proficientnow.com
+```
+```bash
+grep -rn 'shaiknooru247' home && echo FAIL || echo "no gmail"
+bash tests/lint.sh
+```
+Expected: `no gmail`, `lint ok`.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add -A && git commit -m "feat(shell): framework-free zsh (2 nix plugins, bindkey -v); rofi→fzf capture; work git identity"
+```
+
+---
+
+### Task 8: Hyprland — latest, templated, ported to 0.56
+
+**Files:** `home/dot_config/hypr/hyprland.lua` → `hyprland.lua.tmpl`; create `home/dot_local/bin/executable_start-hyprland-dots`, `home/dot_config/systemd/user/hyprpolkitagent.service`.
+
+- [ ] **Step 1: Template the env block**
+
+At the top of `hyprland.lua.tmpl`, replace the literal env lines (NVIDIA vars, `KUBECONFIG`, `XDG_DATA_DIRS`) with:
+```lua
+local HOME = os.getenv("HOME")
+hl.env("PATH", HOME .. "/.local/bin:" .. HOME .. "/.nix-profile/bin:/usr/local/bin:/usr/bin:/bin")
+hl.env("XDG_DATA_DIRS", HOME .. "/.nix-profile/share:/usr/local/share:/usr/share")
+hl.env("KUBECONFIG", HOME .. "/.kube/onprem-s2a.yaml")
+hl.env("ELECTRON_OZONE_PLATFORM_HINT", "auto")
+{{- if eq .gpu "nvidia" }}
+hl.env("LIBVA_DRIVER_NAME", "nvidia")
+hl.env("__GLX_VENDOR_LIBRARY_NAME", "nvidia")
+hl.env("NVD_BACKEND", "direct")
+{{- end }}
+```
+Then:
+```bash
+f=home/dot_config/hypr/hyprland.lua.tmpl
+sed -i -E -e 's#"\$HOME/\.nix-profile/bin/([a-z-]+)"#"\1"#g' -e 's#/home/devsupreme/#~/#g' "$f"
+grep -nE '/home/devsupreme|\.nix-profile/bin/' "$f" || echo clean
+```
+
+- [ ] **Step 2: Session launcher and polkit unit**
+
+`home/dot_local/bin/executable_start-hyprland-dots`:
+```sh
+#!/bin/sh
+# Display-manager session entry (run_once system script installs hyprland-dots.desktop → here).
+export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:$PATH"
+exec start-hyprland "$@"
+```
+`home/dot_config/systemd/user/hyprpolkitagent.service`:
+```ini
+[Unit]
+Description=Hyprland polkit agent
+PartOf=graphical-session.target
+[Service]
+ExecStart=%h/.nix-profile/libexec/hyprpolkitagent
+Restart=on-failure
+[Install]
+WantedBy=graphical-session.target
+```
+Check the libexec path: `ls $act/home-path/libexec/ | grep polkit` (fix the path to what exists).
+
+- [ ] **Step 3: Verify/port to the new Hyprland**
+
+```bash
+out=$(mktemp -d); bash tests/render.sh tests/data-nvidia-tmux.toml "$out"
+act=$(cd nix && nix build --impure --no-link --print-out-paths .#homeConfigurations.nvidia.activationPackage)
+HOME=$out $act/home-path/bin/Hyprland --verify-config -c "$out/.config/hypr/hyprland.lua" 2>&1 | tail -20
+```
+Expected: `config ok`. For each error, look up the renamed/removed field in the release notes of every version after 0.55.4 (`https://github.com/hyprwm/Hyprland/releases`), fix `hyprland.lua.tmpl`, re-run. List each change in the commit message.
+
+- [ ] **Step 4: Placement (GPU branch, Review Focus 4)**
+
+```bash
+bash tests/placement.sh | grep GPU || echo "gpu branch ok"
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add -A && git commit -m "feat(hypr): latest Hyprland, templated env/GPU block, session launcher; port config to <version>"
+```
+
+---
+
+### Task 9: Multiplexer module — tmux default, Herdr trial
+
+**Files:** Create `home/dot_config/tmux/**` (subtree), `tools/pin-tmux-plugins.sh`, `nix/pkgs/tmux-plugins.json`, `home/dot_config/herdr/config.toml.tmpl`, `home/dot_config/systemd/user/herdr.service`, `docs/herdr-trial.md`; modify `nix/pkgs/overlay.nix`, `nix/home.nix`, `home/dot_tmux.conf`.
+
+**Interfaces:** chezmoi data `.multiplexer`; Nix `pkgs.dotsTmuxPluginFarm` at `~/.nix-profile/share/tmux-plugins/<dir>`; `~/.config/tmux/plugins` → symlink to it.
+
+- [ ] **Step 1: Import tmux-config@archdesk with history**
 
 ```bash
 git remote add tmux-upstream https://github.com/shaiknoorullah/tmux-config.git
 git fetch tmux-upstream archdesk
-git subtree add --prefix=home/modules/tmux/config tmux-upstream archdesk -m "chore(tmux): import tmux-config@archdesk with history"
-git log --oneline -3 -- home/modules/tmux/config
+git subtree add --prefix=home/dot_config/tmux tmux-upstream archdesk -m "chore(tmux): import tmux-config@archdesk with history"
+cd home/dot_config/tmux
+for f in $(git ls-files 'scripts/*.sh' install.sh); do [ -x "$f" ] && git mv "$f" "$(dirname $f)/executable_$(basename $f)"; done
+git rm -q install.sh README.md 2>/dev/null; true     # chezmoi + nix replace the installer
+cd -
 ```
-Expected: last commits include `fix(archdesk): restore Claude panes with their original flags`.
+`home/dot_tmux.conf` keeps its live content (`source-file ~/.config/tmux/tmux.conf` + local overrides).
 
-- [ ] **Step 2: Generate the plugin pin file**
+- [ ] **Step 2: Pin plugins (15 `@plugin`s; 6 pinned in plugins.lock, 9 from the live checkouts)**
 
-`tmux.conf@archdesk` declares 15 `@plugin`s; `plugins.lock` pins 6 of them:
+`plugins.lock@archdesk`:
 ```
 tmux-continuum 0698e8f4b17d6454c71bf5212895ec055c578da0
 tmux-prefix-highlight 06cbb4ecd3a0a918ce355c70dc56d79debd455c7
@@ -447,900 +1055,252 @@ tmux-sensible 25cb91f42d020f675bb0a2ce3fbd3a5d96119efa
 tmux-yank acfd36e4fcba99f8310a7dfb432111c242fe7392
 tpm 99469c4a9b1ccf77fade25842dc7bafbc8ce9946
 ```
-The other 9 (tmux-sessionx, tmux-project, tmux-fzf, extrakto, tmux-thumbs, tmux-command-palette, tmux-task-monitor, tmux-notify, tmux-browser) are pinned to the commit checked out on the work PC. `tools/pin-tmux-plugins.sh`:
+`tools/pin-tmux-plugins.sh`:
 ```bash
 #!/usr/bin/env bash
-# Writes pkgs/tmux-plugins.json: [{dir, owner, repo, rev, hash}] for every @plugin in tmux.conf.
+# Writes nix/pkgs/tmux-plugins.json for every @plugin in tmux.conf (rev: plugins.lock, else live checkout).
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
-cfg=home/modules/tmux/config
-live="$HOME/tmux-config/plugins"
-echo '[' > pkgs/tmux-plugins.json; first=1
-grep -oE "@plugin '[^']+'" "$cfg/tmux.conf" | sed -E "s/@plugin '([^']+)'/\1/" | while read -r slug; do
+cfg=home/dot_config/tmux; live="$HOME/tmux-config/plugins"; out=nix/pkgs/tmux-plugins.json
+printf '[' > $out; sep=
+grep -oE "@plugin '[^']+'" $cfg/tmux.conf | sed -E "s/@plugin '([^']+)'/\1/" | while read -r slug; do
   owner=${slug%/*}; repo=${slug#*/}
-  rev=$(awk -v r="$repo" '$1==r{print $2}' "$cfg/plugins.lock")
+  rev=$(awk -v r="$repo" '$1==r{print $2}' $cfg/plugins.lock)
   [ -n "$rev" ] || rev=$(git -C "$live/$repo" rev-parse HEAD)
   hash=$(nix run nixpkgs#nix-prefetch-github -- --rev "$rev" "$owner" "$repo" | nix run nixpkgs#jq -- -r .hash)
-  [ $first = 1 ] || echo ',' >> pkgs/tmux-plugins.json; first=0
-  printf '{"dir":"%s","owner":"%s","repo":"%s","rev":"%s","hash":"%s"}' "$repo" "$owner" "$repo" "$rev" "$hash" >> pkgs/tmux-plugins.json
+  printf '%s{"dir":"%s","owner":"%s","repo":"%s","rev":"%s","hash":"%s"}' "$sep" "$repo" "$owner" "$repo" "$rev" "$hash" >> $out; sep=,
 done
-echo ']' >> pkgs/tmux-plugins.json
-nix run nixpkgs#jq -- length pkgs/tmux-plugins.json
+printf ']\n' >> $out
+nix run nixpkgs#jq -- length $out
 ```
 ```bash
 bash tools/pin-tmux-plugins.sh
 ```
-Expected: prints `15`.
+Expected: `15`.
 
-- [ ] **Step 3: Package plugins in `pkgs/overlay.nix`**
+- [ ] **Step 3: Plugin farm in Nix + symlink from chezmoi**
 
-Replace `final: prev: { }` with:
+Add to `nix/pkgs/overlay.nix`:
 ```nix
-final: prev: {
-  # [{ dir; pkg }] — dir is the folder name tmux-config expects under ~/.config/tmux/plugins/
-  dotsTmuxPlugins = map (p: {
-    inherit (p) dir;
-    pkg = prev.fetchFromGitHub { inherit (p) owner repo rev hash; };
-  }) (builtins.fromJSON (builtins.readFile ./tmux-plugins.json));
-}
+  dotsTmuxPluginFarm = final.linkFarm "dots-tmux-plugins" (map (p: {
+    name = "share/tmux-plugins/${p.dir}";
+    path = final.fetchFromGitHub { inherit (p) owner repo rev hash; };
+  }) (builtins.fromJSON (builtins.readFile ./tmux-plugins.json)));
 ```
-(Plugins are plain source trees; tmux-config sources them by path, so no `mkTmuxPlugin` build is needed.)
-
-- [ ] **Step 4: Write `home/modules/tmux.nix`**
-
-TPM stays for its keybinds but never fetches: every plugin is pre-linked into `~/.config/tmux/plugins/<dir>`, exactly where tmux-config expects it.
-```nix
-{ pkgs, lib, ... }: {
-  home.packages = [ pkgs.tmux pkgs.eza pkgs.wl-clipboard pkgs.fzf pkgs.gitMinimal ];
-  xdg.configFile = {
-    "tmux" = { source = ./tmux/config; recursive = true; };
-  } // lib.listToAttrs (map (p: lib.nameValuePair "tmux/plugins/${p.dir}" { source = p.pkg; }) pkgs.dotsTmuxPlugins);
-}
+Add `dotsTmuxPluginFarm` to `home.packages`. Create the chezmoi symlink `home/dot_config/tmux/symlink_plugins` containing:
 ```
-Add `./modules/tmux.nix` to `home/default.nix` imports.
+{{ .chezmoi.homeDir }}/.nix-profile/share/tmux-plugins
+```
+(rename to `symlink_plugins.tmpl`). TPM never fetches; resurrect/continuum/etc. load from the farm.
 
-- [ ] **Step 5: Run placement for tmux paths**
+- [ ] **Step 4: Herdr config (trial)**
+
+Start from Herdr's defaults, then apply the decisions below:
+```bash
+act=$(cd nix && nix build --impure --no-link --print-out-paths .#homeConfigurations.nvidia.activationPackage)
+$act/home-path/bin/herdr --default-config > home/dot_config/herdr/config.toml.tmpl
+```
+Edit `home/dot_config/herdr/config.toml.tmpl`:
+```toml
+[keys]
+prefix = "ctrl+space"            # same prefix as tmux-config
+
+[[keys.command]]
+key = "prefix+p"
+type = "popup"
+command = "~/.config/tmux/scripts/pass-menu.sh"
+
+[[keys.command]]
+key = "prefix+S"
+type = "popup"
+command = "~/.config/tmux/scripts/ssh-menu.sh"
+
+[theme.custom]
+sidebar_bg = "{{ .palette.bg }}"
+accent = "{{ .palette.purple }}"
+
+[ui]
+tab_bar_right = [
+  { type = "command", command = "~/.config/tmux/scripts/task-status.sh", interval_seconds = 15 },
+  { type = "command", command = "~/.config/tmux/scripts/git-status.sh", interval_seconds = 10 },
+  { type = "datetime", format = "%H:%M" },
+]
+```
+Keep the default `[session]` restore keys enabled. The tmux-config scripts used here live under `.config/tmux` — move these four (`pass-menu`, `ssh-menu`, `task-status`, `git-status`) to `home/dot_config/dots-mux/` and point both tmux.conf and herdr at the new path, so they exist whichever multiplexer is selected:
+```bash
+grep -nE 'tmux (display|send|list|show)' home/dot_config/tmux/scripts/executable_{pass-menu,ssh-menu,task-status,git-status}.sh
+```
+Any `tmux …` call found must be guarded with `[ -n "$TMUX" ] &&` so the script also runs under Herdr.
+
+`home/dot_config/systemd/user/herdr.service`:
+```ini
+[Unit]
+Description=Herdr agent multiplexer server
+[Service]
+ExecStart=%h/.nix-profile/bin/herdr server
+Restart=on-failure
+[Install]
+WantedBy=default.target
+```
+Confirm the server subcommand name with `herdr --help` and fix `ExecStart` to match.
+
+- [ ] **Step 5: Trial protocol — `docs/herdr-trial.md`**
+
+```markdown
+# Herdr trial (7 days) — keep exactly one multiplexer afterwards
+
+Switch:  `sed -i 's/multiplexer = "tmux"/multiplexer = "herdr"/' ~/.config/chezmoi/chezmoi.toml && chezmoi apply`
+Back:    `sed -i 's/multiplexer = "herdr"/multiplexer = "tmux"/' ~/.config/chezmoi/chezmoi.toml && chezmoi apply`
+(`promptChoiceOnce` keeps the stored value, so `chezmoi init` will not reset it.)
+
+| # | Criterion | Pass if | Result |
+|---|---|---|---|
+| 1 | vi copy mode + yank | search, select, yank to wl-clipboard work from keyboard | |
+| 2 | Claude agents state | sidebar shows working/blocked/idle correctly for 3+ concurrent Claude Code panes | |
+| 3 | Restore | after reboot, agents resume with their original flags (incl. `--dangerously-skip-permissions`, `-c`) | |
+| 4 | Notifications | a blocked agent produces a mako toast within 10 s | |
+| 5 | Popups | pass-menu and ssh-menu work from prefix keys | |
+| 6 | nvim | working without tmux-config's "hide status when nvim focused" is acceptable | |
+| 7 | Memory | `ps -o rss= -C herdr` with 6 agents ≤ 200 MB | |
+| 8 | Stability | no crash in `journalctl --user -u herdr` over 7 days | |
+
+Decision: Herdr wins only if 1–5 and 8 pass. Record the decision and date here, then run Task 12.
+```
+
+- [ ] **Step 6: Tests**
 
 ```bash
-nix build .#checks.x86_64-linux.placement-workpc 2>&1 | grep -E 'tmux' || echo "tmux targets present"
+bash tests/placement.sh && bash tests/lint.sh && bash tests/overlap.sh
 ```
-Expected: no `MISSING .config/tmux/tmux.conf` line.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add -A && git commit -m "feat(tmux): pinned plugins from plugins.lock; deploy tmux-config@archdesk"
-```
-
----
-
-### Task 3: Snapshot live configs verbatim
-
-**Files:**
-- Create: `tools/snapshot-live.sh`, `home/files/**`, `home/scripts/*`, `reference/systemd-user/*`
-
-**Interfaces:**
-- Consumes: `tests/expected-targets.txt`.
-- Produces: `home/files/<path>` for every `.config`/dotfile target; `home/scripts/<name>` for every `.local/bin` target; originals of systemd units in `reference/systemd-user/` (ported to Nix in Task 8). Generated targets (`.config/hypr/host.lua`, `.config/zsh/nix-paths.zsh`, `.config/git/config`, `.config/tmux/*`, systemd units) are skipped here.
-
-- [ ] **Step 1: Write `tools/snapshot-live.sh`**
-
-```bash
-#!/usr/bin/env bash
-# Copy the live files listed in tests/expected-targets.txt into the repo, verbatim.
-# .local/bin/* -> home/scripts/, systemd units -> reference/systemd-user/, rest -> home/files/.
-set -euo pipefail
-cd "$(git rev-parse --show-toplevel)"
-skip='^(\.config/hypr/host\.lua|\.config/zsh/nix-paths\.zsh|\.config/git/config|\.config/tmux/.*)$'
-missing=0
-while read -r mode path; do
-  case "$mode" in ""|\#*) continue ;; esac
-  [[ "$path" =~ $skip ]] && continue
-  src="$HOME/$path"
-  [[ -e "$src" ]] || { echo "LIVE-MISSING $path"; missing=1; continue; }
-  case "$path" in
-    .local/bin/*)            dst="home/scripts/${path#.local/bin/}" ;;
-    .config/systemd/user/*)  dst="reference/systemd-user/${path##*/}"; cp "${src%.timer}.service" "reference/systemd-user/" 2>/dev/null || true ;;
-    *)                       dst="home/files/$path" ;;
-  esac
-  mkdir -p "$(dirname "$dst")"
-  cp -L --preserve=mode "$src" "$dst"
-done < tests/expected-targets.txt
-# whole trees that the target list samples one file from
-for d in .config/nvim .config/gtk-3.0 .config/gtk-4.0; do
-  rsync -a --exclude '*.bak' --exclude 'lazy-lock.json.bak' "$HOME/$d/" "home/files/$d/"
-done
-exit $missing
-```
-
-- [ ] **Step 2: Run it on the work PC**
-
-```bash
-mkdir -p reference/systemd-user && bash tools/snapshot-live.sh; echo "exit=$?"
-git status --short | wc -l
-```
-Expected: `exit=0`. If `LIVE-MISSING .config/systemd/user/hyprpolkitagent.service` appears, that is correct (it does not exist live; Task 6 creates it): remove that line from the check by re-running after Task 6, and continue.
-
-- [ ] **Step 3: Remove what must not be committed**
-
-```bash
-grep -rIlE 'BEGIN (OPENSSH|RSA|EC) PRIVATE KEY|AGE-SECRET-KEY|ghp_[A-Za-z0-9]{20}|xox[bp]-' home reference || echo "no secrets"
-rm -f home/files/.config/nvim/plugin/wtfrc-coach.lua   # unrelated local coach hook
-```
-Expected: `no secrets`. `.zshrc` sources `~/.secrets` but does not contain it.
-
-- [ ] **Step 4: Fix the known dangling references in the snapshot**
-
-In `home/files/.task/hooks/on-modify.timewarrior` delete the line that calls `adhd-tasks-export.sh` (script removed 2026-10-06). In `home/files/.config/otter-launcher/config.toml` delete the module whose `cmd` is `~/.local/bin/timetrack-datasette` (binary absent).
-```bash
-grep -n 'adhd-tasks-export' home/files/.task/hooks/on-modify.timewarrior
-grep -n 'timetrack-datasette' home/files/.config/otter-launcher/config.toml
-```
-Expected after edits: no output.
-
-- [ ] **Step 5: Run placement (expect only generated targets missing)**
-
-```bash
-nix build .#checks.x86_64-linux.placement-workpc 2>&1 | grep -E 'MISSING|NOT-EXEC'
-```
-Expected: only `.config/hypr/host.lua`, `.config/zsh/nix-paths.zsh`, `.config/git/config`, `.local/bin/*` and `.config/systemd/user/*` remain MISSING (Tasks 4–8 create them). `lint-workpc` FAILS (snapshot still has `/home/devsupreme` etc.) — that is the expected red for Task 4.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add -A && git commit -m "feat(files): snapshot live work-PC configs verbatim (2026-10-07)"
-```
-
----
-
-### Task 4: Scripts become self-contained (`writeShellApplication`)
-
-**Files:**
-- Create: `home/modules/scripts.nix`, `tests/in-home.sh`
-- Modify: every file in `home/scripts/`, otter scripts under `home/files/.config/otter-launcher/scripts/`, `home/files/.config/waybar/config.jsonc`, `home/files/.config/otter-launcher/config.toml`, `home/files/.config/yazi/theme.toml`, `home/files/.config/mako/config`, `home/files/.config/starship/scripts/pipeline.sh`
-
-**Interfaces:**
-- Consumes: `home/scripts/*` (Task 3).
-- Produces: `~/.local/bin/<name>` for every script, each a store wrapper whose PATH = its `runtimeInputs` + `~/.local/bin` (so scripts can call each other).
-
-- [ ] **Step 1: Write `tests/in-home.sh` (the failing behavioural test)**
-
-```bash
-#!/usr/bin/env bash
-# Runs against a real switched $HOME. Proves scripts work with a system-only PATH,
-# on an empty home, and with a hostile `task` earlier on PATH (Review Focus 2,3,5).
-set -uo pipefail
-fail=0; B="$HOME/.local/bin"
-JQ="$(nix build --no-link --print-out-paths nixpkgs#jq)/bin/jq"
-fake="$(mktemp -d)"; printf '#!/bin/sh\nexit 99\n' > "$fake/task"; chmod +x "$fake/task"
-run() { env -i HOME="$HOME" USER="$USER" XDG_RUNTIME_DIR="/tmp" PATH="$fake:/usr/bin:/bin" "$@"; }
-for s in waybar-salah.sh waybar-ctx.sh waybar-tracking.sh waybar-project.sh waybar-kube.sh; do
-  out="$(run "$B/$s" 2>/dev/null)"
-  printf '%s' "$out" | "$JQ" -e '.text != null' >/dev/null || { echo "FAIL $s -> '$out'"; fail=1; }
-done
-run "$B/adhd-focus.sh" status >/dev/null || { echo "FAIL adhd-focus.sh status"; fail=1; }
-for f in .config/hypr/hyprland.lua .config/waybar/config.jsonc .taskrc; do
-  [ -e "$HOME/$f" ] || { echo "FAIL missing $f"; fail=1; }
-done
-exit $fail
-```
-
-- [ ] **Step 2: Write `home/modules/scripts.nix`**
-
-```nix
-{ config, pkgs, lib, ... }:
-let
-  common = with pkgs; [ coreutils gnugrep gnused gawk findutils procps util-linux libnotify jq python3 ];
-  deps = with pkgs; {
-    "adhd-block-pick.sh"   = [ taskwarrior3 fzf ];
-    "adhd-break.sh"        = [ taskwarrior3 timewarrior systemd hyprland ];
-    "adhd-break-end.sh"    = [ taskwarrior3 timewarrior hyprland ];
-    "adhd-capture.sh"      = [ taskwarrior3 rofi curl ];
-    "adhd-focus.sh"        = [ taskwarrior3 timewarrior ];
-    "adhd-salah-pick.sh"   = [ fzf ];
-    "adhd-prayer-times.sh" = [ dotsAdhanPython ];
-    "adhd-salah-schedule.sh" = [ systemd ];
-    "adhd-salah-nudge.sh"  = [ ];
-    "keybind-help.sh"      = [ fzf less ];
-    "screenshot.sh"        = [ grim slurp wl-clipboard hyprland ];
-    "yazi-launch.sh"       = [ yazi ];
-    "tw-tui"               = [ taskwarrior3 taskwarrior-tui ];
-    "wallpaper"            = [ fzf kitty swww ];
-    "waybar-ctx.sh"        = [ taskwarrior3 procps ];
-    "waybar-kube.sh"       = [ kubectl ];
-    "waybar-project.sh"    = [ hyprland tmux git ];
-    "waybar-salah.sh"      = [ ];
-    "waybar-tracking.sh"   = [ timewarrior ];
-    "ctx"                  = [ taskwarrior3 fzf ];
-    "kube-tunnel.sh"       = [ kubectl openssh ];
-  };
-  mk = name: inputs: pkgs.writeShellApplication {
-    inherit name;
-    runtimeInputs = common ++ inputs;
-    # $HOME at runtime (not baked) so scripts find their siblings in any home, incl. test homes
-    text = ''export PATH="$HOME/.local/bin:$PATH"
-'' + builtins.readFile ../scripts/${name};
-    checkPhase = "";            # live scripts predate shellcheck; keep behaviour, skip lint
-    bashOptions = [ ];          # scripts set their own `set` flags
-  };
-in {
-  home.file = lib.mapAttrs' (n: i: lib.nameValuePair ".local/bin/${n}" {
-    source = "${mk n i}/bin/${n}";
-  }) deps;
-}
-```
-Add `./modules/scripts.nix` to `home/default.nix` imports. (`dotsAdhanPython` arrives in Task 5; until then use `[ python3 ]` for `adhd-prayer-times.sh` and switch it in Task 5 Step 3.)
-
-- [ ] **Step 3: Strip host paths from script bodies**
-
-For each file in `home/scripts/` and `home/files/.config/otter-launcher/scripts/` apply these rewrites (the wrapper now provides the tools on PATH):
-```bash
-cd home
-sed -i -E \
-  -e 's#/home/linuxbrew/\.linuxbrew/bin/(task|python3|pactl)#\1#g' \
-  -e 's#"?\$\{TASK_BIN:-[^}]*\}"?#task#g' \
-  -e 's#/usr/bin/(timew|python3|task|kubectl|tmux|kitty|swww)\b#\1#g' \
-  -e 's#(\$HOME|~)/\.cargo/bin/##g' \
-  -e 's#(\$HOME|~)/\.fzf/bin:?##g' \
-  -e 's#/run/user/1001#${XDG_RUNTIME_DIR}#g' \
-  -e '/^export PATH=.*(linuxbrew|\.fzf|\.cargo|\.local\/bin).*$/d' \
-  scripts/* files/.config/otter-launcher/scripts/*.sh files/.config/starship/scripts/pipeline.sh
-sed -i -E 's#^\#!.*$##' scripts/*        # wrapper supplies the shebang
-cd ..
-grep -rnE '/home/linuxbrew|/usr/bin/(task|timew|python3)|\.cargo/bin|/run/user/1001' home/scripts home/files/.config/otter-launcher/scripts || echo clean
-```
-Expected: `clean`. Review the diff (`git diff --stat`, then `git diff home/scripts/adhd-focus.sh`) to confirm only paths changed.
-
-- [ ] **Step 4: Replace `/home/devsupreme` in config files with runtime-resolved forms**
-
-- `home/files/.config/waybar/config.jsonc`: replace `/home/devsupreme/.local/bin/` with `~/.local/bin/` (waybar expands `~` in `exec`), and the absolute `k9s` path with `k9s`.
-- `home/files/.config/otter-launcher/config.toml`: replace `/home/devsupreme/` with `~/` (otter-launcher runs `cmd` through `sh -c`).
-- `home/files/.config/yazi/theme.toml:32`: replace `/home/devsupreme/.config/yazi/Dracula.tmTheme` with `~/.config/yazi/Dracula.tmTheme`.
-- `home/files/.config/mako/config:24`: delete the `icon-path=/home/devsupreme/.nix-profile/share/icons/Papirus*` line. Task 9 regenerates it from Nix as `${pkgs.papirus-icon-theme}/share/icons/Papirus-Dark`.
-```bash
-grep -rnE '/home/devsupreme' home/files --include='*.jsonc' --include='*.toml' --include=config || echo clean
-```
-Expected: `clean` (hyprland.lua is handled in Task 6, .zshrc in Task 7).
-
-- [ ] **Step 5: Build and run behavioural test locally in a throwaway HOME**
-
-Never run `activate` here: the workpc activation package targets the real `/home/devsupreme`. Copy the built files into a temp home instead:
-```bash
-nix build .#homeConfigurations.workpc.activationPackage -o /tmp/dots-act
-export TESTHOME=$(mktemp -d)
-cp -rL /tmp/dots-act/home-files/. "$TESTHOME/"
-HOME=$TESTHOME USER=devsupreme bash tests/in-home.sh; echo "in-home exit=$?"
-```
-Expected: `in-home exit=0`. Typical failures and fixes: a waybar script prints an error on an empty home → add a guard in `home/scripts/<name>` (e.g. `[ -f "$f" ] || { printf '{"text":""}\n'; exit 0; }`); a script calls a tool not in its `runtimeInputs` → add it in `scripts.nix`.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add -A && git commit -m "feat(scripts): writeShellApplication wrappers; drop linuxbrew/usr/bin/cargo paths"
-```
-
----
-
-### Task 5: Packages — every binary from Nix
-
-**Files:**
-- Create: `pkgs/otter-launcher.nix`, `pkgs/adhanpy.nix`, `home/modules/packages.nix`
-- Modify: `pkgs/overlay.nix`, `home/modules/scripts.nix` (adhan), `home/modules/apps.nix`, `home/modules/dev.nix`, `home/modules/editors.nix`
-
-**Interfaces:**
-- Produces: `pkgs.otter-launcher`, `pkgs.dotsAdhanPython` (python3 with `adhanpy`), all commands in `tests/expected-commands.txt`.
-
-- [ ] **Step 1: Package otter-launcher (crates.io 0.7.5, the live version)**
-
-`pkgs/otter-launcher.nix`:
-```nix
-{ lib, rustPlatform, fetchCrate }:
-rustPlatform.buildRustPackage rec {
-  pname = "otter-launcher";
-  version = "0.7.5";
-  src = fetchCrate { inherit pname version; hash = lib.fakeHash; };
-  cargoHash = lib.fakeHash;
-  meta.mainProgram = "otter-launcher";
-}
-```
-```bash
-nix build .#otter-launcher 2>&1 | grep -E 'got:' | head -2   # paste first hash into src.hash, rebuild, paste cargoHash
-nix build .#otter-launcher && ./result/bin/otter-launcher --version
-```
-Expected: prints `0.7.5`.
-
-- [ ] **Step 2: Package adhanpy**
-
-`pkgs/adhanpy.nix`:
-```nix
-{ python3Packages, fetchPypi, lib }:
-python3Packages.buildPythonPackage rec {
-  pname = "adhanpy";
-  version = "1.0.5";            # match: ~/.local/share/adhd/venv/bin/pip show adhanpy | grep Version
-  pyproject = true;
-  src = fetchPypi { inherit pname version; hash = lib.fakeHash; };
-  build-system = [ python3Packages.setuptools ];
-  pythonImportsCheck = [ "adhanpy" ];
-}
-```
-Before building, set `version` to the live value:
-```bash
-~/.local/share/adhd/venv/bin/pip show adhanpy | grep Version
-```
-
-`pkgs/overlay.nix` — add next to `dotsTmuxPlugins`:
-```nix
-  otter-launcher = final.callPackage ./otter-launcher.nix { };
-  dotsAdhanPython = final.python3.withPackages (ps: [ (final.callPackage ./adhanpy.nix { python3Packages = ps; }) ]);
-```
-
-- [ ] **Step 3: Point `adhd-prayer-times.sh` at the Nix python**
-
-In `home/scripts/adhd-prayer-times.sh` delete the venv bootstrap block (`VDIR=…`, `if [ ! -x "$VDIR/bin/python" ] … fi`) and replace `"$VDIR/bin/python" -` with `python3 -`. In `scripts.nix` set `"adhd-prayer-times.sh" = [ dotsAdhanPython ];`.
-```bash
-nix build .#homeConfigurations.workpc.activationPackage -o /tmp/dots-act
-HOME=$(mktemp -d) /tmp/dots-act/home-files/.local/bin/adhd-prayer-times.sh && echo ok
-```
-Expected: `wrote …/.config/adhd/prayer-times.conf` then `ok`.
-
-- [ ] **Step 4: Write `home/modules/packages.nix`**
-
-```nix
-{ pkgs, inputs, host, ... }: {
-  home.packages = with pkgs; [
-    # desktop
-    waybar mako swayosd swww kitty otter-launcher clipse yazi ffmpegthumbnailer unar file fd
-    grim slurp wl-clipboard playerctl brightnessctl networkmanagerapplet bluetuith libnotify
-    hyprpicker rofi papirus-icon-theme
-    # tasks / time
-    taskwarrior3 timewarrior taskwarrior-tui aw-server-rust awatcher
-    # shell + cli
-    zsh starship zoxide fzf eza bat ripgrep jq gh neovim git fastfetch
-    # k8s
-    kubectl k9s
-    # apps (live: zen, code, obsidian, slack, thunderbird)
-    inputs.zen-browser.packages.${host.system}.default
-    vscode obsidian slack thunderbird
-  ];
-}
-```
-Remove from `apps.nix`/`dev.nix`/`editors.nix` any package now listed here (avoid duplicates); keep their other contents. Add `./modules/packages.nix ./modules/apps.nix ./modules/dev.nix ./modules/editors.nix` to imports.
-
-- [ ] **Step 5: Run deps check**
-
-```bash
-nix build .#checks.x86_64-linux.deps-workpc 2>&1 | grep NO-CMD || echo "deps green"
-```
-Expected: only `NO-CMD Hyprland`, `NO-CMD hyprctl`, `NO-CMD hypridle` remain (Task 6). Fix any other `NO-CMD` by adding the package that provides it (`nix-locate bin/<cmd>` if unsure).
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add -A && git commit -m "feat(pkgs): otter-launcher + adhanpy derivations; all desktop/cli binaries from nix"
-```
-
----
-
-### Task 6: Hyprland — latest release, GL wrapping, host.lua, 0.56 port
-
-**Files:**
-- Create: `home/modules/gl.nix`, `home/modules/hypr.nix`
-- Modify: `home/files/.config/hypr/hyprland.lua`, `home/files/.config/hypr/hypridle.conf`, `tests/checks.nix` (gpu check)
-
-**Interfaces:**
-- Consumes: `host.gpu`, `pkgs.hyprland` (nixpkgs-unstable latest).
-- Produces: `glWrap :: drv -> drv` via `config.lib.dots.glWrap`; `~/.config/hypr/host.lua` defining a Lua table `HOST = { home=…, path=…, data_dirs=…, env={…} }`; `~/.local/bin/start-hyprland-dots` session launcher; user units `hyprpolkitagent.service`, `hypridle.service`.
-
-- [ ] **Step 1: Write the failing gpu check (Review Focus 4)**
-
-Append to `perHost` in `tests/checks.nix`:
-```nix
-    "gpu-env-${h}" = pkgs.runCommand "gpu-env-${h}" { } ''
-      f=${act h}/home-files/.config/hypr/host.lua
-      if [ "${h}" = workpc ] || [ "${h}" = archdesk ]; then
-        grep -q LIBVA_DRIVER_NAME "$f" || { echo "nvidia host lacks nvidia env"; exit 1; }
-      else
-        ! grep -q LIBVA_DRIVER_NAME "$f" || { echo "non-nvidia host has nvidia env"; exit 1; }
-      fi
-      touch $out
-    '';
-```
-```bash
-nix build .#checks.x86_64-linux.gpu-env-archlaptop 2>&1 | tail -2
-```
-Expected: FAIL (host.lua does not exist yet).
-
-- [ ] **Step 2: Write `home/modules/gl.nix`**
-
-```nix
-{ config, pkgs, lib, inputs, host, ... }:
-let
-  nvidia = pkgs: drv: pkgs.symlinkJoin {
-    name = "${drv.name}-nixglhost"; paths = [ drv ];
-    nativeBuildInputs = [ pkgs.makeWrapper ];
-    postBuild = ''
-      for b in $out/bin/*; do
-        t=$(readlink -f "$b"); rm "$b"
-        makeWrapper ${inputs.nix-gl-host.packages.${host.system}.default}/bin/nixglhost "$b" --add-flags "$t"
-      done'';
-  };
-in {
-  targets.genericLinux.nixGL = lib.mkIf (host.gpu == "mesa") {
-    packages = inputs.nixgl.packages;
-    defaultWrapper = "mesa";
-  };
-  lib.dots.glWrap =
-    if host.gpu == "nvidia" then nvidia pkgs
-    else if host.gpu == "mesa" then config.lib.nixGL.wrap
-    else (drv: drv);
-}
-```
-
-- [ ] **Step 3: Write `home/modules/hypr.nix`**
-
-```nix
-{ config, pkgs, lib, host, ... }:
-let
-  wrap = config.lib.dots.glWrap;
-  hypr = wrap pkgs.hyprland;
-  profileBin = "${config.home.profileDirectory}/bin";
-  nvidiaEnv = lib.optionalString (host.gpu == "nvidia") ''
-    LIBVA_DRIVER_NAME = "nvidia",
-    __GLX_VENDOR_LIBRARY_NAME = "nvidia",
-    NVD_BACKEND = "direct",'';
-in {
-  home.packages = [ hypr (wrap pkgs.kitty) pkgs.hypridle pkgs.hyprpolkitagent pkgs.xdg-desktop-portal-hyprland ];
-
-  xdg.configFile."hypr/host.lua".text = ''
-    -- generated by dots (home/modules/hypr.nix) for host "${host.name}" — do not edit
-    HOST = {
-      home = "${config.home.homeDirectory}",
-      path = "${config.home.homeDirectory}/.local/bin:${profileBin}:/usr/local/bin:/usr/bin:/bin",
-      data_dirs = "${config.home.profileDirectory}/share:/usr/local/share:/usr/share",
-      env = {
-        ${nvidiaEnv}
-        ELECTRON_OZONE_PLATFORM_HINT = "auto",
-        KUBECONFIG = "${config.home.homeDirectory}/.kube/onprem-s2a.yaml",
-      },
-    }
-  '';
-
-  home.file.".local/bin/start-hyprland-dots" = {
-    executable = true;
-    text = ''
-      #!/bin/sh
-      # Session entry for display managers (bootstrap installs a .desktop pointing here).
-      export PATH="${config.home.homeDirectory}/.local/bin:${profileBin}:$PATH"
-      exec ${hypr}/bin/start-hyprland "$@"
-    '';
-  };
-
-  systemd.user.services.hyprpolkitagent = {
-    Unit = { Description = "Hyprland polkit agent"; PartOf = [ "graphical-session.target" ]; };
-    Service = { ExecStart = "${pkgs.hyprpolkitagent}/libexec/hyprpolkitagent"; Restart = "on-failure"; };
-  };
-}
-```
-Add `./modules/gl.nix ./modules/hypr.nix` to imports.
-
-- [ ] **Step 4: Make `hyprland.lua` read host.lua instead of hard-coded values**
-
-At the top of `home/files/.config/hypr/hyprland.lua` (after the header comment) add:
-```lua
-dofile(os.getenv("HOME") .. "/.config/hypr/host.lua")
-for k, v in pairs(HOST.env) do hl.env(k, v) end
-hl.env("PATH", HOST.path)
-hl.env("XDG_DATA_DIRS", HOST.data_dirs)
-```
-Then delete the now-duplicated literal `hl.env(...)` lines for `LIBVA_DRIVER_NAME`, `__GLX_VENDOR_LIBRARY_NAME`, `NVD_BACKEND`, `ELECTRON_OZONE_PLATFORM_HINT`, `KUBECONFIG`, `XDG_DATA_DIRS`, and apply:
-```bash
-f=home/files/.config/hypr/hyprland.lua
-sed -i -E \
-  -e 's#"\$HOME/\.nix-profile/bin/([a-z-]+)"#"\1"#g' \
-  -e 's#/home/devsupreme/\.local/bin/#~/.local/bin/#g' \
-  -e 's#"/home/devsupreme/#"~/#g' \
-  -e 's#systemctl --user start hyprpolkitagent\.service#systemctl --user start hyprpolkitagent.service#' "$f"
-grep -nE '/home/devsupreme|\.nix-profile' "$f" || echo clean
-```
-Expected: `clean`. (Commands run via `sh -c`, so `~` expands; binaries resolve through `HOST.path`.)
-
-- [ ] **Step 5: Verify the config against the new Hyprland**
-
-```bash
-nix build .#homeConfigurations.workpc.activationPackage -o /tmp/dots-act
-H=$(mktemp -d); mkdir -p $H/.config; cp -rL /tmp/dots-act/home-files/.config/hypr $H/.config/
-HOME=$H /tmp/dots-act/home-path/bin/Hyprland --verify-config -c $H/.config/hypr/hyprland.lua 2>&1 | tail -20
-```
-Expected: `config ok`. For each reported error, read the Hyprland 0.56 release notes (`https://github.com/hyprwm/Hyprland/releases`) for the renamed/removed field and fix it in `hyprland.lua`. Repeat until ok. Record each change in the commit message.
-
-- [ ] **Step 6: Run gpu, deps, lint checks**
-
-```bash
-for c in gpu-env-workpc gpu-env-archlaptop deps-workpc lint-workpc placement-workpc; do
-  nix build .#checks.x86_64-linux.$c >/dev/null 2>&1 && echo "PASS $c" || echo "FAIL $c"; done
-```
-Expected: all PASS except possibly `lint-workpc` / `placement-workpc` (zsh/git/units, Tasks 7–8).
+Expected: all pass for both `data-nvidia-tmux.toml` and `data-nvidia-herdr.toml`.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add -A && git commit -m "feat(hypr): latest Hyprland via nix, GL wrap per host.gpu, generated host.lua; port config to 0.56"
+git add -A && git commit -m "feat(mux): tmux-config@archdesk + nix-pinned plugin farm; herdr trial config + protocol"
 ```
 
 ---
 
-### Task 7: Shell and git
+### Task 10: Services, user data, root layer, NixOS, docs
 
-**Files:**
-- Create: `home/modules/shell.nix` (replace existing), `home/modules/git.nix`
-- Modify: `home/files/.zshrc`, `home/files/.zshenv`
-- Delete: `hosts/archdesk/files/zsh/` (reference no longer needed)
+**Files:** Create `home/.chezmoiscripts/run_once_before_00-system.sh.tmpl`, `run_onchange_before_10-nix.sh.tmpl`, `run_onchange_after_20-systemd.sh.tmpl`, `run_once_after_30-userdata.sh.tmpl`, `system/keyd/default.conf`, `docs/install.md`; modify `nix/hosts/nixos-laptop/configuration.nix`; delete `nix/legacy-home/` after moving the laptop timetrack lib to `nix/pkgs/timetrack/`.
 
-**Interfaces:**
-- Produces: `~/.config/zsh/nix-paths.zsh` exporting `ZSH`, `ZSH_CUSTOM`, plugin dirs; `~/.config/git/config` (HM `programs.git`).
+- [ ] **Step 1: Root layer per distro**
 
-- [ ] **Step 1: Write `home/modules/shell.nix`**
-
-```nix
-{ config, pkgs, ... }:
-let
-  custom = pkgs.linkFarm "omz-custom" [
-    { name = "plugins/zsh-autosuggestions";     path = "${pkgs.zsh-autosuggestions}/share/zsh-autosuggestions"; }
-    { name = "plugins/zsh-syntax-highlighting"; path = "${pkgs.zsh-syntax-highlighting}/share/zsh-syntax-highlighting"; }
-    { name = "plugins/forgit";                  path = "${pkgs.zsh-forgit}/share/zsh/zsh-forgit"; }
-  ];
-in {
-  home.packages = [ pkgs.zsh pkgs.oh-my-zsh pkgs.starship pkgs.zoxide pkgs.fzf pkgs.bat ];
-  xdg.configFile."zsh/nix-paths.zsh".text = ''
-    # generated by dots — sourced first by ~/.zshrc
-    export ZSH="${pkgs.oh-my-zsh}/share/oh-my-zsh"
-    export ZSH_CUSTOM="${custom}"
-    export KUBECONFIG="$HOME/.kube/onprem-s2a.yaml"
-  '';
-  systemd.user.sessionVariables.KUBECONFIG = "${config.home.homeDirectory}/.kube/onprem-s2a.yaml";
-}
-```
-(`programs.zsh` stays disabled: `.zshrc`/`.zshenv` are deployed verbatim from `home/files`.)
-
-- [ ] **Step 2: Normalize `.zshrc` / `.zshenv`**
-
-In `home/files/.zshrc`:
-- First line: `source "$HOME/.config/zsh/nix-paths.zsh"`.
-- Delete the lines that set `ZSH=`/`ZSH_CUSTOM=` to `~/.config/oh-my-zsh`.
-- Delete dead sources: `~/.asdf/asdf.sh`, `~/.config/envman/load.sh`, linuxbrew `shellenv`, `~/.bun/_bun`, LM Studio PATH, `/etc/profile.d/nix.sh` (HM's session vars cover it), the microk8s aliases.
-- Replace `batcat` with `bat`; `PNPM_HOME=/home/devsupreme/...` → `PNPM_HOME="$HOME/.local/share/pnpm"`.
-- Keep `[[ -r ~/.secrets ]] && source ~/.secrets`.
-In `home/files/.zshenv`: replace `. "$HOME/.cargo/env"` with `[ -r "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"`; delete the `KUBECONFIG` export (now in nix-paths.zsh / session vars).
-```bash
-grep -nE '/home/devsupreme|linuxbrew|asdf|envman|batcat' home/files/.zshrc home/files/.zshenv || echo clean
-zsh -n home/files/.zshrc && echo syntax-ok
-```
-Expected: `clean`, `syntax-ok`.
-
-- [ ] **Step 3: Write `home/modules/git.nix` (work identity, D10)**
-
-```nix
-{ pkgs, ... }: {
-  programs.git = {
-    enable = true;
-    userName = "Shaik Noorullah";
-    userEmail = "snoorullah@proficientnow.com";
-    extraConfig = {
-      credential."https://github.com".helper = [ "" "!${pkgs.gh}/bin/gh auth git-credential" ];
-      credential."https://gist.github.com".helper = [ "" "!${pkgs.gh}/bin/gh auth git-credential" ];
-      init.defaultBranch = "main";
-    };
-    includes = [ { condition = "gitdir:~/work/"; contents.user = { name = "Shaik Noorullah"; email = "snoorullah@proficientnow.com"; }; } ];
-  };
-}
-```
-Remove the old `programs.git` block (with `shaiknooru247@gmail.com`) from the previous `shell.nix`. Add `./modules/shell.nix ./modules/git.nix` to imports.
-```bash
-grep -rn 'shaiknooru247' home/ && echo "FAIL gmail still present" || echo "no gmail"
-```
-Expected: `no gmail`.
-
-- [ ] **Step 4: Delete the archdesk zsh reference and run checks**
-
-```bash
-git rm -rq hosts/archdesk/files/zsh
-for c in placement-workpc lint-workpc; do nix build .#checks.x86_64-linux.$c >/dev/null 2>&1 && echo PASS $c || echo FAIL $c; done
-```
-Expected: `lint-workpc` PASS; `placement-workpc` only missing `.config/systemd/user/*` (Task 8).
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add -A && git commit -m "feat(shell,git): oh-my-zsh from nix, verbatim zshrc minus dead sources; work git identity"
-```
-
----
-
-### Task 8: User services, adhd data, wallpapers, timetrack option
-
-**Files:**
-- Create: `home/modules/services.nix`, `home/modules/adhd.nix`
-- Modify: `home/modules/timetrack.nix` (gate on option), `reference/systemd-user/*` (read only, delete at end)
-
-**Interfaces:**
-- Produces: units `adhd-prayer-times.{service,timer}`, `adhd-salah-schedule.{service,timer}`, `aw-server`, `awatcher`, `tmux`, `onprem-kube-tunnel`, `ovh-k8s-tunnel`, `signoz-tunnel`; activation `dotsDataDirs`, `dotsWalls`.
-
-- [ ] **Step 1: Port units from `reference/systemd-user/` to `home/modules/services.nix`**
-
-Open each reference unit and translate field-for-field; replace absolute binaries with Nix paths:
-```nix
-{ config, pkgs, ... }:
-let h = config.home.homeDirectory; bin = "${h}/.local/bin"; in {
-  systemd.user.services = {
-    adhd-prayer-times = { Unit.Description = "Regenerate prayer-times.conf"; Service = { Type = "oneshot"; ExecStart = "${bin}/adhd-prayer-times.sh"; }; };
-    adhd-salah-schedule = { Unit.Description = "Arm today's salah nudges"; Service = { Type = "oneshot"; ExecStart = "${bin}/adhd-salah-schedule.sh"; }; };
-    aw-server = { Unit.Description = "ActivityWatch server"; Service = { ExecStart = "${pkgs.aw-server-rust}/bin/aw-server"; Restart = "on-failure"; }; Install.WantedBy = [ "default.target" ]; };
-    awatcher = { Unit = { Description = "ActivityWatch window watcher"; Requires = [ "aw-server.service" ]; After = [ "aw-server.service" ]; };
-                 Service = { ExecStart = "${pkgs.awatcher}/bin/awatcher"; Restart = "on-failure"; }; };   # static: started by hyprland.lua
-    tmux = { Unit = { Description = "tmux default session (detached)"; Documentation = "man:tmux(1)"; };
-             Service = { Type = "forking"; ExecStart = "${pkgs.tmux}/bin/tmux new-session -d";
-                         ExecStop = [ "${h}/.config/tmux/plugins/tmux-resurrect/scripts/save.sh" "${pkgs.tmux}/bin/tmux kill-server" ];
-                         KillMode = "control-group"; RestartSec = 2; };
-             Install.WantedBy = [ "default.target" ]; };
-    onprem-kube-tunnel = {
-      Unit = { Description = "SSH forward to the on-prem k8s API (10.10.10.10:6443, via any PVE host)"; After = [ "network-online.target" ]; Wants = [ "network-online.target" ]; };
-      Service = { Type = "simple"; ExecStart = "${bin}/kube-tunnel.sh ${h}/.config/onprem-kube-tunnel.conf"; Restart = "always"; RestartSec = 5; };
-      Install.WantedBy = [ "default.target" ]; };
-    ovh-k8s-tunnel = {
-      Unit = { Description = "SSH tunnel to OVH MicroK8s API (via pve-01)"; After = [ "network-online.target" ]; Wants = [ "network-online.target" ]; };
-      Service = { Type = "simple"; Restart = "always"; RestartSec = 5;
-        ExecStart = "${pkgs.openssh}/bin/ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -i %h/.ssh/ovh_key -L 127.0.0.1:16443:192.168.0.10:16443 root@148.113.49.6"; };
-      Install.WantedBy = [ "default.target" ]; };
-    signoz-tunnel = {
-      Unit = { Description = "SigNoz API port-forward (OVH cluster) for signoz-mcp-server"; After = [ "network-online.target" ]; Wants = [ "network-online.target" ]; StartLimitIntervalSec = 0; };
-      Service = { Environment = "KUBECONFIG=%h/.kube/config"; Restart = "always"; RestartSec = 5;
-        ExecStart = "${pkgs.kubectl}/bin/kubectl --context ovh -n signoz port-forward --address 127.0.0.1 svc/signoz 18080:8080"; };
-      Install.WantedBy = [ "default.target" ]; };
-  };
-  systemd.user.timers = {
-    adhd-prayer-times   = { Timer = { OnCalendar = "*-*-* 00:05:00"; OnBootSec = "2min"; Persistent = true; }; Install.WantedBy = [ "timers.target" ]; };
-    adhd-salah-schedule = { Timer = { OnCalendar = "*-*-* 00:12:00"; OnStartupSec = "45"; Persistent = true; }; Install.WantedBy = [ "timers.target" ]; };
-  };
-}
-```
-These match the live units of 2026-10-07 with only binary paths changed. `~/.ssh/ovh_key` stays user data (not managed). Confirm nothing else differs:
-```bash
-grep -hE '^(ExecStart|ExecStop|Restart|Environment)' reference/systemd-user/*.service
-```
-
-- [ ] **Step 2: Write `home/modules/adhd.nix` (fresh-machine data, Review Focus 3)**
-
-```nix
-{ config, lib, pkgs, ... }: {
-  home.activation.dotsDataDirs = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    run mkdir -p "$HOME/.task" "$HOME/.cache/adhd" "$HOME/.local/share/adhd" "$HOME/.kube"
-    run touch "$HOME/.local/share/adhd/salah.log"
-    [ -s "$HOME/.config/adhd/prayer-times.conf" ] || run "$HOME/.local/bin/adhd-prayer-times.sh" || true
-  '';
-  home.activation.dotsWalls = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    if [ ! -d "$HOME/walls/.git" ]; then
-      run ${pkgs.git}/bin/git clone --depth 1 https://github.com/snoorullah/walls.git "$HOME/walls" || echo "walls clone skipped (offline)"
-    fi
-  '';
-}
-```
-
-- [ ] **Step 3: Gate laptop timetrack on the option (D7)**
-
-In `home/modules/timetrack.nix` wrap the whole `config` in `lib.mkIf config.dots.timetrack.enable { … }`, delete every reference to `adhd-salah-tasks` (home.file, service, timer), and remove the `home.file` entries for scripts now provided by `scripts.nix` (adhd-*.sh) and the `.taskrc`/hook (now in `home/files`). Remove `rofi` from its packages (now in packages.nix).
-```bash
-grep -rn 'adhd-salah-tasks' home/ && echo FAIL || echo "salah-tasks gone"
-```
-
-- [ ] **Step 4: Imports, build, all checks**
-
-Add `./modules/services.nix ./modules/adhd.nix ./modules/timetrack.nix` to imports.
-```bash
-git rm -rq reference
-nix flake check 2>&1 | tail -5
-```
-Expected: all checks pass.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add -A && git commit -m "feat(services): user units in nix; fresh-machine data dirs + walls clone; timetrack opt-in"
-```
-
----
-
-### Task 9: Secrets, fonts, theme, cleanup of obsolete material
-
-**Files:**
-- Create: `home/modules/secrets.nix`, `home/modules/fonts.nix`, `home/modules/theme.nix`, `.sops.yaml`, `secrets/secrets.yaml`, `secrets/kube.yaml`
-- Delete: `home.nix`, `home/laptop.nix`, `home/modules/desktop/` (files superseded), caelestia docs, `flake.lock` caelestia entry (via `nix flake lock`)
-
-- [ ] **Step 1 (owner runs — keeps secrets out of agent logs): create the sops key and files**
-
-```bash
-mkdir -p ~/.config/sops/age && cp ~/.config/chezmoi/key.txt ~/.config/sops/age/keys.txt && chmod 600 ~/.config/sops/age/keys.txt
-PUB=$(nix run nixpkgs#age -- -y ~/.config/sops/age/keys.txt 2>/dev/null || nix shell nixpkgs#age -c age-keygen -y ~/.config/sops/age/keys.txt)
-printf 'creation_rules:\n  - path_regex: secrets/.*\\.yaml$\n    age: %s\n' "$PUB" > .sops.yaml
-nix shell nixpkgs#sops nixpkgs#yq-go -c sh -c '
-  yq -n ".secrets = load_str(\"$HOME/.secrets\")" > /tmp/s.yaml && sops -e /tmp/s.yaml > secrets/secrets.yaml && shred -u /tmp/s.yaml
-  yq -n ".onprem = load_str(\"$HOME/.kube/onprem-s2a.yaml\") | .ovh = load_str(\"$HOME/.kube/ovh-k8s.conf\") | .config = load_str(\"$HOME/.kube/config\")" > /tmp/k.yaml && sops -e /tmp/k.yaml > secrets/kube.yaml && shred -u /tmp/k.yaml'
-grep -c 'ENC\[' secrets/*.yaml
-```
-Expected: each file shows a count ≥ 1 (values encrypted).
-
-- [ ] **Step 2: Write `home/modules/secrets.nix`**
-
-```nix
-{ config, ... }: let h = config.home.homeDirectory; in {
-  sops = {
-    age.keyFile = "${config.xdg.configHome}/sops/age/keys.txt";
-    secrets.secrets       = { sopsFile = ../../secrets/secrets.yaml; path = "${h}/.secrets"; mode = "0600"; };
-    secrets.kube-onprem   = { sopsFile = ../../secrets/kube.yaml; key = "onprem"; path = "${h}/.kube/onprem-s2a.yaml"; mode = "0600"; };
-    secrets.kube-ovh      = { sopsFile = ../../secrets/kube.yaml; key = "ovh";    path = "${h}/.kube/ovh-k8s.conf";   mode = "0600"; };
-    secrets.kube-config   = { sopsFile = ../../secrets/kube.yaml; key = "config"; path = "${h}/.kube/config";         mode = "0600"; }; # signoz-tunnel uses context "ovh" from here
-  };
-}
-```
-
-- [ ] **Step 3: Fonts and theme**
-
-`home/modules/fonts.nix`:
-```nix
-{ pkgs, ... }: {
-  fonts.fontconfig.enable = true;
-  home.packages = with pkgs; [ nerd-fonts.jetbrains-mono nerd-fonts.fantasque-sans-mono victor-mono material-symbols noto-fonts noto-fonts-emoji ];
-}
-```
-`home/modules/theme.nix` (mako icon path removed in Task 4 Step 4; GTK/qt files are verbatim in home/files):
-```nix
-{ pkgs, ... }: {
-  home.packages = [ pkgs.papirus-icon-theme pkgs.kdePackages.breeze pkgs.kdePackages.breeze-icons ];
-  xdg.configFile."mako/config".text = builtins.readFile ../files/.config/mako/config + ''
-    icon-path=${pkgs.papirus-icon-theme}/share/icons/Papirus-Dark
-  '';
-}
-```
-Then `git mv home/files/.config/mako/config home/mako-config.base` and point `readFile` at `../mako-config.base` (so `files.nix` does not also deploy it).
-
-- [ ] **Step 4: Delete obsolete material (D8)**
-
-```bash
-git rm -q home.nix home/laptop.nix
-git rm -rq home/modules/desktop
-git rm -q docs/superpowers/plans/2026-06-30-caelestia-*.md docs/superpowers/plans/2026-07-01-caelestia-*.md \
-          docs/superpowers/specs/2026-06-30-caelestia-*.md docs/superpowers/specs/2026-07-01-caelestia-*.md
-nix flake lock
-grep -rniE 'caelestia|quickshell|eww|adhd-salah-tasks' --include='*.nix' . && echo FAIL || echo "obsolete gone"
-```
-(`qtengine/caelestia.colors` stays: it is the live Qt colour scheme file, only named after caelestia.)
-Add `./modules/secrets.nix ./modules/fonts.nix ./modules/theme.nix` to imports.
-
-- [ ] **Step 5: Checks and commit**
-
-```bash
-nix flake check 2>&1 | tail -3
-git add -A && git commit -m "feat(secrets,fonts,theme): sops-nix for ~/.secrets + kubeconfigs; drop caelestia-era files"
-```
-
----
-
-### Task 10: System bootstrap per distro family + NixOS base
-
-**Files:**
-- Create: `bootstrap/common.sh`, `bootstrap/apt.sh`, `bootstrap/pacman.sh`, `bootstrap/dnf.sh`, `bootstrap/install.sh`, `hosts/nixos-laptop/` (adjust), `docs/install.md`
-
-**Interfaces:**
-- Produces: `bootstrap/install.sh <host>` — idempotent; installs Nix, system packages, session file, PAM, keyd, then runs `home-manager switch --flake .#<host> -b pre-dots`.
-
-- [ ] **Step 1: `bootstrap/common.sh`**
-
+`home/.chezmoiscripts/run_once_before_00-system.sh.tmpl`:
 ```bash
 #!/usr/bin/env bash
-# Root-level pieces shared by every non-NixOS distro. Sourced by install.sh.
+# Root-level pieces. Runs once per machine. NixOS: handled by nix/hosts.
 set -euo pipefail
-install_nix() {
-  command -v nix >/dev/null && return
-  curl -fsSL https://install.determinate.systems/nix | sh -s -- install --no-confirm
-  . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
-}
-install_session() {   # $1 = user
-  sudo install -Dm644 /dev/stdin /usr/share/wayland-sessions/hyprland-dots.desktop <<EOF
+{{- $id := .chezmoi.osRelease.id }}{{ $like := .chezmoi.osRelease.idLike | default "" }}
+{{- if eq $id "nixos" }}
+exit 0
+{{- end }}
+command -v nix >/dev/null || { curl -fsSL https://install.determinate.systems/nix | sh -s -- install --no-confirm; }
+{{- if or (eq $id "arch") (contains "arch" $like) }}
+sudo pacman -S --needed --noconfirm greetd greetd-tuigreet pipewire pipewire-pulse wireplumber polkit keyd hyprlock docker xdg-desktop-portal-gtk
+{{-   if eq .gpu "nvidia" }}
+sudo pacman -S --needed --noconfirm nvidia-open-dkms nvidia-utils
+{{-   end }}
+printf 'auth include system-login\n' | sudo tee /etc/pam.d/hyprlock >/dev/null
+{{- else if or (eq $id "ubuntu") (eq $id "debian") (contains "debian" $like) }}
+sudo apt-get update && sudo apt-get install -y greetd pipewire pipewire-pulse wireplumber policykit-1 keyd docker.io xdg-desktop-portal-gtk software-properties-common
+command -v hyprlock >/dev/null || { sudo add-apt-repository -y ppa:cppiber/hyprland && sudo apt-get install -y hyprlock; }
+{{-   if eq .gpu "nvidia" }}
+command -v nvidia-smi >/dev/null || sudo ubuntu-drivers install || true
+{{-   end }}
+printf '@include common-auth\n' | sudo tee /etc/pam.d/hyprlock >/dev/null
+{{- else if or (eq $id "fedora") (contains "fedora" $like) (contains "rhel" $like) }}
+sudo dnf install -y greetd tuigreet pipewire wireplumber polkit keyd docker xdg-desktop-portal-gtk || true
+sudo dnf copr enable -y solopasha/hyprland && sudo dnf install -y hyprlock
+printf 'auth include system-auth\n' | sudo tee /etc/pam.d/hyprlock >/dev/null
+{{- end }}
+sudo install -Dm644 /dev/stdin /usr/share/wayland-sessions/hyprland-dots.desktop <<EOF
 [Desktop Entry]
 Name=Hyprland (dots)
-Exec=/home/$1/.local/bin/start-hyprland-dots
+Exec={{ .chezmoi.homeDir }}/.local/bin/start-hyprland-dots
 Type=Application
 EOF
-}
-install_keyd_conf() { sudo install -Dm644 "$DOTS/system/keyd/default.conf" /etc/keyd/default.conf; sudo systemctl enable --now keyd; }
-switch_home() { nix run home-manager/master -- switch --flake "$DOTS#$1" -b pre-dots; }
+sudo install -Dm644 {{ joinPath .chezmoi.workingTree "system/keyd/default.conf" | quote }} /etc/keyd/default.conf
+sudo systemctl enable --now keyd
 ```
-Copy the live keyd file into the repo: `mkdir -p system/keyd && sudo cat /etc/keyd/default.conf > system/keyd/default.conf`.
-
-- [ ] **Step 2: Per-family package scripts**
-
-`bootstrap/pacman.sh`:
 ```bash
-install_system() {
-  sudo pacman -S --needed --noconfirm base-devel git curl greetd greetd-tuigreet pipewire pipewire-pulse wireplumber \
-    polkit keyd hyprlock docker xdg-desktop-portal-gtk
-  [ "${GPU:-}" = nvidia ] && sudo pacman -S --needed --noconfirm nvidia-open-dkms nvidia-utils
-  printf 'auth include system-login\n' | sudo tee /etc/pam.d/hyprlock >/dev/null
-}
+mkdir -p system/keyd && sudo cat /etc/keyd/default.conf > system/keyd/default.conf
 ```
-`bootstrap/apt.sh`:
-```bash
-install_system() {
-  sudo apt-get update
-  sudo apt-get install -y git curl greetd pipewire pipewire-pulse wireplumber policykit-1 keyd docker.io xdg-desktop-portal-gtk
-  if ! command -v hyprlock >/dev/null; then sudo add-apt-repository -y ppa:cppiber/hyprland && sudo apt-get install -y hyprlock; fi
-  [ "${GPU:-}" = nvidia ] && sudo ubuntu-drivers install || true
-  printf '@include common-auth\n' | sudo tee /etc/pam.d/hyprlock >/dev/null
-}
-```
-`bootstrap/dnf.sh`:
-```bash
-install_system() {
-  sudo dnf install -y git curl greetd tuigreet pipewire wireplumber polkit keyd docker xdg-desktop-portal-gtk || true
-  sudo dnf copr enable -y solopasha/hyprland && sudo dnf install -y hyprlock
-  printf 'auth include system-auth\n' | sudo tee /etc/pam.d/hyprlock >/dev/null
-}
-```
-(hyprlock comes from the distro because PAM authentication needs the system's `unix_chkpwd`; decision D13 in the spec.)
 
-- [ ] **Step 3: `bootstrap/install.sh`**
+- [ ] **Step 2: Nix switch on change**
 
+`home/.chezmoiscripts/run_onchange_before_10-nix.sh.tmpl`:
 ```bash
 #!/usr/bin/env bash
-# usage: bootstrap/install.sh <host>   (run as the target user, from a clone of dots)
+# nix inputs hash: {{ include (joinPath .chezmoi.workingTree "nix/flake.lock") | sha256sum }}
+# nix module hash: {{ include (joinPath .chezmoi.workingTree "nix/home.nix") | sha256sum }} {{ include (joinPath .chezmoi.workingTree "nix/pkgs/overlay.nix") | sha256sum }}
 set -euo pipefail
-DOTS="$(cd "$(dirname "$0")/.." && pwd)"; export DOTS
-host="${1:?host name from hosts/default.nix}"
-. "$DOTS/bootstrap/common.sh"
-. /etc/os-release
-case " ${ID} ${ID_LIKE:-} " in
-  *" arch "*)                     . "$DOTS/bootstrap/pacman.sh" ;;
-  *" debian "*|*" ubuntu "*)      . "$DOTS/bootstrap/apt.sh" ;;
-  *" fedora "*|*" rhel "*|*" centos "*) . "$DOTS/bootstrap/dnf.sh" ;;
-  *" nixos "*) echo "NixOS: use nixos-rebuild switch --flake .#$host"; exit 0 ;;
-  *) echo "unsupported distro: $ID"; exit 1 ;;
-esac
-GPU="$(nix eval --raw --file "$DOTS/hosts/default.nix" "$host.gpu" 2>/dev/null || echo mesa)"; export GPU
-install_nix
-install_system
-install_session "$USER"
-install_keyd_conf
-switch_home "$host"
-echo "done — log out and pick 'Hyprland (dots)' at the login screen"
+{{- if ne .gpu "nixos" }}
+[ -e /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh ] && . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+nix run home-manager/master -- switch --impure --flake {{ joinPath .chezmoi.workingTree "nix" | quote }}#{{ .gpu }} -b pre-dots
+{{- end }}
 ```
-`chmod +x bootstrap/*.sh`
 
-- [ ] **Step 4: Update the NixOS host to use the shared home**
+- [ ] **Step 3: systemd and user data**
 
-`hosts/nixos-laptop/configuration.nix`: keep it as is, but ensure `programs.hyprland.enable = true;` and that `users.users.${host.user}` uses `host.user` (replace literal `devsupreme`). `nix build .#nixosConfigurations.nixos-laptop.config.system.build.toplevel --dry-run` must evaluate.
+`home/.chezmoiscripts/run_onchange_after_20-systemd.sh.tmpl`:
+```bash
+#!/usr/bin/env bash
+# units hash: {{ output "sh" "-c" (printf "cat %s/dot_config/systemd/user/* | sha256sum" .chezmoi.sourceDir) }}
+set -uo pipefail
+systemctl --user daemon-reload
+systemctl --user enable --now adhd-prayer-times.timer adhd-salah-schedule.timer aw-server.service onprem-kube-tunnel.service ovh-k8s-tunnel.service foot-server.service
+{{- if eq .multiplexer "tmux" }}
+systemctl --user enable --now tmux.service; systemctl --user disable --now herdr.service 2>/dev/null || true
+{{- else }}
+systemctl --user enable --now herdr.service; systemctl --user disable --now tmux.service 2>/dev/null || true
+{{- end }}
+```
+`home/.chezmoiscripts/run_once_after_30-userdata.sh.tmpl` (Review Focus 3):
+```bash
+#!/usr/bin/env bash
+set -uo pipefail
+mkdir -p "$HOME/.task" "$HOME/.cache/adhd" "$HOME/.local/share/adhd" "$HOME/.kube"
+touch "$HOME/.local/share/adhd/salah.log"
+[ -s "$HOME/.config/adhd/prayer-times.conf" ] || "$HOME/.local/bin/adhd-prayer-times.sh" || true
+[ -d "$HOME/walls/.git" ] || git clone --depth 1 https://github.com/snoorullah/walls.git "$HOME/walls" || echo "walls: clone later"
+```
 
-- [ ] **Step 5: Write `docs/install.md`**
+- [ ] **Step 4: Laptop timetrack and NixOS host**
 
-Sections: (1) prerequisites (git, sudo); (2) `git clone https://github.com/snoorullah/dots ~/dots && cd ~/dots`; (3) copy the age key to `~/.config/sops/age/keys.txt`; (4) `bootstrap/install.sh <host>`; (5) adding a new host = one line in `hosts/default.nix`; (6) update: `nix flake update && home-manager switch --flake ~/dots#<host>`; (7) rollback: `home-manager generations` then run the older generation's `activate`, and `*.pre-dots` backups.
+```bash
+git mv nix/legacy-home/modules/timetrack/files/timetrack-lib nix/pkgs/timetrack
+git rm -rq nix/legacy-home
+```
+In `nix/hosts/nixos-laptop/configuration.nix` keep the existing system config; ensure `programs.hyprland.enable = true;`, `programs.hyprlock.enable = true;`, `services.keyd.enable = true;` and `environment.systemPackages = [ pkgs.chezmoi ];`.
+```bash
+cd nix && nix build .#nixosConfigurations.nixos-laptop.config.system.build.toplevel --dry-run && cd ..
+```
+
+- [ ] **Step 5: `docs/install.md`**
+
+Sections: (1) `sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin`; (2) copy the age key to `~/.config/chezmoi/key.txt` (optional; without it secrets are skipped); (3) `chezmoi init --apply snoorullah/dots`; (4) log out → pick "Hyprland (dots)"; (5) update: `chezmoi update`; (6) review before apply: `chezmoi diff`; (7) rollback: `home-manager generations` + `*.pre-dots`, `chezmoi` keeps nothing destructive without `--force`; (8) NixOS: `sudo nixos-rebuild switch --flake ~/.local/share/chezmoi/nix#nixos-laptop` then `chezmoi apply`.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add -A && git commit -m "feat(bootstrap): per-distro system layer (pacman/apt/dnf), session file, PAM, keyd; install docs"
+bash tests/placement.sh && bash tests/lint.sh && bash tests/overlap.sh
+git add -A && git commit -m "feat: chezmoi run scripts (root layer per distro, nix switch, systemd, userdata); nixos host; install docs"
 ```
 
 ---
 
-### Task 11: Distro matrix CI
+### Task 11: CI — flake check, render tests, distro matrix
 
-**Files:**
-- Create: `tests/distro-matrix.sh`, `.github/workflows/matrix.yml`
+**Files:** Create `tests/distro-matrix.sh`, `.github/workflows/ci.yml`.
 
-- [ ] **Step 1: `tests/distro-matrix.sh` (runs inside a container as root, creates a user)**
+- [ ] **Step 1: `tests/distro-matrix.sh` (runs as root in a fresh container)**
 
 ```bash
 #!/usr/bin/env bash
-# Inside a fresh distro container: install deps, Nix, create user, pre-create clobber files,
-# switch generic home, run in-home.sh (Review Focus 1-3,5).
+# Review Focus 1, 3, 5: fresh distro, stale pre-existing file, no age key.
 set -euo pipefail
 . /etc/os-release
 case " $ID ${ID_LIKE:-} " in
@@ -1353,24 +1313,30 @@ curl -fsSL https://install.determinate.systems/nix | sh -s -- install linux --in
 cp -r /src /home/tester/dots && chown -R tester /home/tester/dots
 su - tester -c '
   set -e; . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
-  mkdir -p ~/.config/waybar && echo stale > ~/.config/waybar/config.jsonc && echo stale > ~/.zshrc
-  cd ~/dots && nix run home-manager/master -- switch --impure --flake .#generic -b pre-dots
-  test -f ~/.config/waybar/config.jsonc.pre-dots
-  bash tests/in-home.sh'
+  mkdir -p ~/.config/waybar && echo stale > ~/.config/waybar/config.jsonc
+  sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin
+  ~/.local/bin/chezmoi init --apply --force --promptChoice multiplexer=tmux --source ~/dots/home \
+     --exclude=scripts                               # root layer needs a real init system; covered on hosts
+  nix run home-manager/master -- switch --impure --flake ~/dots/nix#mesa -b pre-dots
+  ! grep -q stale ~/.config/waybar/config.jsonc
+  test ! -e ~/.secrets
+  bash ~/dots/tests/in-home.sh'
 ```
 
-- [ ] **Step 2: `.github/workflows/matrix.yml`**
+- [ ] **Step 2: `.github/workflows/ci.yml`**
 
 ```yaml
-name: distro-matrix
+name: ci
 on: [push, pull_request]
 jobs:
-  flake-check:
+  checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@main
-      - run: nix flake check
+      - run: nix profile install nixpkgs#chezmoi
+      - run: cd nix && nix flake check --impure
+      - run: bash tests/placement.sh && bash tests/lint.sh && USER=runner bash tests/overlap.sh
   distro:
     runs-on: ubuntu-latest
     strategy:
@@ -1381,107 +1347,68 @@ jobs:
       - uses: actions/checkout@v4
       - run: docker run --rm -v "$PWD:/src:ro" ${{ matrix.image }} bash /src/tests/distro-matrix.sh
 ```
-CI has no age key, so the `generic` host must build without secrets (Step 3).
 
-- [ ] **Step 3: Make secrets optional for `generic`**
-
-In `options.nix` add `options.dots.secrets.enable = lib.mkOption { type = lib.types.bool; default = true; };`, in `home/default.nix` set `dots.secrets.enable = host.distro != "any";`, and wrap `secrets.nix`'s config in `lib.mkIf config.dots.secrets.enable`.
-
-- [ ] **Step 4: Run one distro locally**
+- [ ] **Step 3: Run one distro locally, then push**
 
 ```bash
 docker run --rm -v "$PWD:/src:ro" archlinux:latest bash /src/tests/distro-matrix.sh; echo exit=$?
-```
-Expected: `exit=0`. Then push and confirm all five matrix jobs are green:
-```bash
-git add -A && git commit -m "test: distro matrix (ubuntu, debian, arch, fedora, rocky) + flake check CI"
+git add -A && git commit -m "test: CI — flake check, render tests, 5-distro matrix"
 git push -u origin consolidate
 gh run watch --repo snoorullah/dots
 ```
+Expected: `exit=0`; all CI jobs green.
 
 ---
 
-### Task 12: Cutover — work PC, then archdesk and archlaptop
+### Task 12: Cutover, trial decision, archive (owner present)
 
-**Files:**
-- Create: `tests/live-diff.sh`, `tests/allowed-diffs.txt`
-
-- [ ] **Step 1: Confirm each host's GPU on the box**
-
-On each machine: `lspci | grep -iE 'vga|3d'`. NVIDIA → `gpu = "nvidia"`, otherwise `"mesa"`; fix `hosts/default.nix` and commit.
-
-- [ ] **Step 2: `tests/live-diff.sh` — built vs live before switching**
+- [ ] **Step 1: Work PC — point chezmoi at the repo and review the diff**
 
 ```bash
-#!/usr/bin/env bash
-# Lists every managed file whose built content differs from the live one, minus allowed diffs.
-set -uo pipefail
-host="${1:-workpc}"
-act=$(nix build --no-link --print-out-paths ".#homeConfigurations.$host.activationPackage")
-repo="$(pwd)"
-cd "$act/home-files"
-find -L . -type f | sed 's#^\./##' | sort | while read -r p; do
-  [[ $p == .local/bin/* ]] && continue            # wrappers always differ from the raw live scripts
-  grep -qxF "$p" "$repo/tests/allowed-diffs.txt" && continue
-  cmp -s "$p" "$HOME/$p" || echo "DIFF $p"
-done
+cp ~/.config/chezmoi/chezmoi.toml ~/.config/chezmoi/chezmoi.toml.pre-dots
+chezmoi init --source ~/work/dots-consolidation/dots/.claude/worktrees/consolidate/home
+chezmoi diff | tee /tmp/dots-cutover.diff | grep -E '^diff --git' | wc -l
 ```
-`tests/allowed-diffs.txt` — the files Tasks 4–9 intentionally changed:
-```
-.config/hypr/hyprland.lua
-.config/hypr/host.lua
-.config/waybar/config.jsonc
-.config/otter-launcher/config.toml
-.config/yazi/theme.toml
-.config/mako/config
-.zshrc
-.zshenv
-.task/hooks/on-modify.timewarrior
-.config/zsh/nix-paths.zsh
-.config/git/config
-```
-```bash
-bash tests/live-diff.sh workpc
-```
-Expected: no output. Any `DIFF` line = an unintended change → fix in the repo, not live.
+Read `/tmp/dots-cutover.diff`. Every hunk must be one of: kitty→foot, rofi→fzf, oh-my-zsh→plain zsh, PATH/template normalization, Hyprland 0.56 port, removed dangling refs. Anything else → fix in the repo, re-run.
 
-- [ ] **Step 3: Switch the work PC (owner present)**
+- [ ] **Step 2: Apply**
 
 ```bash
-nix profile remove Waybar                                  # nix-profile waybar duplicate (flake Alexays/Waybar)
-cd ~/work/dots-consolidation/dots/.claude/worktrees/consolidate
-nix run home-manager/master -- switch --flake .#workpc -b pre-dots
-systemctl --user daemon-reload && systemctl --user list-timers | grep adhd
+nix profile remove Waybar                      # old nix-profile waybar duplicate
+chezmoi apply
 HYPRLAND_INSTANCE_SIGNATURE=$(ls -t $XDG_RUNTIME_DIR/hypr | head -1) hyprctl reload && hyprctl configerrors
-bash tests/in-home.sh
+HOME=$HOME bash ~/work/dots-consolidation/dots/.claude/worktrees/consolidate/tests/in-home.sh
 ```
-Expected: timers listed, `hyprctl configerrors` empty, `in-home.sh` exit 0. Log out → log in to "Hyprland (dots)" (install the session file once: `. bootstrap/common.sh && install_session $USER`). Rollback if needed: `home-manager generations`, run the previous `…/activate`, restore `*.pre-dots`.
+Expected: no config errors; `in-home` exit 0. Log out → "Hyprland (dots)". Rollback: `cp chezmoi.toml.pre-dots chezmoi.toml`, restore `*.pre-dots`, previous HM generation.
 
-- [ ] **Step 4: Remove superseded system copies on the work PC (owner confirms each)**
+- [ ] **Step 3: Remove superseded system copies (owner confirms each)**
 
 ```bash
-sudo apt remove taskwarrior kitty                           # 2.6.2 task + apt kitty 0.32 (nix provides both)
-rm -f ~/.local/bin/{clipse,aw-server,awatcher,starship,k9s} # now from nix
-sudo rm -f /usr/bin/swww /usr/bin/swww-daemon               # manual install, now from nix
+sudo apt remove taskwarrior kitty rofi                          # task 2.6.2, apt kitty, (rofi built from source: sudo rm /usr/local/bin/rofi)
+rm -rf ~/.local/kitty.app ~/.local/bin/kitty ~/.config/oh-my-zsh
+rm -f ~/.local/bin/{clipse,aw-server,awatcher,starship} ~/.local/opt/k9s-*
+sudo rm -f /usr/bin/swww /usr/bin/swww-daemon
 systemctl --user disable --now clip-prune.timer; rm -f ~/.config/systemd/user/clip-prune.*
 ```
 
-- [ ] **Step 5: archdesk and archlaptop**
+- [ ] **Step 4: archdesk and laptop**
 
 ```bash
-git clone -b consolidate https://github.com/snoorullah/dots ~/dots && cd ~/dots
-cp <age key> ~/.config/sops/age/keys.txt
-bootstrap/install.sh archdesk          # or archlaptop
-bash tests/in-home.sh
+mkdir -p ~/.config/chezmoi && cp <age key> ~/.config/chezmoi/key.txt
+sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin
+~/.local/bin/chezmoi init --branch consolidate --apply snoorullah/dots
 ```
 
-- [ ] **Step 6: Merge and archive (owner actions)**
+- [ ] **Step 5: Herdr trial and decision**
 
-Open a PR `consolidate → main` on `snoorullah/dots` and merge after review. Then for `ubuntu-dots`, `hyprland-config`, `tmux-config` (both owners): add a README line "Moved to github.com/snoorullah/dots" and archive the repo in GitHub settings.
+Run the 7-day protocol in `docs/herdr-trial.md`. Then remove the loser in one commit: delete its files under `home/dot_config/{tmux,herdr}`, its unit, its `.chezmoiignore` block, its package line in `nix/home.nix`, the `multiplexer` prompt in `.chezmoi.toml.tmpl`, and (if Herdr wins) `tools/pin-tmux-plugins.sh`, `nix/pkgs/tmux-plugins.json`, `dotsTmuxPluginFarm`, `.tmux.conf` and the `otter-tmux.sh` entry. Re-run all tests.
+
+- [ ] **Step 6: Merge and archive**
+
+Open PR `consolidate → main` on `snoorullah/dots`; merge after review. Archive `ubuntu-dots`, `hyprland-config`, `tmux-config` (both accounts) with a README line "Moved to github.com/snoorullah/dots".
 
 ---
 
 ## Execution notes
 
-- Tasks 1–9 build on each other's interfaces (`host`, `glWrap`, `home/files`, `scripts.nix`); run them in order.
-- Task 9 Step 1 and Task 12 Steps 3–6 need the owner present (secrets, sudo, logout).
+- Tasks 1–10 build on each other (data keys, PATH contract, package set); run in order. Task 11 needs push access. Task 3 Steps 1–2 and Task 12 need the owner (secrets, sudo, logout).
