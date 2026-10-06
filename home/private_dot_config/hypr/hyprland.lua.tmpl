@@ -12,7 +12,7 @@ hl.env("LIBVA_DRIVER_NAME", "nvidia")
 hl.env("__GLX_VENDOR_LIBRARY_NAME", "nvidia")
 hl.env("NVD_BACKEND", "direct")
 hl.env("ELECTRON_OZONE_PLATFORM_HINT", "auto")
-hl.env("KUBECONFIG", "/home/devsupreme/.kube/onprem-s2a.yaml")                -- default kube cluster (waybar kube module + GUI-launched shells)
+hl.env("KUBECONFIG", "{{ .chezmoi.homeDir }}/.kube/onprem-s2a.yaml")                -- default kube cluster (waybar kube module + GUI-launched shells)
 
 -- ── XDG_DATA_DIRS: make home-manager apps visible to the launcher ──────
 -- The session inherits XDG_DATA_DIRS from the display manager, which knows
@@ -27,7 +27,7 @@ hl.env("KUBECONFIG", "/home/devsupreme/.kube/onprem-s2a.yaml")                --
 --
 -- Literal path, not $HOME: hl.env does not go through a shell (unlike exec_cmd),
 -- so it would not expand. Nix profile first so its entries win precedence.
-hl.env("XDG_DATA_DIRS", "/home/devsupreme/.nix-profile/share:/usr/local/share:/usr/share:/var/lib/snapd/desktop")
+hl.env("XDG_DATA_DIRS", "{{ .chezmoi.homeDir }}/.nix-profile/share:/usr/local/share:/usr/share:/var/lib/snapd/desktop")
 
 -- ── Monitors (catch-all: preferred mode, auto position) ────────────────
 hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
@@ -135,7 +135,7 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("$HOME/.nix-profile/bin/mako")
   hl.exec_cmd("$HOME/.nix-profile/bin/swayosd-server")
   hl.exec_cmd("~/.local/bin/wallpaper --restore")
-  hl.exec_cmd("/home/devsupreme/.local/bin/clipse -listen")   -- clipboard-history daemon for the clipse TUI
+  hl.exec_cmd("{{ .chezmoi.homeDir }}/.local/bin/clipse -listen")   -- clipboard-history daemon for the clipse TUI
   hl.exec_cmd("systemctl --user start awatcher.service")     -- ActivityWatch window+AFK watcher (needs Wayland env)
   hl.exec_cmd("hypridle")                                     -- idle → lock/screen-off
   hl.exec_cmd("nm-applet --indicator")
@@ -144,7 +144,7 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("kitty")
   hl.exec_cmd("zen-browser")
   hl.exec_cmd("code")
-  hl.exec_cmd("$HOME/.nix-profile/bin/thunderbird")  -- nix TB (full path: NOT the /snap/bin one); window rule above pins it to ws5
+  hl.exec_cmd("$HOME/.nix-profile/bin/thunderbird")  -- nix TB (full path: NOT a system snap); window rule above pins it to ws5
   hl.exec_cmd("[workspace special:tasks silent] kitty --class tasktui --config ~/.config/kitty/tasktui.conf -e ~/.local/bin/tw-tui")  -- open the daily driver at login (clock-in / resume)
 end)
 
@@ -156,26 +156,26 @@ hl.bind(mod .. " + SHIFT + Q", hl.dsp.window.close())
 hl.bind("ALT + F4",            hl.dsp.window.close())
 
 -- Rofi menus (run under XWayland)
-hl.bind(mod .. " + SPACE",     hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher app"))
-hl.bind(mod .. " + Tab",       hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher win"))
-hl.bind(mod .. " + SHIFT + S", hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher run"))
+hl.bind(mod .. " + SPACE",     hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e otter-launcher app"))
+hl.bind(mod .. " + Tab",       hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e otter-launcher win"))
+hl.bind(mod .. " + SHIFT + S", hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e otter-launcher run"))
 hl.bind(mod .. " + SHIFT + F", hl.dsp.exec_cmd("kitty --class yazi --config ~/.config/kitty/otter.conf -e ~/.local/bin/yazi-launch.sh"))  -- file manager (yazi)
-hl.bind(mod .. " + C",         hl.dsp.exec_cmd("kitty --class clipse --config ~/.config/kitty/otter.conf -e /home/devsupreme/.local/bin/clipse"))  -- clipse clipboard history (was rofi-clipboard.sh)
+hl.bind(mod .. " + C",         hl.dsp.exec_cmd("kitty --class clipse --config ~/.config/kitty/otter.conf -e {{ .chezmoi.homeDir }}/.local/bin/clipse"))  -- clipse clipboard history (was rofi-clipboard.sh)
 hl.bind(mod .. " + SHIFT + B", hl.dsp.exec_cmd("kitty --class bluetuith --config ~/.config/kitty/bluetuith.conf -e bluetuith"))  -- bluetuith panel (was rofi-bluetooth.sh)
 hl.bind(mod .. " + SHIFT + W", hl.dsp.exec_cmd("kitty --class wallpaper --config ~/.config/kitty/otter.conf -e ~/.local/bin/wallpaper"))  -- wallpaper picker (otter-styled fzf + swww, no caelestia)
 hl.bind("Print",               hl.dsp.exec_cmd("~/.local/bin/screenshot.sh region"))
 hl.bind(mod .. " + Print",     hl.dsp.exec_cmd("~/.local/bin/screenshot.sh full"))
-hl.bind(mod .. " + CTRL + S",  hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher sys"))
-hl.bind(mod .. " + slash",     hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher ws"))
-hl.bind(mod .. " + P",         hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher pj"))
-hl.bind(mod .. " + G",         hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher git"))
-hl.bind(mod .. " + T",         hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher tm"))
-hl.bind(mod .. " + SHIFT + O", hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher bm"))
-hl.bind(mod .. " + N",         hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher ob"))
-hl.bind(mod .. " + comma",     hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher zt"))  -- zen tab switcher (brotab, same window)
-hl.bind(mod .. " + M",         hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher md"))
-hl.bind(mod .. " + SHIFT + M", hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher ym"))  -- ytm music menu (separate from md/playerctl)
-hl.bind(mod .. " + SHIFT + E", hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher pw"))
+hl.bind(mod .. " + CTRL + S",  hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e otter-launcher sys"))
+hl.bind(mod .. " + slash",     hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e otter-launcher ws"))
+hl.bind(mod .. " + P",         hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e otter-launcher pj"))
+hl.bind(mod .. " + G",         hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e otter-launcher git"))
+hl.bind(mod .. " + T",         hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e otter-launcher tm"))
+hl.bind(mod .. " + SHIFT + O", hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e otter-launcher bm"))
+hl.bind(mod .. " + N",         hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e otter-launcher ob"))
+hl.bind(mod .. " + comma",     hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e otter-launcher zt"))  -- zen tab switcher (brotab, same window)
+hl.bind(mod .. " + M",         hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e otter-launcher md"))
+hl.bind(mod .. " + SHIFT + M", hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e otter-launcher ym"))  -- ytm music menu (separate from md/playerctl)
+hl.bind(mod .. " + SHIFT + E", hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e otter-launcher pw"))
 hl.bind(mod .. " + SHIFT + slash", hl.dsp.exec_cmd("kitty --class keyhelp --config ~/.config/kitty/otter.conf -e ~/.local/bin/keybind-help.sh"))  -- keybind cheatsheet (Super+Shift+?)
 
 -- ── ADHD engine (Phase 1) ──────────────────────────────────────────────
@@ -185,7 +185,7 @@ hl.bind(mod .. " + SHIFT + X",      hl.dsp.exec_cmd("~/.local/bin/adhd-focus.sh 
 hl.bind(mod .. " + SHIFT + Return", hl.dsp.exec_cmd("kitty --class tasktui --config ~/.config/kitty/tasktui.conf -e ~/.local/bin/tw-tui"))  -- taskwarrior-tui daily driver (was caelestia focus panel)
 hl.bind(mod .. " + SHIFT + P", hl.dsp.exec_cmd("~/.local/bin/adhd-break.sh"))  -- pause + monitor-off + lock (break)
 hl.bind(mod .. " + SHIFT + semicolon", hl.dsp.exec_cmd("kitty --class salahpick --config ~/.config/kitty/otter.conf -e ~/.local/bin/adhd-salah-pick.sh"))  -- one-key salah logger
-hl.bind(mod .. " + D",              hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher"))  -- otter-launcher (floating panel)
+hl.bind(mod .. " + D",              hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e otter-launcher"))  -- otter-launcher (floating panel)
 hl.window_rule({ match = { class = "^(otter)$" }, float = true })
 hl.window_rule({ match = { class = "^(otter)$" }, center = true })
 hl.window_rule({ match = { class = "^(otter)$" }, size = "400 300" })

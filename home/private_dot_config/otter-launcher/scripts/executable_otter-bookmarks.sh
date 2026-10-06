@@ -6,7 +6,7 @@
 # zen_open_url (does not touch the running browser's own state).
 set -uo pipefail
 source "$HOME/.config/otter-launcher/scripts/_otter-fzf.sh"
-# shellcheck source=/home/devsupreme/.config/otter-launcher/scripts/zen-utils.sh
+# shellcheck source=zen-utils.sh
 source "$HOME/.config/otter-launcher/scripts/zen-utils.sh"
 
 # Same query as rofi-bookmarks.sh: type=1 filters real bookmarks (not

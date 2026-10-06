@@ -6,7 +6,7 @@
 # `hyprctl binds` only shows opaque "__lua" callbacks, not the real commands).
 set -uo pipefail
 
-FZF="${FZF_BIN:-$HOME/.fzf/bin/fzf}"
+FZF="${FZF_BIN:-/fzf}"
 command -v "$FZF" >/dev/null 2>&1 || FZF=fzf
 
 # Each row: "<keys padded>  <description>". "──" rows are section headers.

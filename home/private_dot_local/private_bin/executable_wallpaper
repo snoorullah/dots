@@ -3,7 +3,6 @@
 # Migrates the old rofi-wallpaper.sh (~/walls category tree) + the qs grid widget
 # to a Wayland-native, caelestia-free tool. Deps: fzf, kitty (icat), swww.
 set -euo pipefail
-export PATH="$HOME/.local/bin:$HOME/.fzf/bin:/usr/local/bin:/usr/bin:/bin${PATH:+:$PATH}"
 WALLS="${WALLPAPER_DIR:-$HOME/walls}"
 [ -d "$WALLS" ] || { echo "no wallpaper dir: $WALLS" >&2; sleep 2; exit 1; }
 

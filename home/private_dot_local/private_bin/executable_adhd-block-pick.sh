@@ -4,8 +4,7 @@
 # Enter on a task → adhd-focus.sh start <id>; type text that matches nothing → adds it
 # as a new +today task and starts on it. A running block is stopped first.
 set -uo pipefail
-export PATH="/home/linuxbrew/.linuxbrew/bin:$HOME/.local/bin:$PATH"
-TASK="${TASK_BIN:-/home/linuxbrew/.linuxbrew/bin/task}"
+TASK=task
 
 list="$($TASK rc.verbose=nothing +PENDING export 2>/dev/null | python3 -c '
 import json, sys

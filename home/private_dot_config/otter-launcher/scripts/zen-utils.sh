@@ -1,7 +1,7 @@
 # zen-utils.sh — Shared utilities for Zen Browser scripts
 # Source this file, do not execute directly.
 
-export PATH="$HOME/.fzf/bin:$PATH"
+export PATH="$PATH"
 
 CACHE_DIR="$HOME/.cache/zen-tabs"
 FAVICON_DIR="$CACHE_DIR/favicons"

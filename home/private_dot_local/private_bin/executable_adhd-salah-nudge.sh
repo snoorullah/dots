@@ -7,6 +7,5 @@
 # does not depend on notification-action support; this notification is only a reminder.
 # Streak-positive wording, never guilt.
 set -uo pipefail
-export PATH="/home/linuxbrew/.linuxbrew/bin:$HOME/.local/bin:$PATH"
 name="${1:-Salah}"
 notify-send "🕌 $name" "Iqamah time — log when you're back. (Super+Shift+; to log)" 2>/dev/null || true

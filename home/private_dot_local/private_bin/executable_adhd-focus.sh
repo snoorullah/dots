@@ -6,7 +6,7 @@
 #
 # Usage:
 #   adhd-focus.sh start <taskid>   begin a count-up timew interval (via task start)
-TASK="${TASK_BIN:-/home/linuxbrew/.linuxbrew/bin/task}"  # taskwarrior (go-task shadows `task` in PATH)
+TASK=task  # taskwarrior (go-task shadows `task` in PATH)
 #   adhd-focus.sh stop             stop the active focus block
 #   adhd-focus.sh status           print elapsed + minutes to next salah
 #   adhd-focus.sh nudge            fire a dismissible notify-send if >=90m elapsed

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-TASK=/home/linuxbrew/.linuxbrew/bin/task
+TASK=task
 CTXS=(none work lab agents personal)
 cur="$("$TASK" _get rc.context 2>/dev/null)"; cur="${cur:-none}"
 if [ "${1:-}" = "cycle" ]; then

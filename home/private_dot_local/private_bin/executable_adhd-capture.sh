@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # Load secrets (OBSIDIAN_REST_TOKEN) if present.
-TASK="${TASK_BIN:-/home/linuxbrew/.linuxbrew/bin/task}"  # taskwarrior (go-task shadows `task` in PATH)
+TASK=task  # taskwarrior (go-task shadows `task` in PATH)
 [ -f "$HOME/.secrets" ] && source "$HOME/.secrets"
 
 # Current context (default: personal).

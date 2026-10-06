@@ -22,7 +22,7 @@ mkdir -p "$(dirname "$CONF")"
 
 # one-time bootstrap (needs network once); fully offline thereafter
 if [ ! -x "$VDIR/bin/python" ]; then
-    /usr/bin/python3 -m venv "$VDIR"
+    python3 -m venv "$VDIR"
     "$VDIR/bin/pip" install -q --disable-pip-version-check adhanpy
 fi
 

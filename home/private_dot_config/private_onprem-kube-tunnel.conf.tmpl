@@ -4,8 +4,8 @@
 # proxies `-n <node>` through whichever endpoint you reach, so ONE Talos forward serves every node.
 FORWARD=6443 10.10.10.10:6443
 FORWARD=50000 10.10.10.11:50000
-KNOWN_HOSTS=/home/devsupreme/work/ovh-nodec/ansible/files/onprem-pve-known_hosts
+KNOWN_HOSTS={{ .chezmoi.homeDir }}/work/ovh-nodec/ansible/files/onprem-pve-known_hosts
 USER=root
-HOST=192.168.100.130 /home/devsupreme/.ssh/onprem-l01-bootstrap
-HOST=192.168.100.131 /home/devsupreme/.ssh/onprem-xl02-bootstrap
-HOST=192.168.100.132 /home/devsupreme/.ssh/onprem-xl01-bootstrap
+HOST=192.168.100.130 {{ .chezmoi.homeDir }}/.ssh/onprem-l01-bootstrap
+HOST=192.168.100.131 {{ .chezmoi.homeDir }}/.ssh/onprem-xl02-bootstrap
+HOST=192.168.100.132 {{ .chezmoi.homeDir }}/.ssh/onprem-xl01-bootstrap

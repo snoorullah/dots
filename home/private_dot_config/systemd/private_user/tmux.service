@@ -4,10 +4,10 @@ Documentation=man:tmux(1)
 
 [Service]
 Type=forking
-ExecStart=/usr/bin/tmux new-session -d
+ExecStart=%h/.nix-profile/bin/tmux new-session -d
 
-ExecStop=/home/devsupreme/.config/tmux/plugins/tmux-resurrect/scripts/save.sh
-ExecStop=/usr/bin/tmux kill-server
+ExecStop=%h/.config/tmux/plugins/tmux-resurrect/scripts/save.sh
+ExecStop=%h/.nix-profile/bin/tmux kill-server
 KillMode=control-group
 
 RestartSec=2

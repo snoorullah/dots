@@ -2,10 +2,9 @@
 # adhd-break-end.sh — run by hypridle unlock_cmd. Ends a deliberate break ONLY if a
 # `break` interval is currently active (so a plain idle-lock unlock never stops a task).
 set -uo pipefail
-export PATH="/usr/bin:$HOME/.local/bin:$PATH"
-TIMEW=/usr/bin/timew
+TIMEW=timew
 STATE="$HOME/.cache/adhd/break-active"
-HIS=$(find /run/user/1001/hypr -maxdepth 1 -mindepth 1 -type d -printf '%f\n' 2>/dev/null | head -1)
+HIS=$(find "${XDG_RUNTIME_DIR}/hypr" -maxdepth 1 -mindepth 1 -type d -printf '%f\n' 2>/dev/null | head -1)
 HYPRLAND_INSTANCE_SIGNATURE="$HIS" hyprctl dispatch dpms on >/dev/null 2>&1 || true
 # Stop ONLY if a `break` interval is active — gate strictly on the active
 # interval's TAGS (never the JSON blob; its annotation text could contain the

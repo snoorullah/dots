@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # waybar tracking module — shows the active timew task, truncated, with the full
 # text in the tooltip. JSON built via jq so tags with quotes/specials can't break it.
-TIMEW=/usr/bin/timew
+TIMEW=timew
 MAX=30
 if [ "$("$TIMEW" get dom.active 2>/dev/null)" = "1" ]; then
   n="$("$TIMEW" get dom.active.tag.count 2>/dev/null)"; tag=""

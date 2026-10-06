@@ -2,7 +2,6 @@
 # otter-header.sh — bluetuith-style header bar: title (left) + system stats
 # (right-aligned) + a full-width divider underneath. Printed by otter header_cmd.
 set -uo pipefail
-export PATH="/usr/bin:/bin:/home/linuxbrew/.linuxbrew/bin:$HOME/.local/bin${PATH:+:$PATH}"
 e=$'\e'
 purple="${e}[38;2;189;147;249m"; pink="${e}[38;2;255;121;198m"
 fg="${e}[38;2;248;248;242m"; dim="${e}[38;2;98;114;164m"; rst="${e}[0m"; bold="${e}[1m"

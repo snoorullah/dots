@@ -14,7 +14,7 @@ if [[ "$TERM" == "xterm-kitty" ]]; then
 fi
 
 # Update PATH (ensure Kitty, local binaries are available)
-export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:$HOME/.cargo/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:$PATH"
 # asdf v0.11 needs asdf.sh sourced: it puts BOTH $ASDF_DIR/bin (the `asdf`
 # command itself) and the shims dir on PATH. The previous hand-rolled line added
 # only shims, so `asdf` was unfindable and every `npm i -g` died at the reshim
@@ -97,7 +97,7 @@ autoload -Uz compinit && compinit
 bindkey '^F' autosuggest-accept
 
 # pnpm
-export PNPM_HOME="/home/devsupreme/.local/share/pnpm"
+export PNPM_HOME="{{ .chezmoi.homeDir }}/.local/share/pnpm"
 case ":$PATH:" in
 *":$PNPM_HOME:"*) ;;
 *) export PATH="$PNPM_HOME:$PATH" ;;
@@ -106,25 +106,22 @@ esac
 # (removed: hardcoded PATH override with dead cuda-12.0 + dupes — PATH is built above)
 
 # Added by LM Studio CLI (lms)
-export PATH="$PATH:/home/devsupreme/.lmstudio/bin"
+export PATH="$PATH:{{ .chezmoi.homeDir }}/.lmstudio/bin"
 eval "$(starship init zsh)"
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 eval "$(zoxide init zsh)"
-if [ -x /home/linuxbrew/.linuxbrew/bin/brew ]; then
-  eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-fi
 
 source $ZSH_CUSTOM/plugins/forgit/forgit.plugin.zsh
 
-# (removed: conda init block — /home/devsupreme/miniconda3 no longer installed)
+# (removed: conda init block — {{ .chezmoi.homeDir }}/miniconda3 no longer installed)
 
 autoload -U +X bashcompinit && bashcompinit
 command -v terraform >/dev/null && complete -o nospace -C "$(command -v terraform)" terraform
 
 # Generated for envman. Do not edit.
 [ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
-export PATH="$HOME/.cargo/bin:$PATH"
+export PATH="$PATH"
 # Kubectl aliases and completion
 alias k=kubectl
 alias kgp="kubectl get pods"
@@ -137,7 +134,7 @@ compdef __start_kubectl k
 
 
 # bun completions
-[ -s "/home/devsupreme/.bun/_bun" ] && source "/home/devsupreme/.bun/_bun"
+[ -s "{{ .chezmoi.homeDir }}/.bun/_bun" ] && source "{{ .chezmoi.homeDir }}/.bun/_bun"
 
 # bun
 export BUN_INSTALL="$HOME/.bun"

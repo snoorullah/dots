@@ -29,7 +29,7 @@ cursor_shape = 6
 [[modules]]
 description = "  project context"
 prefix = "c"
-cmd = "/home/devsupreme/.local/bin/ctx '{}'"
+cmd = "{{ .chezmoi.homeDir }}/.local/bin/ctx '{}'"
 with_argument = true
 unbind_proc = true
 
@@ -51,93 +51,93 @@ unbind_proc = true
 [[modules]]
 description = "  wallpaper picker"
 prefix = "wp"
-cmd = "kitty --class wallpaper --config /home/devsupreme/.config/kitty/otter.conf -e /home/devsupreme/.local/bin/wallpaper"
+cmd = "kitty --class wallpaper --config {{ .chezmoi.homeDir }}/.config/kitty/otter.conf -e {{ .chezmoi.homeDir }}/.local/bin/wallpaper"
 unbind_proc = true
 
 [[modules]]
 description = "  bluetooth"
 prefix = "bt"
-cmd = "kitty --class bluetuith --config /home/devsupreme/.config/kitty/bluetuith.conf -e bluetuith"
+cmd = "kitty --class bluetuith --config {{ .chezmoi.homeDir }}/.config/kitty/bluetuith.conf -e bluetuith"
 unbind_proc = true
 
 [[modules]]
 description = "  apps"
 prefix = "app"
-cmd = "/home/devsupreme/.config/otter-launcher/scripts/otter-app.sh"
+cmd = "{{ .chezmoi.homeDir }}/.config/otter-launcher/scripts/otter-app.sh"
 
 [[modules]]
 description = "  windows"
 prefix = "win"
-cmd = "/home/devsupreme/.config/otter-launcher/scripts/otter-win.sh"
+cmd = "{{ .chezmoi.homeDir }}/.config/otter-launcher/scripts/otter-win.sh"
 
 [[modules]]
 description = "  run"
 prefix = "run"
-cmd = "/home/devsupreme/.config/otter-launcher/scripts/otter-run.sh"
+cmd = "{{ .chezmoi.homeDir }}/.config/otter-launcher/scripts/otter-run.sh"
 
 [[modules]]
 description = "  power"
 prefix = "pw"
-cmd = "/home/devsupreme/.config/otter-launcher/scripts/otter-power.sh"
+cmd = "{{ .chezmoi.homeDir }}/.config/otter-launcher/scripts/otter-power.sh"
 
 [[modules]]
 description = "  media"
 prefix = "md"
-cmd = "/home/devsupreme/.config/otter-launcher/scripts/otter-media.sh"
+cmd = "{{ .chezmoi.homeDir }}/.config/otter-launcher/scripts/otter-media.sh"
 
 [[modules]]
 description = "  youtube music"
 prefix = "ym"
-cmd = "/home/devsupreme/.config/otter-launcher/scripts/otter-ytm.sh"
+cmd = "{{ .chezmoi.homeDir }}/.config/otter-launcher/scripts/otter-ytm.sh"
 
 [[modules]]
 description = "  projects"
 prefix = "pj"
-cmd = "/home/devsupreme/.config/otter-launcher/scripts/otter-projects.sh"
+cmd = "{{ .chezmoi.homeDir }}/.config/otter-launcher/scripts/otter-projects.sh"
 
 [[modules]]
 description = "  tmux"
 prefix = "tm"
-cmd = "/home/devsupreme/.config/otter-launcher/scripts/otter-tmux.sh"
+cmd = "{{ .chezmoi.homeDir }}/.config/otter-launcher/scripts/otter-tmux.sh"
 
 [[modules]]
 description = "  obsidian"
 prefix = "ob"
-cmd = "/home/devsupreme/.config/otter-launcher/scripts/otter-obsidian.sh"
+cmd = "{{ .chezmoi.homeDir }}/.config/otter-launcher/scripts/otter-obsidian.sh"
 
 [[modules]]
 description = "  zen tabs"
 prefix = "zt"
-cmd = "/home/devsupreme/.config/otter-launcher/scripts/otter-tabs.sh"
+cmd = "{{ .chezmoi.homeDir }}/.config/otter-launcher/scripts/otter-tabs.sh"
 
 [[modules]]
 description = "  git identity"
 prefix = "git"
-cmd = "/home/devsupreme/.config/otter-launcher/scripts/otter-git.sh"
+cmd = "{{ .chezmoi.homeDir }}/.config/otter-launcher/scripts/otter-git.sh"
 
 [[modules]]
 description = "  bookmarks"
 prefix = "bm"
-cmd = "/home/devsupreme/.config/otter-launcher/scripts/otter-bookmarks.sh"
+cmd = "{{ .chezmoi.homeDir }}/.config/otter-launcher/scripts/otter-bookmarks.sh"
 
 [[modules]]
 description = "  systemd"
 prefix = "sys"
-cmd = "/home/devsupreme/.config/otter-launcher/scripts/otter-systemd.sh"
+cmd = "{{ .chezmoi.homeDir }}/.config/otter-launcher/scripts/otter-systemd.sh"
 
 [[modules]]
 description = "  files"
 prefix = "fb"
-cmd = "/home/devsupreme/.config/otter-launcher/scripts/otter-files.sh"
+cmd = "{{ .chezmoi.homeDir }}/.config/otter-launcher/scripts/otter-files.sh"
 
 [[modules]]
 description = "  clipboard"
 prefix = "cl"
-cmd = "kitty --class clipse --config /home/devsupreme/.config/kitty/otter.conf -e /home/devsupreme/.local/bin/clipse"
+cmd = "kitty --class clipse --config {{ .chezmoi.homeDir }}/.config/kitty/otter.conf -e {{ .chezmoi.homeDir }}/.local/bin/clipse"
 unbind_proc = true
 
 [[modules]]
 description = "  tasks"
 prefix = "tw"
-cmd = "kitty --class tasktui --config /home/devsupreme/.config/kitty/tasktui.conf -e /home/devsupreme/.local/bin/tw-tui"
+cmd = "kitty --class tasktui --config {{ .chezmoi.homeDir }}/.config/kitty/tasktui.conf -e {{ .chezmoi.homeDir }}/.local/bin/tw-tui"
 unbind_proc = true

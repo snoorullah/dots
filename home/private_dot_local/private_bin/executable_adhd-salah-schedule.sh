@@ -2,7 +2,6 @@
 # adhd-salah-schedule.sh — schedule today's 5 salah nudges as transient user timers at each
 # iqamah time. Re-run daily (times change). Skips prayer times already past for today.
 set -uo pipefail
-export PATH="/home/linuxbrew/.linuxbrew/bin:$PATH"
 CONF="$HOME/.config/adhd/prayer-times.conf"
 [ -f "$CONF" ] || exit 0
 now="$(date +%H%M)"
