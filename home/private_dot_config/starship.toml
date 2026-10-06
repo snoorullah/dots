@@ -1,0 +1,104 @@
+"$schema" = 'https://starship.rs/config-schema.json'
+
+add_newline = true
+
+format = """\
+$git_branch${custom.git_sync}$git_state${custom.proj}$fill$git_status${custom.pipeline}$kubernetes$container
+${custom.subpath}${custom.fallback_dir}$character"""
+
+# ── Prompt character ──────────────────────────────────────────
+[character]
+success_symbol = "[󱐋](fg:#9da8cf)"
+error_symbol = "[󱐋](fg:#e45a5a)"
+
+# ── Line 1 left: Branch ──────────────────────────────────────
+[git_branch]
+style = "fg:#B4BEFE"
+format = "[ $branch ]($style)"
+truncation_length = 25
+
+# ── Line 1 left: Git state (rebase/merge/cherry-pick) ───────
+[git_state]
+style = "fg:#e45a5a bold"
+rebase = "REBASE"
+merge = "MERGE"
+cherry_pick = "PICK"
+bisect = "BISECT"
+format = '[\($state $progress_current/$progress_total\) ]($style)'
+
+# ── Line 1 right: Git dirty ─────────────────────────────────
+[git_status]
+style = "fg:#FAB387"
+format = '[$modified$staged$untracked$deleted$renamed$conflicted]($style)'
+modified = "✎ "
+staged = "✔ "
+untracked = "? "
+deleted = "✘ "
+renamed = "» "
+conflicted = "= "
+ahead = ""
+behind = ""
+diverged = ""
+up_to_date = ""
+
+# ── Line 1 right: Kubernetes ────────────────────────────────
+[kubernetes]
+disabled = false
+style = "fg:#F9E2AF"
+format = '[ · ](fg:#585b70)[󰐾 $context ]($style)'
+
+# ── Line 1 right: Container ─────────────────────────────────
+[container]
+style = "fg:#89B4FA"
+format = '[󰊣 $name ]($style)'
+
+# ── Fill ─────────────────────────────────────────────────────
+[fill]
+symbol = ' '
+
+# ── Custom: Git sync (ahead/behind) ─────────────────────────
+[custom.git_sync]
+command = '''
+a=$(git rev-list --count @{u}..HEAD 2>/dev/null) || exit 0
+b=$(git rev-list --count HEAD..@{u} 2>/dev/null) || exit 0
+r=""
+[ "$a" -gt 0 ] 2>/dev/null && r="⇡${a}"
+[ "$b" -gt 0 ] 2>/dev/null && r="${r}⇣${b}"
+[ -n "$r" ] && echo "$r"
+'''
+when = 'git rev-parse --abbrev-ref @{u} 2>/dev/null >/dev/null'
+format = '[$output ](fg:#B4BEFE)'
+shell = ['bash', '--noprofile', '--norc', '-c']
+use_stdin = false
+
+# ── Custom: Project name (pill badge) ───────────────────────
+[custom.proj]
+command = 'p="${PWD#$HOME/*/}"; echo "${p%%/*}"'
+when = 'case "$PWD" in "$HOME"/work/*|"$HOME"/powerhouse/*|"$HOME"/.config/*) true;; *) false;; esac'
+format = '[](fg:#313244)[ $output ](bg:#313244 fg:#F5C2E7)[](fg:#313244) '
+shell = ['bash', '--noprofile', '--norc', '-c']
+use_stdin = false
+
+# ── Custom: Subpath within project ───────────────────────────
+[custom.subpath]
+command = 'echo "${PWD#$HOME/*/*/}"'
+when = 'case "$PWD" in "$HOME"/work/*/*|"$HOME"/powerhouse/*/*|"$HOME"/.config/*/*) true;; *) false;; esac'
+format = '[$output ](fg:#7f849c)'
+shell = ['bash', '--noprofile', '--norc', '-c']
+use_stdin = false
+
+# ── Custom: Fallback directory (outside profiles) ────────────
+[custom.fallback_dir]
+command = 'echo "${PWD/#$HOME/~}"'
+when = 'case "$PWD" in "$HOME"/work/*|"$HOME"/powerhouse/*|"$HOME"/.config/*) false;; *) true;; esac'
+format = '[$output ](fg:#7f849c)'
+shell = ['bash', '--noprofile', '--norc', '-c']
+use_stdin = false
+
+# ── Custom: Pipeline (PR review + CI checks) ────────────────
+[custom.pipeline]
+command = '$HOME/.config/starship/scripts/pipeline.sh'
+when = 'git rev-parse --is-inside-work-tree 2>/dev/null >/dev/null && command -v gh >/dev/null 2>&1'
+format = '[ · ](fg:#585b70)[ $output ](fg:#A6E3A1)'
+shell = ['bash', '--noprofile', '--norc', '-c']
+use_stdin = false

@@ -1,0 +1,4 @@
+window { background: #282a36; border: 2px solid #bd93f9; border-radius: 12px; }
+label { color: #f8f8f2; font-family: "JetBrainsMono Nerd Font"; }
+progressbar { background: #44475a; border-radius: 8px; }
+progress { background: #bd93f9; border-radius: 8px; }

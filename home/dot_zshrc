@@ -1,0 +1,181 @@
+export XDG_CONFIG_HOME="$HOME/.config"
+[ -f ~/.secrets ] && source ~/.secrets  # personal secrets (gitignored)
+export ZSH_CONFIG="$XDG_CONFIG_HOME/.zshrc"
+# Path to your Oh My Zsh installation
+export ZSH="$XDG_CONFIG_HOME/oh-my-zsh"
+
+if [ -z "$SSH_AUTH_SOCK" ]; then
+    eval $(ssh-agent)
+fi
+
+# Fix kitty colors
+if [[ "$TERM" == "xterm-kitty" ]]; then
+    export TERM=xterm-256color
+fi
+
+# Update PATH (ensure Kitty, local binaries are available)
+export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:$HOME/.cargo/bin:$PATH"
+# asdf v0.11 needs asdf.sh sourced: it puts BOTH $ASDF_DIR/bin (the `asdf`
+# command itself) and the shims dir on PATH. The previous hand-rolled line added
+# only shims, so `asdf` was unfindable and every `npm i -g` died at the reshim
+# hook with exit 127.
+. "$HOME/.asdf/asdf.sh"
+
+# Enable case-insensitive tab completion
+CASE_SENSITIVE="false"
+HYPHEN_INSENSITIVE="true" # Makes hyphen and underscore interchangeable
+
+# Load plugins (defined BEFORE sourcing oh-my-zsh.sh below, so they load)
+plugins=(
+    git                     # Git integration
+    zsh-autosuggestions     # Auto-suggest commands based on history
+    zsh-syntax-highlighting # Colorize commands
+    web-search              # Search web from terminal
+    aliases
+    alias-finder
+    docker
+    docker-compose
+    debian
+    command-not-found
+    common-aliases
+    # asdf                # Manage multiple runtime zsh-autosuggestions
+    copyfile
+    vi-mode
+    terraform
+)
+# Configure `alias-finder` plugin: https://github.com/ohmyzsh/ohmyzsh/tree/master/plugins/alias-finder#setup
+zstyle ':omz:plugins:alias-finder' autoload yes # disabled by default
+zstyle ':omz:plugins:alias-finder' longer yes   # disabled by default
+zstyle ':omz:plugins:alias-finder' exact yes    # disabled by default
+zstyle ':omz:plugins:alias-finder' cheaper yes  # disabled by default
+
+# Enable plugins
+source $ZSH/oh-my-zsh.sh
+
+# Aliases for common commands
+alias k="kitty"       # Open Kitty
+alias ll="ls -la"     # Detailed list
+alias gs="git status" # Shortcut for git status
+alias mtl='microk8s kubectl'
+alias m8='microk8s'
+alias nv='nvim'
+alias szh='source ~/.zshrc'
+alias zedit='$EDITOR ~/.zshrc && szh'
+alias x='clear'
+alias cyat='batcat'
+alias cat='cat'
+alias ls='exa --color=always --icons=always'
+alias l='ls'
+alias shm='ssh-manager'
+alias yv='yaml-validator-cli'
+
+# Editor configuration
+export EDITOR='nvim'
+
+# Set language to UTF-8
+export LANG=en_US.UTF-8
+
+# Improve command completion waiting indicator
+COMPLETION_WAITING_DOTS="true"
+
+# Custom ZSH prompt (Starship)
+
+# History configuration
+HISTFILE="$HOME/.zsh_history"
+HISTSIZE=5000
+SAVEHIST=5000
+setopt hist_ignore_all_dups # Ignore duplicate entries
+setopt share_history        # Share history across terminals
+
+
+# append completions to fpath
+fpath=(${ASDF_DATA_DIR:-$HOME/.asdf}/completions $fpath)
+# initialise completions with ZSH's compinit
+autoload -Uz compinit && compinit
+
+# rebind the fzf zsh-autosuggestions shortcut Ctrl-F
+bindkey '^F' autosuggest-accept
+
+# pnpm
+export PNPM_HOME="/home/devsupreme/.local/share/pnpm"
+case ":$PATH:" in
+*":$PNPM_HOME:"*) ;;
+*) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+# pnpm end
+# (removed: hardcoded PATH override with dead cuda-12.0 + dupes — PATH is built above)
+
+# Added by LM Studio CLI (lms)
+export PATH="$PATH:/home/devsupreme/.lmstudio/bin"
+eval "$(starship init zsh)"
+
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+eval "$(zoxide init zsh)"
+if [ -x /home/linuxbrew/.linuxbrew/bin/brew ]; then
+  eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+fi
+
+source $ZSH_CUSTOM/plugins/forgit/forgit.plugin.zsh
+
+# (removed: conda init block — /home/devsupreme/miniconda3 no longer installed)
+
+autoload -U +X bashcompinit && bashcompinit
+command -v terraform >/dev/null && complete -o nospace -C "$(command -v terraform)" terraform
+
+# Generated for envman. Do not edit.
+[ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
+export PATH="$HOME/.cargo/bin:$PATH"
+# Kubectl aliases and completion
+alias k=kubectl
+alias kgp="kubectl get pods"
+alias kgs="kubectl get svc"
+alias kgn="kubectl get nodes"
+alias kdp="kubectl describe pod"
+alias kds="kubectl describe svc"
+source <(kubectl completion zsh)
+compdef __start_kubectl k
+
+
+# bun completions
+[ -s "/home/devsupreme/.bun/_bun" ] && source "/home/devsupreme/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+
+# X11 display + xauth (i3 on Xorg; GDM puts xauth under $XDG_RUNTIME_DIR/gdm)
+# Needed for xclip/clipboard-image paste in Claude Code, Electron apps, etc.
+if [ -z "$WAYLAND_DISPLAY" ]; then
+  for _xsock in /tmp/.X11-unix/X*; do
+    [ -S "$_xsock" ] && export DISPLAY=":${_xsock##*/X}" && break
+  done
+  unset _xsock
+  for _xauth in "/run/user/$(id -u)/gdm/Xauthority" "$HOME/.Xauthority"; do
+    [ -f "$_xauth" ] && export XAUTHORITY="$_xauth" && break
+  done
+  unset _xauth
+fi
+source /etc/profile.d/nix.sh
+unalias age 2>/dev/null  # free 'age' for the age encryption tool (omz debian plugin aliased it to apt-get)
+
+# Claude Code has no Linux clipboard-image paste. Copy an image, run ccimg,
+# then paste the printed path into the prompt (Claude Code reads image paths).
+ccimg() { local f="$HOME/Pictures/cc-$(date +%s).png"; wl-paste --type image/png > "$f" && echo "$f"; }
+
+
+# >>> shell history disabled 2026-09-22 >>>
+# Remove this block to re-enable history.
+unset HISTFILE
+HISTSIZE=0
+SAVEHIST=0
+setopt no_share_history
+setopt no_inc_append_history
+setopt no_append_history
+setopt no_extended_history
+# <<< shell history disabled 2026-09-22 <<<
+
+# >>> grok installer >>>
+export PATH="$HOME/.grok/bin:$PATH"
+fpath=(~/.grok/completions/zsh $fpath)
+autoload -Uz compinit && compinit -C
+# <<< grok installer <<<

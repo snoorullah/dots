@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily refresh of ADHD-OS prayer times
+
+[Timer]
+OnCalendar=*-*-* 00:05:00
+OnBootSec=2min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

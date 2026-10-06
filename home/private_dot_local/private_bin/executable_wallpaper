@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# wallpaper — fzf wallpaper picker with live kitty-icat preview, sets via swww.
+# Migrates the old rofi-wallpaper.sh (~/walls category tree) + the qs grid widget
+# to a Wayland-native, caelestia-free tool. Deps: fzf, kitty (icat), swww.
+set -euo pipefail
+export PATH="$HOME/.local/bin:$HOME/.fzf/bin:/usr/local/bin:/usr/bin:/bin${PATH:+:$PATH}"
+WALLS="${WALLPAPER_DIR:-$HOME/walls}"
+[ -d "$WALLS" ] || { echo "no wallpaper dir: $WALLS" >&2; sleep 2; exit 1; }
+
+# --restore: (Hyprland autostart) ensure the daemon + re-apply the last wallpaper, then exit.
+if [ "${1:-}" = "--restore" ]; then
+  swww query >/dev/null 2>&1 || { setsid -f swww-daemon >/dev/null 2>&1; sleep 1.2; }
+  wp=$(cat "$HOME/.cache/current-wallpaper" 2>/dev/null || true)
+  [ -n "${wp:-}" ] && [ -f "$wp" ] && swww img "$wp" 2>/dev/null || true
+  exit 0
+fi
+
+# swww owns the wallpaper on Wayland. Start the daemon DETACHED (setsid) so it
+# survives this picker window closing — otherwise the wallpaper dies with the popup.
+swww query >/dev/null 2>&1 || { setsid -f swww-daemon >/dev/null 2>&1; sleep 1; }
+
+cd "$WALLS"
+# fzf, restyled to read as otter (transparent bg, magenta ▌ pointer, minimal chrome).
+# otter has no browse/list mode — this is otter's author's own list-selection pattern.
+sel=$(find . -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) 2>/dev/null \
+        | sed 's|^\./||' | sort \
+        | fzf --ansi --reverse --no-scrollbar --no-separator --info=inline \
+              --border=none --margin=1 --padding=1 --header-first \
+              --header=$'  \e[35;1motter\e[0m \e[90m· wallpaper\e[0m\n' \
+              --prompt='  ' --pointer='▌' --marker='▌' \
+              --color='bg:-1,bg+:-1,fg:-1,fg+:15,hl:5,hl+:13,pointer:5,prompt:5,marker:5,gutter:-1,spinner:8,header:8,border:8,preview-bg:-1,preview-border:8' \
+              --preview="kitty +kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place=\${FZF_PREVIEW_COLUMNS}x\${FZF_PREVIEW_LINES}@0x0 '$WALLS/{}'" \
+              --preview-window='right:58%:border-left') || exit 0
+[ -n "$sel" ] || exit 0
+
+swww img "$WALLS/$sel" --transition-type fade --transition-duration 1 2>/dev/null \
+  || swww img "$WALLS/$sel"
+mkdir -p "$HOME/.cache"; printf '%s' "$WALLS/$sel" > "$HOME/.cache/current-wallpaper"  # for restore-on-login later

@@ -1,0 +1,10 @@
+[Unit]
+Description=ActivityWatch awatcher (window + AFK, Wayland)
+Requires=aw-server.service
+After=aw-server.service
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/awatcher
+Restart=on-failure
+RestartSec=5

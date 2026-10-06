@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# ctx — one-keybind context entry (Powerhouse workflow, additive/reversible).
+#
+# Collapses "start working on project X" to a single keystroke: spawn or attach a
+# pre-arranged tmux layout (edit / run / git windows, cd'd to the project) for a
+# named context. This is the activation-energy attack — the point where entering a
+# work context is where the work dies.
+#
+#   ctx            -> fzf-pick a context, enter it
+#   ctx <name>     -> jump straight into that context
+#
+# Contexts: ~/.config/ctx/contexts, one per line -> "name /path/to/project".
+# Zero new deps (tmux + fzf, both already in the stack). Remove = delete this file
+# + the Super+O bind. Nothing else touched.
+set -euo pipefail
+# Launched from a Hyprland keybind, PATH is minimal and lacks ~/.fzf/bin + ~/.local/bin
+# (that was the "opens then instantly dies" bug). Guarantee the tools resolve.
+export PATH="$HOME/.local/bin:$HOME/.fzf/bin:$HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin${PATH:+:$PATH}"
+CFG="${CTX_CONFIG:-$HOME/.config/ctx/contexts}"
+[ -r "$CFG" ] || { echo "no contexts file at $CFG" >&2; exit 1; }
+
+entries() { grep -vE '^[[:space:]]*(#|$)' "$CFG"; }
+
+if [ $# -ge 1 ]; then
+  line=$(entries | awk -v n="$1" '$1==n {print; exit}')
+  [ -n "$line" ] || { echo "unknown context: $1" >&2; exit 1; }
+else
+  line=$(entries | fzf --prompt='ctx> ' --height=40% --reverse) || exit 0
+fi
+
+read -r name dir <<< "$line"
+dir="${dir/#\~/$HOME}"
+[ -d "$dir" ] || { echo "context dir missing: $dir" >&2; exit 1; }
+
+sess="ctx-${name}"
+if ! tmux has-session -t "$sess" 2>/dev/null; then
+  tmux new-session -d -s "$sess" -c "$dir" -n edit
+  tmux new-window  -t "$sess"   -c "$dir" -n run
+  tmux new-window  -t "$sess"   -c "$dir" -n git
+  tmux select-window -t "${sess}:edit"
+fi
+
+# record the active project for the ADHD context cache (bar cell / qs-project.sh read this)
+mkdir -p "$HOME/.cache"; printf '%s' "$dir" > "$HOME/.cache/ctx-project"
+
+[ -n "${CTX_NO_ATTACH:-}" ] && { echo "spawned $sess ($dir)"; exit 0; }
+
+# Enter the session WITHOUT proliferating windows: switch an already-attached
+# terminal to it; only spawn a new terminal when nothing is attached.
+if [ -n "${TMUX:-}" ]; then
+  tmux switch-client -t "$sess"                                    # called from inside tmux
+elif client=$(tmux list-clients -F '#{client_name}' 2>/dev/null | head -1) && [ -n "$client" ]; then
+  tmux switch-client -c "$client" -t "$sess"                       # reuse the existing terminal
+else
+  setsid -f kitty -e tmux attach -t "$sess" >/dev/null 2>&1 || true  # nothing attached -> spawn one
+fi

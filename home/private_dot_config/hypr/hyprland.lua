@@ -1,0 +1,285 @@
+-- ───────────────────────────────────────────────────────────────────────
+--  Hyprland 0.55 (Lua config) — ported from i3 (84 keybinds), Dracula,
+--  JetBrainsMono. Colors templated from .chezmoidata.yaml via chezmoi.
+--  hyprlang .conf was dropped in 0.55 — this is the live config.
+--  https://wiki.hypr.land/Configuring/
+-- ───────────────────────────────────────────────────────────────────────
+
+local mod  = "SUPER"
+
+-- ── Environment (nvidia) ───────────────────────────────────────────────
+hl.env("LIBVA_DRIVER_NAME", "nvidia")
+hl.env("__GLX_VENDOR_LIBRARY_NAME", "nvidia")
+hl.env("NVD_BACKEND", "direct")
+hl.env("ELECTRON_OZONE_PLATFORM_HINT", "auto")
+hl.env("KUBECONFIG", "/home/devsupreme/.kube/onprem-s2a.yaml")                -- default kube cluster (waybar kube module + GUI-launched shells)
+
+-- ── XDG_DATA_DIRS: make home-manager apps visible to the launcher ──────
+-- The session inherits XDG_DATA_DIRS from the display manager, which knows
+-- nothing about Nix: it was only "/usr/local/share/:/usr/share/:/var/lib/snapd/desktop".
+-- So otter-launcher (SUPER+SPACE -> otter-app.sh, which scans XDG_DATA_HOME +
+-- XDG_DATA_DIRS) could not see ANY ~/.nix-profile app. Slack appeared only while
+-- it was a snap, because snaps write to /var/lib/snapd/desktop; removing the snap
+-- made it vanish entirely (2026-09-04).
+--
+-- This is also why waybar/mako/swayosd/thunderbird above are exec'd by ABSOLUTE
+-- path -- same gap, worked around app by app.
+--
+-- Literal path, not $HOME: hl.env does not go through a shell (unlike exec_cmd),
+-- so it would not expand. Nix profile first so its entries win precedence.
+hl.env("XDG_DATA_DIRS", "/home/devsupreme/.nix-profile/share:/usr/local/share:/usr/share:/var/lib/snapd/desktop")
+
+-- ── Monitors (catch-all: preferred mode, auto position) ────────────────
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
+
+-- ── Appearance — Dracula, glass ON ─────────────────────────────────────
+hl.config({
+  general = {
+    gaps_in   = 6,
+    gaps_out  = 3,
+    border_size = 2,
+    ["col.active_border"]   = { colors = { "rgb(bd93f9)", "rgb(ff79c6)" }, angle = 45 },
+    ["col.inactive_border"] = "rgb(232336)",
+    layout = "dwindle",
+    resize_on_border = true,
+    allow_tearing = false,
+  },
+  decoration = {
+    rounding = 12,
+    dim_strength = 0.6,             -- how much dim_around darkens the background
+    blur = {
+      enabled = true,
+      size = 5,
+      passes = 2,
+      new_optimizations = true,
+      ignore_opacity = true,
+    },
+    shadow = {
+      enabled = true,
+      range = 14,
+      color = "rgba(00000073)",
+    },
+    active_opacity = 0.82,
+    inactive_opacity = 0.70,
+  },
+  animations = {
+    enabled = true,                 -- curves/leaves defined below (hl.curve/hl.animation)
+  },
+  input = {
+    kb_layout = "us",
+    follow_mouse = 1,
+    accel_profile = "flat",
+  },
+  misc = {
+    disable_hyprland_logo = true,
+    disable_splash_rendering = true,
+    focus_on_activate = false,
+  },
+  dwindle = {
+    preserve_split = true,
+    force_split = 2,
+  },
+  cursor = {
+    no_hardware_cursors = true,     -- avoids garbled cursor on nvidia
+  },
+})
+
+-- ── Animations — fluid Dracula morphs (springy popin + smooth slides) ──
+hl.curve("smooth",  { type = "bezier", points = { {0.16, 1.0}, {0.3, 1.0} } })
+hl.curve("snappy",  { type = "bezier", points = { {0.05, 0.9}, {0.1, 1.05} } })
+hl.curve("springy", { type = "spring", mass = 1, stiffness = 190, dampening = 21 })
+
+hl.animation({ leaf = "windows",    enabled = true, speed = 6, spring = "springy", style = "popin 80%" })
+hl.animation({ leaf = "windowsOut", enabled = true, speed = 6, bezier = "snappy",  style = "popin 80%" })
+hl.animation({ leaf = "fade",       enabled = true, speed = 7, bezier = "smooth" })
+hl.animation({ leaf = "workspaces", enabled = true, speed = 7, bezier = "snappy",  style = "slide" })
+hl.animation({ leaf = "border",     enabled = true, speed = 8, bezier = "smooth" })
+hl.animation({ leaf = "layers",     enabled = true, speed = 6, bezier = "snappy",  style = "slide" })
+
+-- ── Window rules (workspace pinning + floats) ──────────────────────────
+-- Keep terminals fully opaque (don't translucent them via the global opacity).
+hl.window_rule({ match = { class = "^([Kk]itty)$" }, opaque = true })
+
+hl.window_rule({ match = { class = "^(zen-alpha|zen-browser|firefox|Firefox)$" },      workspace = "2 silent" })
+hl.window_rule({ match = { class = "^([Cc]ode|code-oss|Cursor)$" },                    workspace = "3 silent" })
+hl.window_rule({ match = { class = "^([Ss]lack)$" },                                   workspace = "4 silent" })
+hl.window_rule({ match = { class = "^([Tt]hunderbird)$" },                             workspace = "5 silent" })
+hl.window_rule({ match = { class = "^([Oo]bsidian)$" },                                workspace = "7 silent" })
+hl.window_rule({ match = { class = "^([Ss]potify|YoutubeMusic|youtube-music)$" },      workspace = "8 silent" })
+hl.window_rule({ match = { class = "^([Pp]avucontrol|[Nn]m-connection-editor|file-roller)$" }, float = true })
+hl.window_rule({ match = { class = "^(zen-tab-switcher)$" },                           float = true, center = true })
+hl.window_rule({ match = { class = "^(keyhelp)$" },                                    float = true, center = true })
+hl.window_rule({ match = { class = "^(keyhelp)$" },                                    size = "820 760" })
+hl.window_rule({ match = { class = "^(yazi)$" },                                       float = true, center = true })
+hl.window_rule({ match = { class = "^(yazi)$" },                                       size = "1300 820" })
+
+-- ── Layer rules: real glass on bars (compositor blur) ──────────────────
+hl.layer_rule({ match = { namespace = "waybar" },     blur = true })
+
+-- The focus panel is a real floating window — float + center it; Hyprland's
+-- window border/rounding/shadow/blur (decoration{}) apply automatically.
+hl.window_rule({ match = { title = "^(focus-panel)$" }, float = true })
+hl.window_rule({ match = { title = "^(focus-panel)$" }, center = true })
+hl.window_rule({ match = { title = "^(focus-panel)$" }, size = "900 600" })
+hl.window_rule({ match = { title = "^(focus-panel)$" }, dim_around = true })    -- modal dim
+hl.window_rule({ match = { title = "^(focus-panel)$" }, stay_focused = true })  -- grab focus (keyboard + dim)
+hl.window_rule({ match = { title = "^(focus-panel)$" }, opaque = true })        -- de-faint: exempt from global active/inactive_opacity
+
+-- (removed stale title="wallpaper-picker" rules — the live rules are class="wallpaper", below;
+--  those old ones never matched and one carried a stay_focused that would block screenshots)
+hl.layer_rule({ match = { namespace = "rofi" },       blur = true, ignore_alpha = 0.2 })
+
+-- ── Autostart ──────────────────────────────────────────────────────────
+hl.on("hyprland.start", function()
+  hl.exec_cmd("$HOME/.nix-profile/bin/waybar")
+  hl.exec_cmd("$HOME/.nix-profile/bin/mako")
+  hl.exec_cmd("$HOME/.nix-profile/bin/swayosd-server")
+  hl.exec_cmd("~/.local/bin/wallpaper --restore")
+  hl.exec_cmd("/home/devsupreme/.local/bin/clipse -listen")   -- clipboard-history daemon for the clipse TUI
+  hl.exec_cmd("systemctl --user start awatcher.service")     -- ActivityWatch window+AFK watcher (needs Wayland env)
+  hl.exec_cmd("hypridle")                                     -- idle → lock/screen-off
+  hl.exec_cmd("nm-applet --indicator")
+  hl.exec_cmd("systemctl --user start hyprpolkitagent.service")
+  -- pinned apps (rules above place them on their workspaces)
+  hl.exec_cmd("kitty")
+  hl.exec_cmd("zen-browser")
+  hl.exec_cmd("code")
+  hl.exec_cmd("$HOME/.nix-profile/bin/thunderbird")  -- nix TB (full path: NOT the /snap/bin one); window rule above pins it to ws5
+  hl.exec_cmd("[workspace special:tasks silent] kitty --class tasktui --config ~/.config/kitty/tasktui.conf -e ~/.local/bin/tw-tui")  -- open the daily driver at login (clock-in / resume)
+end)
+
+-- ═══════════════════════════════════════════════════════════════════════
+--  KEYBINDINGS (ported from i3)
+-- ═══════════════════════════════════════════════════════════════════════
+hl.bind(mod .. " + Return",    hl.dsp.exec_cmd("kitty"))
+hl.bind(mod .. " + SHIFT + Q", hl.dsp.window.close())
+hl.bind("ALT + F4",            hl.dsp.window.close())
+
+-- Rofi menus (run under XWayland)
+hl.bind(mod .. " + SPACE",     hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher app"))
+hl.bind(mod .. " + Tab",       hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher win"))
+hl.bind(mod .. " + SHIFT + S", hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher run"))
+hl.bind(mod .. " + SHIFT + F", hl.dsp.exec_cmd("kitty --class yazi --config ~/.config/kitty/otter.conf -e ~/.local/bin/yazi-launch.sh"))  -- file manager (yazi)
+hl.bind(mod .. " + C",         hl.dsp.exec_cmd("kitty --class clipse --config ~/.config/kitty/otter.conf -e /home/devsupreme/.local/bin/clipse"))  -- clipse clipboard history (was rofi-clipboard.sh)
+hl.bind(mod .. " + SHIFT + B", hl.dsp.exec_cmd("kitty --class bluetuith --config ~/.config/kitty/bluetuith.conf -e bluetuith"))  -- bluetuith panel (was rofi-bluetooth.sh)
+hl.bind(mod .. " + SHIFT + W", hl.dsp.exec_cmd("kitty --class wallpaper --config ~/.config/kitty/otter.conf -e ~/.local/bin/wallpaper"))  -- wallpaper picker (otter-styled fzf + swww, no caelestia)
+hl.bind("Print",               hl.dsp.exec_cmd("~/.local/bin/screenshot.sh region"))
+hl.bind(mod .. " + Print",     hl.dsp.exec_cmd("~/.local/bin/screenshot.sh full"))
+hl.bind(mod .. " + CTRL + S",  hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher sys"))
+hl.bind(mod .. " + slash",     hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher ws"))
+hl.bind(mod .. " + P",         hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher pj"))
+hl.bind(mod .. " + G",         hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher git"))
+hl.bind(mod .. " + T",         hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher tm"))
+hl.bind(mod .. " + SHIFT + O", hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher bm"))
+hl.bind(mod .. " + N",         hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher ob"))
+hl.bind(mod .. " + comma",     hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher zt"))  -- zen tab switcher (brotab, same window)
+hl.bind(mod .. " + M",         hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher md"))
+hl.bind(mod .. " + SHIFT + M", hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher ym"))  -- ytm music menu (separate from md/playerctl)
+hl.bind(mod .. " + SHIFT + E", hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher pw"))
+hl.bind(mod .. " + SHIFT + slash", hl.dsp.exec_cmd("kitty --class keyhelp --config ~/.config/kitty/otter.conf -e ~/.local/bin/keybind-help.sh"))  -- keybind cheatsheet (Super+Shift+?)
+
+-- ── ADHD engine (Phase 1) ──────────────────────────────────────────────
+hl.bind(mod .. " + A",              hl.dsp.exec_cmd("kitty --class otter --config ~/.config/kitty/otter.conf -e ~/.local/bin/adhd-block-pick.sh"))  -- focus block picker (fzf: pick/add task → adhd-focus start)
+hl.bind(mod .. " + SHIFT + A",      hl.dsp.exec_cmd("~/.local/bin/adhd-capture.sh"))
+hl.bind(mod .. " + SHIFT + X",      hl.dsp.exec_cmd("~/.local/bin/adhd-focus.sh status"))
+hl.bind(mod .. " + SHIFT + Return", hl.dsp.exec_cmd("kitty --class tasktui --config ~/.config/kitty/tasktui.conf -e ~/.local/bin/tw-tui"))  -- taskwarrior-tui daily driver (was caelestia focus panel)
+hl.bind(mod .. " + SHIFT + P", hl.dsp.exec_cmd("~/.local/bin/adhd-break.sh"))  -- pause + monitor-off + lock (break)
+hl.bind(mod .. " + SHIFT + semicolon", hl.dsp.exec_cmd("kitty --class salahpick --config ~/.config/kitty/otter.conf -e ~/.local/bin/adhd-salah-pick.sh"))  -- one-key salah logger
+hl.bind(mod .. " + D",              hl.dsp.exec_cmd("kitty --config ~/.config/kitty/otter.conf --class otter -e ~/.cargo/bin/otter-launcher"))  -- otter-launcher (floating panel)
+hl.window_rule({ match = { class = "^(otter)$" }, float = true })
+hl.window_rule({ match = { class = "^(otter)$" }, center = true })
+hl.window_rule({ match = { class = "^(otter)$" }, size = "400 300" })
+hl.window_rule({ match = { class = "^(otter)$" }, dim_around = true })
+hl.window_rule({ match = { class = "^(otter)$" }, rounding = 5 })   -- stay_focused REMOVED (it blocked Print-screenshot)
+hl.window_rule({ match = { class = "^(otter)$" }, opaque = true })
+hl.window_rule({ match = { class = "^(wallpaper)$" }, float = true })
+hl.window_rule({ match = { class = "^(wallpaper)$" }, center = true })
+hl.window_rule({ match = { class = "^(wallpaper)$" }, size = "1100 620" })
+hl.window_rule({ match = { class = "^(wallpaper)$" }, rounding = 5 })
+
+-- bluetuith: floating Dracula bluetooth manager (launched from otter `bt`)
+hl.window_rule({ match = { class = "^(bluetuith)$" }, float = true })
+hl.window_rule({ match = { class = "^(bluetuith)$" }, center = true })
+hl.window_rule({ match = { class = "^(bluetuith)$" }, size = "720 520" })
+hl.window_rule({ match = { class = "^(bluetuith)$" }, rounding = 5 })
+
+-- clipse: floating Dracula clipboard TUI (otter `cl` / Super+C)
+hl.window_rule({ match = { class = "^(clipse)$" }, float = true })
+hl.window_rule({ match = { class = "^(clipse)$" }, center = true })
+hl.window_rule({ match = { class = "^(clipse)$" }, size = "720 520" })
+hl.window_rule({ match = { class = "^(clipse)$" }, rounding = 5 })
+
+-- taskwarrior-tui: floating Dracula daily-driver panel (Super+Shift+Return / otter `tw`)
+hl.window_rule({ match = { class = "^(tasktui)$" }, float = true })
+hl.window_rule({ match = { class = "^(tasktui)$" }, center = true })
+hl.window_rule({ match = { class = "^(tasktui)$" }, size = "1100 720" })
+hl.window_rule({ match = { class = "^(tasktui)$" }, rounding = 5 })
+
+-- salahpick: floating one-key salah picker
+hl.window_rule({ match = { class = "^(salahpick)$" }, float = true })
+hl.window_rule({ match = { class = "^(salahpick)$" }, center = true })
+hl.window_rule({ match = { class = "^(salahpick)$" }, size = "560 320" })
+hl.window_rule({ match = { class = "^(salahpick)$" }, rounding = 5 })
+
+-- Media keys (locked = work on lockscreen; repeating = hold to repeat)
+hl.bind("XF86AudioRaiseVolume",  hl.dsp.exec_cmd("swayosd-client --output-volume raise"))
+hl.bind("XF86AudioLowerVolume",  hl.dsp.exec_cmd("swayosd-client --output-volume lower"))
+hl.bind("XF86AudioMute",         hl.dsp.exec_cmd("swayosd-client --output-volume mute-toggle"))
+hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd("pactl set-source-mute @DEFAULT_SOURCE@ toggle"), { locked = true })
+hl.bind("XF86AudioPlay",        hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
+hl.bind("XF86AudioNext",        hl.dsp.exec_cmd("playerctl next"),       { locked = true })
+hl.bind("XF86AudioPrev",        hl.dsp.exec_cmd("playerctl previous"),   { locked = true })
+hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd("swayosd-client --brightness raise"))
+hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("swayosd-client --brightness lower"))
+hl.bind("Caps_Lock",             hl.dsp.exec_cmd("swayosd-client --caps-lock"))
+
+hl.bind(mod .. " + Escape",     hl.dsp.exec_cmd("hyprlock"))
+
+-- Focus (vim + arrows)
+local focusdirs = { H = "l", J = "d", K = "u", L = "r", left = "l", down = "d", up = "u", right = "r" }
+for key, dir in pairs(focusdirs) do
+  hl.bind(mod .. " + " .. key, hl.dsp.focus({ direction = dir }))
+end
+-- Move window
+local movedirs = { H = "l", J = "d", K = "u", L = "r" }
+for key, dir in pairs(movedirs) do
+  hl.bind(mod .. " + SHIFT + " .. key, hl.dsp.window.move({ direction = dir }))
+end
+
+-- Layout
+hl.bind(mod .. " + B",            hl.dsp.layout("preselect r"))
+hl.bind(mod .. " + V",            hl.dsp.layout("preselect d"))
+hl.bind(mod .. " + F",            hl.dsp.window.fullscreen({}))
+hl.bind(mod .. " + E",            hl.dsp.layout("togglesplit"))
+hl.bind(mod .. " + SHIFT + space", hl.dsp.window.float({}))
+hl.bind(mod .. " + S",            hl.dsp.group.toggle())
+hl.bind(mod .. " + CTRL + H",     hl.dsp.group.prev())
+hl.bind(mod .. " + CTRL + L",     hl.dsp.group.next())
+
+-- Workspaces 1–10 (focus + move) ; "0" = ws 10
+local wskeys = { ["1"]=1,["2"]=2,["3"]=3,["4"]=4,["5"]=5,["6"]=6,["7"]=7,["8"]=8,["9"]=9,["0"]=10 }
+for key, ws in pairs(wskeys) do
+  hl.bind(mod .. " + " .. key,           hl.dsp.focus({ workspace = ws }))
+  hl.bind(mod .. " + SHIFT + " .. key,   hl.dsp.window.move({ workspace = ws }))
+end
+hl.bind(mod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
+hl.bind(mod .. " + mouse_up",   hl.dsp.focus({ workspace = "e-1" }))
+hl.bind(mod .. " + mouse:272",  hl.dsp.window.drag(),   { mouse = true })
+hl.bind(mod .. " + mouse:273",  hl.dsp.window.resize(), { mouse = true })
+
+-- System
+hl.bind(mod .. " + SHIFT + C", hl.dsp.exec_cmd("hyprctl reload"))
+hl.bind(mod .. " + SHIFT + R", hl.dsp.exec_cmd("hyprctl reload"))
+hl.bind(mod .. " + Delete",    hl.dsp.exit())
+hl.bind(mod .. " + I",         hl.dsp.exec_cmd("pkill -USR1 waybar"))  -- toggle bar (zen); pkill matches the nix `.waybar-wrapped` comm — killall waybar did NOT
+
+-- Resize submap
+hl.bind(mod .. " + R", hl.dsp.submap("resize"))
+hl.define_submap("resize", function()
+  hl.bind("H", hl.dsp.window.resize({ x = -20, y = 0,  relative = true }), { repeating = true })
+  hl.bind("J", hl.dsp.window.resize({ x = 0,  y = 20,  relative = true }), { repeating = true })
+  hl.bind("K", hl.dsp.window.resize({ x = 0,  y = -20, relative = true }), { repeating = true })
+  hl.bind("L", hl.dsp.window.resize({ x = 20, y = 0,   relative = true }), { repeating = true })
+  hl.bind("Return", hl.dsp.submap("reset"))
+  hl.bind("escape", hl.dsp.submap("reset"))
+end)
