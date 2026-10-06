@@ -20,18 +20,17 @@ let
     ln -s ${zen}/bin/zen-beta $out/bin/zen
     ln -s ${zen}/bin/zen-beta $out/bin/zen-browser
   '';
-  # Browser policies (spec D3, R11): the keys of the live /etc/firefox/policies/policies.json (the only
-  # policies.json on the machine; zen has none) + force-installed ActivityWatch web watcher.
-  browserPolicies = {
-    DisablePrivateBrowsing = true;
-    PrivateBrowsingModeAvailability = 1;
-    ExtensionSettings."{ef87d84c-2127-493f-b952-5b4e744245bc}" = {
-      installation_mode = "force_installed";
-      install_url = "https://addons.mozilla.org/firefox/downloads/latest/aw-watcher-web/latest.xpi";
-    };
+  # Browser policies (spec D3, R11/R17): aw-watcher-web force-install for both browsers. The private-browsing
+  # keys come from /etc/firefox/policies/policies.json, which applies to stock Firefox only (live Zen has
+  # no policies), so they go to aether only.
+  awWatcher.ExtensionSettings."{ef87d84c-2127-493f-b952-5b4e744245bc}" = {
+    installation_mode = "force_installed";
+    install_url = "https://addons.mozilla.org/firefox/downloads/latest/aw-watcher-web/latest.xpi";
   };
-  zen = gl (inputs.zen-browser.packages.${pkgs.system}.default.override { extraPolicies = browserPolicies; });
-  aether = gl (pkgs.aether.override { extraPolicies = browserPolicies; });
+  zen = gl (inputs.zen-browser.packages.${pkgs.system}.default.override { extraPolicies = awWatcher; });
+  aether = gl (pkgs.aether.override {
+    extraPolicies = awWatcher // { DisablePrivateBrowsing = true; PrivateBrowsingModeAvailability = 1; };
+  });
 in {
   home.stateVersion = "25.11";
   programs.home-manager.enable = true;
