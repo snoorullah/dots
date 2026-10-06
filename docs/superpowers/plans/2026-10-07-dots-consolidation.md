@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** One repo (`dots`) — chezmoi for every file, Nix/home-manager for every package — gives the work PC's setup, minimalized (foot, plain zsh, no rofi, one multiplexer), identically on Arch, Ubuntu, Debian, Fedora/RHEL/Rocky and NixOS, absorbing `ubuntu-dots`, `hyprland-config`, `tmux-config`.
+**Goal:** One repo (`dots`) — chezmoi for every file, Nix/home-manager for every package — gives the work PC's setup, minimalized (foot, zsh on antidote + zimfw modules, no rofi, one multiplexer), identically on Arch, Ubuntu, Debian, Fedora/RHEL/Rocky and NixOS, absorbing `ubuntu-dots`, `hyprland-config`, `tmux-config`.
 
 **Architecture:** `.chezmoiroot` = `home/` (chezmoi source state). `nix/` is a home-manager flake that installs packages only. chezmoi `run_once_`/`run_onchange_` scripts do the root layer per distro and run `home-manager switch` when `nix/` changes. Live work-PC files are imported with `chezmoi add`, then templated/normalized under tests. Multiplexer is a data switch (`tmux` default, `herdr` on trial).
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Precedence: work-PC live files (2026-10-07) > `tmux-config@archdesk` (tmux only) > repos; rev-2 tool replacements (kitty→foot, oh-my-zsh→plain zsh, rofi→fzf, Hyprland→latest) override live.
+- Precedence: work-PC live files (2026-10-07) > `tmux-config@archdesk` (tmux only) > repos; rev-2 tool replacements (kitty→foot, oh-my-zsh→antidote + zimfw modules, rofi→fzf, Hyprland→latest) override live.
 - chezmoi owns files, Nix owns packages; no path managed by both (`tests/overlap.sh`).
 - PATH contract: `$HOME/.local/bin:$HOME/.nix-profile/bin` precede `/usr/bin` in `environment.d`, `hyprland.lua` and `.zshenv`.
 - Rendered files must not contain `/home/devsupreme`, `/home/linuxbrew`, `/snap/`, `.cargo/bin`, `/run/user/1001`, `/usr/bin/{task,timew,python3,kubectl,tmux,gh,kitty,swww}`, `kitty`, `rofi`, `oh-my-zsh`.
@@ -331,6 +331,7 @@ f all .config/timewarrior/timewarrior.cfg
 f all .config/onprem-kube-tunnel.conf
 f all .config/environment.d/10-dots-path.conf
 f all .config/zsh/aliases.zsh
+f all .zsh_plugins.txt
 f all .config/git/config
 f all .taskrc
 x all .task/hooks/on-modify.timewarrior
@@ -712,7 +713,7 @@ in {
     waybar mako swayosd swww foot-ligatures chafa otter-launcher clipse yazi ffmpegthumbnailer unar file fd
     grim slurp wl-clipboard playerctl brightnessctl networkmanagerapplet bluetuith libnotify papirus-icon-theme
     taskwarrior3 timewarrior taskwarrior-tui aw-server-rust awatcher dotsAdhanPython
-    zsh zsh-autosuggestions zsh-fast-syntax-highlighting starship zoxide fzf eza bat ripgrep jq gh neovim git chezmoi
+    zsh antidote starship zoxide fzf eza bat ripgrep jq gh neovim git chezmoi
     tmux inputs.herdr.packages.${pkgs.system}.default
     kubectl k9s openssh
     inputs.zen-browser.packages.${pkgs.system}.default vscode obsidian slack thunderbird
@@ -851,9 +852,9 @@ git add -A && git commit -m "feat(foot): replace kitty — foot (ligature fork),
 
 ---
 
-### Task 7: Minimal zsh, no rofi, git identity
+### Task 7: zsh on antidote + zimfw modules, no rofi, git identity
 
-**Files:** Modify `home/dot_zshrc` → `home/dot_zshrc.tmpl`, `home/dot_zshenv` → `home/dot_zshenv.tmpl`, `home/dot_local/bin/executable_adhd-capture.sh`, `home/dot_config/hypr/hyprland.lua`; create `home/dot_config/zsh/aliases.zsh`, `home/dot_config/git/config.tmpl`.
+**Files:** Modify `home/dot_zshrc` → `home/dot_zshrc.tmpl`, `home/dot_zshenv` → `home/dot_zshenv.tmpl`, `home/dot_local/bin/executable_adhd-capture.sh`, `home/dot_config/hypr/hyprland.lua`; create `home/dot_zsh_plugins.txt`, `tools/pin-zsh-plugins.sh`, `home/dot_config/zsh/aliases.zsh`, `home/dot_config/git/config.tmpl`, `home/dot_config/git/work`.
 
 - [ ] **Step 1: `.zshenv`**
 
@@ -867,15 +868,51 @@ export KUBECONFIG="$HOME/.kube/onprem-s2a.yaml"
 export EDITOR=nvim VISUAL=nvim
 ```
 
-- [ ] **Step 2: `.zshrc` without a framework**
+- [ ] **Step 2: Plugin list with pins — `.zsh_plugins.txt`**
 
-Rewrite `home/dot_zshrc.tmpl` keeping every live behaviour that is not oh-my-zsh: history-disabled block (live 2026-09-22), starship + zoxide init, fzf keybindings, kubectl completion, `~/.secrets` sourcing, user aliases. Structure:
+`home/dot_zsh_plugins.txt` (order matters: completion after everything that adds to `fpath`; fast-syntax-highlighting last). `PIN` is replaced by Step 3:
+```
+zimfw/environment                          pin:PIN
+zimfw/input                                pin:PIN
+zimfw/utility                              pin:PIN
+zimfw/git                                  pin:PIN
+zsh-users/zsh-autosuggestions              pin:PIN
+MichaelAquilina/zsh-you-should-use         pin:PIN
+zimfw/completion                           pin:PIN
+zdharma-continuum/fast-syntax-highlighting pin:PIN
+```
+
+- [ ] **Step 3: Resolve pins — `tools/pin-zsh-plugins.sh`**
+
+```bash
+#!/usr/bin/env bash
+# Replaces each "pin:PIN" with the current HEAD commit of that repo (re-run to bump all pins).
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+f=home/dot_zsh_plugins.txt; tmp=$(mktemp)
+while read -r repo rest; do
+  [ -z "$repo" ] && continue
+  sha=$(git ls-remote "https://github.com/$repo" HEAD | cut -f1)
+  printf '%-42s pin:%s\n' "$repo" "$sha"
+done < <(sed -E 's/ +pin:[^ ]*//' "$f") > "$tmp"
+mv "$tmp" "$f"; grep -c 'pin:[0-9a-f]\{40\}' "$f"
+```
+```bash
+bash tools/pin-zsh-plugins.sh
+```
+Expected: `8`.
+
+- [ ] **Step 4: `.zshrc` on antidote**
+
+Rewrite `home/dot_zshrc.tmpl` keeping every live behaviour that is not oh-my-zsh: history-disabled block (live 2026-09-22), starship + zoxide init, fzf keybindings, kubectl completion, `~/.secrets` sourcing, user aliases:
 ```zsh
-# ~/.zshrc — no framework. Plugins are pinned by Nix (nix/home.nix).
-P="$HOME/.nix-profile/share"
-autoload -Uz compinit && compinit -d "${XDG_CACHE_HOME:-$HOME/.cache}/zcompdump"
+# ~/.zshrc — antidote (Nix) + pinned zimfw modules (~/.zsh_plugins.txt, chezmoi).
+zstyle ':zim:git' aliases-prefix 'g'                                     # oh-my-zsh-style gs, gc, gp…
+zstyle ':zim:completion' dumpfile "${XDG_CACHE_HOME:-$HOME/.cache}/zcompdump"
+zstyle ':antidote:bundle' use-friendly-names 'yes'
+source "$HOME/.nix-profile/share/antidote/antidote.zsh"
+antidote load "$HOME/.zsh_plugins.txt" "${XDG_CACHE_HOME:-$HOME/.cache}/zsh_plugins.zsh"
 bindkey -v; export KEYTIMEOUT=1
-[[ -r $P/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && source $P/zsh-autosuggestions/zsh-autosuggestions.zsh
 source "$HOME/.config/zsh/aliases.zsh"
 [[ -r ~/.secrets ]] && source ~/.secrets
 (( $+commands[kubectl] )) && source <(kubectl completion zsh)
@@ -885,29 +922,32 @@ eval "$(starship init zsh)"
 # --- live: history disabled (2026-09-22) — copied verbatim from the old .zshrc ---
 HISTSIZE=0
 setopt no_share_history no_inc_append_history no_append_history no_extended_history
-# fast-syntax-highlighting must be last
-for f in $P/zsh/plugins/fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh \
-         $P/zsh/site-functions/fast-syntax-highlighting.plugin.zsh; do [[ -r $f ]] && { source $f; break; }; done
 ```
-Find the real plugin paths in the built profile and keep only the correct one:
+Confirm the antidote path in the built profile (adjust the `source` line if it differs):
 ```bash
 act=$(cd nix && nix build --impure --no-link --print-out-paths .#homeConfigurations.nvidia.activationPackage)
-find -L $act/home-path/share -name 'fast-syntax-highlighting.plugin.zsh' -o -name 'zsh-autosuggestions.zsh'
+find -L $act/home-path/share -name antidote.zsh
 ```
-Move every non-oh-my-zsh alias/function from the old `.zshrc` into `home/dot_config/zsh/aliases.zsh`, plus the replacements for the dropped oh-my-zsh plugins actually used:
+Move every non-oh-my-zsh alias/function from the old `.zshrc` into `home/dot_config/zsh/aliases.zsh` (git aliases now come from `zimfw/git`), plus replacements for dropped oh-my-zsh plugins actually used:
 ```zsh
 alias ls='eza' ll='eza -l --git' la='eza -la --git' cat='bat --paging=never' lg='lazygit' k='kubectl'
-alias g='git' gs='git status -sb' ga='git add' gc='git commit' gp='git push' gl='git pull' gd='git diff' gco='git checkout'
 copyfile() { wl-copy < "$1"; }
 web()      { xdg-open "https://duckduckgo.com/?q=${*// /+}"; }
 ```
+
+- [ ] **Step 5: Shell checks**
+
 ```bash
 zsh -n home/dot_zshrc.tmpl && echo syntax-ok
 grep -nE 'oh-my-zsh|ZSH_CUSTOM|plugins=\(|asdf|envman|linuxbrew|batcat' home/dot_zshrc.tmpl || echo clean
+out=$(mktemp -d); bash tests/render.sh tests/data-nvidia-tmux.toml "$out"
+mkdir -p "$out/.nix-profile"; ln -s "$act/home-path/share" "$out/.nix-profile/share"; ln -s "$act/home-path/bin" "$out/.nix-profile/bin"
+HOME=$out PATH=$act/home-path/bin:$PATH zsh -i -c 'alias gs >/dev/null && whence -w compinit && echo zsh-ok' 2>&1 | tail -3
 ```
+Expected: `syntax-ok`, `clean`, `zsh-ok` with no error lines (first run downloads the 8 pinned repos into `~/.cache/antidote`).
 Startup-time check after Task 10 cutover: `for i in 1 2 3; do /usr/bin/time -f %e zsh -i -c exit; done` → each < 0.15 s.
 
-- [ ] **Step 3: rofi → fzf capture**
+- [ ] **Step 6: rofi → fzf capture**
 
 In `home/dot_local/bin/executable_adhd-capture.sh` replace the rofi block (the `theme=…rofi…` line and both `rofi -dmenu` lines) with:
 ```bash
@@ -916,7 +956,7 @@ text=$(fzf --print-query --prompt='  capture › ' --height=100% --reverse --no-
 ```
 In `hyprland.lua` change the `Super+Shift+A` bind to `foot -a capture -c ~/.config/foot/popup.ini ~/.local/bin/adhd-capture.sh` and add a float + center + `size 700 120` window rule for class `capture`. Delete the `rofi` layer rule.
 
-- [ ] **Step 4: git config (work identity)**
+- [ ] **Step 7: git config (work identity)**
 
 `home/dot_config/git/config.tmpl` (replaces `~/.gitconfig`; remove `home/dot_gitconfig` if it was imported):
 ```ini
@@ -946,10 +986,10 @@ bash tests/lint.sh
 ```
 Expected: `no gmail`, `lint ok`.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add -A && git commit -m "feat(shell): framework-free zsh (2 nix plugins, bindkey -v); rofi→fzf capture; work git identity"
+git add -A && git commit -m "feat(shell): antidote + pinned zimfw modules (bindkey -v); rofi→fzf capture; work git identity"
 ```
 
 ---
@@ -1369,7 +1409,7 @@ cp ~/.config/chezmoi/chezmoi.toml ~/.config/chezmoi/chezmoi.toml.pre-dots
 chezmoi init --source ~/work/dots-consolidation/dots/.claude/worktrees/consolidate/home
 chezmoi diff | tee /tmp/dots-cutover.diff | grep -E '^diff --git' | wc -l
 ```
-Read `/tmp/dots-cutover.diff`. Every hunk must be one of: kitty→foot, rofi→fzf, oh-my-zsh→plain zsh, PATH/template normalization, Hyprland 0.56 port, removed dangling refs. Anything else → fix in the repo, re-run.
+Read `/tmp/dots-cutover.diff`. Every hunk must be one of: kitty→foot, rofi→fzf, oh-my-zsh→antidote + zimfw modules, PATH/template normalization, Hyprland 0.56 port, removed dangling refs. Anything else → fix in the repo, re-run.
 
 - [ ] **Step 2: Apply**
 

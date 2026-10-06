@@ -23,7 +23,7 @@ exactly one multiplexer; no second launcher; no shell framework.
    live `~/.tmux.conf` local overrides re-applied on top.
 3. Repos fill gaps only (`keyd` config).
 4. **Rev-2 owner decisions override live** where they replace a tool: kitty → foot,
-   oh-my-zsh → plain zsh, rofi → fzf, Hyprland 0.55 → latest.
+   oh-my-zsh → antidote + zimfw modules, rofi → fzf, Hyprland 0.55 → latest.
 
 ## Architecture
 
@@ -68,7 +68,7 @@ point puts the Nix profile first:
 | D2 | GL on non-NixOS | `gpu=nvidia` → nix-gl-host; `gpu=mesa` → nixGL mesa; `gpu=nixos` → none. `gpu` auto-detected from `lspci` in `.chezmoi.toml.tmpl`, overridable. |
 | D3 | Files vs packages | chezmoi owns files; Nix owns packages. A test asserts no path is managed by both. |
 | D4 | Terminal | **foot**, built from the `barsmonster/foot` fork (adds `tweak.ligatures`) pinned to a commit; flag `footLigatures=false` falls back to upstream foot. No background images: popups use `alpha` + Hyprland blur. Popups: `foot -a <app-id> -c ~/.config/foot/popup.ini <cmd>`; main windows: `footclient` against `foot --server`. |
-| D5 | Shell | zsh, **no framework**. Nix-pinned plugins: `zsh-autosuggestions`, `zsh-fast-syntax-highlighting`. Vi mode: built-in `bindkey -v`. Own `aliases.zsh`. Dropped: oh-my-zsh and its 15 plugins (incl. Ubuntu-only `debian`, `command-not-found`), forgit, asdf/envman/linuxbrew/bun sources. History stays disabled (live choice, 2026-09-22). |
+| D5 | Shell | zsh with **antidote + zimfw modules** (owner decision 2026-10-07). antidote (from Nix) loads `~/.zsh_plugins.txt` (chezmoi) as a static bundle; every line carries `pin:<commit>`. Modules: `zimfw/environment`, `zimfw/input`, `zimfw/utility`, `zimfw/git` (alias prefix `g`, oh-my-zsh-style names), `zimfw/completion`, `zsh-users/zsh-autosuggestions`, `MichaelAquilina/zsh-you-should-use` (replaces alias-finder), `zdharma-continuum/fast-syntax-highlighting` (last). Vi mode: built-in `bindkey -v`. Own `aliases.zsh` for non-git aliases. Dropped: oh-my-zsh and its 15 plugins (incl. Ubuntu-only `debian`, `command-not-found`), forgit, asdf/envman/linuxbrew/bun sources. History stays disabled (live choice, 2026-09-22). Rationale: zsh-bench first-command lag oh-my-zsh 84 ms vs zim 57 ms / static loaders ~66 ms; reproducible via `pin:`. |
 | D6 | Multiplexer | Swappable via chezmoi data `multiplexer = "tmux" | "herdr"`. Default **tmux** (`tmux-config@archdesk`). **Herdr trial**: both installed; `docs/herdr-trial.md` defines pass/fail criteria; the loser is removed after the trial. Never both active. |
 | D7 | Launcher | otter-launcher only. rofi removed: `adhd-capture.sh` uses an fzf prompt in a foot popup. |
 | D8 | Secrets | chezmoi native age encryption (`encrypted_private_*`), identity `~/.config/chezmoi/key.txt` (existing key). Holds `~/.secrets`, `~/.kube/{config,onprem-s2a.yaml,ovh-k8s.conf}`. |
