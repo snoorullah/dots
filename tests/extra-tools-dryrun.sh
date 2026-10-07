@@ -7,7 +7,7 @@ work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
 cfg="$work/cfg.toml"; cat "$root/tests/data-nvidia-tmux.toml" > "$cfg"
 script="$work/extra-tools.sh"
 HOME="$work/home" chezmoi execute-template --source "$root/home" --config "$cfg" \
-  < "$root/home/.chezmoiscripts/run_onchange_after_25-extra-tools.sh.tmpl" > "$script" || { echo "EXTRA: render failed"; exit 1; }
+  < "$root/home/.chezmoiscripts/run_onchange_after_90-extra-tools.sh.tmpl" > "$script" || { echo "EXTRA: render failed"; exit 1; }
 bash -n "$script" || { echo "EXTRA: bash -n failed"; exit 1; }
 head -2 "$script" | grep -qE '^# pins: [0-9a-f]{64}$' || { echo "EXTRA: pins hash line missing"; fail=1; }
 mkdir -p "$work/home"
@@ -25,7 +25,8 @@ want=(
   "install --locked --root $h/.local --version 0.3.28 linear-cli"
   "install --locked --root $h/.local --version 0.1.0 tttui"
   "pipx install --force ytm-player=="
-  "pipx install --force --python python3.12 syncall=="
+  "uv tool install --force --python 3.12 syncall==1.8.8"
+  "<rev from $h/.nix-profile/share/aether/REV>"
   "running unverified vendor installer"
   "env SHELL=/bin/sh bash "
   "https://x.ai/cli/install.sh"

@@ -1,5 +1,5 @@
 # Pinned extra tools that are not in nixpkgs (rulings R9, R12, R14, R21).
-# Read by home/.chezmoiscripts/run_onchange_after_25-extra-tools.sh.tmpl.
+# Read by home/.chezmoiscripts/run_onchange_after_90-extra-tools.sh.tmpl.
 # Versions are the owner's live versions as of 2026-10-07 unless "source" says otherwise.
 # `unpinned: true` marks a tool whose origin or version cannot be pinned; `reason` says why.
 extraTools:
@@ -22,8 +22,9 @@ extraTools:
   pipx:   # PIPX_BIN_DIR=~/.local/bin pipx install name==version
     - { name: ytm-player, version: 2.0.0, source: "pipx list --json",
         readme: "https://github.com/peternaame-boop/ytm-player (pip install ytm-player; pipx used for isolation)" }
-    - { name: syncall, version: 1.8.8, python: python3.12, source: "PyPI JSON API latest (not installed on this machine)",
-        readme: "https://github.com/bergercookie/syncall (pip install syncall; requires python <=3.12.5, so python3.12)" }
+  uv:   # UV_TOOL_BIN_DIR=~/.local/bin uv tool install --python X name==version (uv fetches Python X if missing)
+    - { name: syncall, version: 1.8.8, python: "3.12", source: "PyPI JSON API latest (not installed on this machine)",
+        readme: "https://github.com/bergercookie/syncall (pip install syncall; requires python <=3.12.5, so 3.12)" }
   # argonaut, HyprCapture and hypr-kdeconnect-fix are Nix packages now (nix/pkgs/overlay.nix, nix/home.nix; R25).
   grok:   # vendor installer (~/.grok/docs/user-guide/01-getting-started.md; https://docs.x.ai/build/overview.md)
     version: 1.0.41
@@ -33,6 +34,6 @@ extraTools:
     # version is pinned, but the installer script itself is not hash-pinned (vendor publishes no checksum for it)
     unpinned: false
     installerUnverified: true
-  aether:   # per-user profile only; the overlay and Firefox come from the Nix aether package (same rev)
-    rev: 5e085656802eec3e26ecf0e4c55c2a771036cf36
-    source: "overlay/install.sh at this rev, steps 3-5 mirrored (profile, chrome symlink, user.js, aether.toml)"
+  # aether: per-user profile only. The rev is NOT pinned here: it has a single source, nix/pkgs/aether.nix, which writes
+  # it to $out/share/aether/REV; the extra-tools script reads it from ~/.nix-profile/share/aether/REV.
+  # The script mirrors overlay/install.sh steps 3-5 at that rev (profile, chrome symlink, user.js, aether.toml).

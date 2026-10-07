@@ -3,7 +3,8 @@
 #   extraPrefsFiles  -> aether-loader.cfg appended to <libdir>/mozilla.cfg (the wrapper's own autoconfig
 #                       file, declared by defaults/pref/autoconfig.js; no config.js conflict)
 #   zz-aether.js     -> <libdir>/defaults/pref/zz-aether.js (sandbox_enabled=false, loads last)
-# The per-user profile (-P aether, chrome/ symlinks) is chezmoi / Task 10, at the same rev.
+# The per-user profile (-P aether, chrome/ symlinks) is chezmoi's extra-tools script, which reads the rev from
+# $out/share/aether/REV (this file is the only place the rev is pinned).
 { lib, runCommand, wrapFirefox, firefox-unwrapped, fetchFromGitHub, extraPolicies ? { } }:
 let
   rev = "5e085656802eec3e26ecf0e4c55c2a771036cf36";
@@ -31,6 +32,8 @@ runCommand "aether-${rev}" { passthru = { inherit firefox src rev; }; meta.mainP
   # overlay (chrome/, prefs/user.js, config/aether.toml) for the per-user profile step in chezmoi's extra-tools script
   mkdir -p $out/share/aether
   ln -s ${src}/overlay $out/share/aether/overlay
+  # the pinned rev, read by the extra-tools script (this file is the single source of the Aether rev)
+  echo ${rev} > $out/share/aether/REV
   # the nix-built Firefox, for `-CreateProfile aether` (the launcher always adds -P aether, so it cannot create the profile)
   ln -s ${firefox}/bin/firefox $out/share/aether/firefox
   sed -e "s|^Exec=aether|Exec=$out/bin/aether|" ${src}/overlay/share/aether.desktop > $out/share/applications/aether.desktop
