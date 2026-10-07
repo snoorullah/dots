@@ -24,32 +24,47 @@ setup() {
   export OPS_SSHD_CONFIG="$BATS_TEST_TMPDIR/etc-ssh/sshd_config" OPS_SSHD_DIR="$BATS_TEST_TMPDIR/etc-ssh/sshd_config.d"
   mkdir -p "$OPS_SSHD_DIR"; printf 'Include /etc/ssh/sshd_config.d/*.conf\nUsePAM yes\n' > "$OPS_SSHD_CONFIG"
   export OPS_OWNER_FILE="$BATS_TEST_TMPDIR/owner"; echo alice > "$OPS_OWNER_FILE"
-  export OWNER_HOME="$BATS_TEST_TMPDIR/home-alice"; mkdir -p "$OWNER_HOME/.ssh"
-  mkstub getent '[ "$1" = passwd ] && [ "$2" = "${STUB_OWNER:-alice}" ] && { echo "$2:x:1000:1000::$OWNER_HOME:/bin/bash"; exit 0; }; exit 2'
-  # systemctl: STUB_ACTIVE / STUB_UNITS are space-separated unit names (is-active/is-enabled, cat)
+  umask 022   # sshd StrictModes semantics are tested explicitly; key files must not inherit a 002 umask by accident
+  export OWNER_HOME="$BATS_TEST_TMPDIR/home-alice"; mkdir -p "$OWNER_HOME/.ssh"; chmod 755 "$OWNER_HOME"; chmod 700 "$OWNER_HOME/.ssh"
+  # the owner's uid is the test runner's uid, so StrictModes ownership checks see "owned by the owner"
+  mkstub getent '[ "$1" = passwd ] && [ "$2" = "${STUB_OWNER:-alice}" ] && { echo "$2:x:$(id -u):$(id -g)::$OWNER_HOME:/bin/bash"; exit 0; }; exit 2'
+  # systemctl: STUB_ACTIVE / STUB_UNITS are space-separated unit names (is-active/is-enabled, cat);
+  # is-enabled without --quiet prints enabled/disabled like the real one
   mkstub systemctl 'echo "systemctl $*" >> "$STUB_LOG"
 for last; do :; done
 has() { case " $1 " in *" $last "*) return 0 ;; esac; return 1; }
 case " $* " in
-  *" is-active "*|*" is-enabled "*) has "${STUB_ACTIVE:-}" && exit 0; exit 3 ;;
+  *" is-enabled "*) if has "${STUB_ACTIVE:-}"; then case " $* " in *" --quiet "*) ;; *) echo enabled ;; esac; exit 0; fi
+                    case " $* " in *" --quiet "*) ;; *) echo disabled ;; esac; exit 1 ;;
+  *" is-active "*) has "${STUB_ACTIVE:-}" && exit 0; exit 3 ;;
   *" cat "*) has "${STUB_UNITS:-}" && exit 0; exit 1 ;;
 esac
 [ -z "${STUB_SYSTEMCTL_FAIL:-}" ] || exit 1
 exit 0'
+  # sshd: -t rc from STUB_SSHD_T_RC; -T -C prints STUB_SSHD_TC (unset = fails, like sshd without host keys);
+  # plain -T prints STUB_SSHD_EFFECTIVE; -V reports OpenSSH_$STUB_SSHD_VER on stderr
   mkstub sshd 'echo "sshd $*" >> "$STUB_LOG"
-case "$1" in -t) exit ${STUB_SSHD_T_RC:-0} ;; -T) printf "%b" "${STUB_SSHD_EFFECTIVE:-}"; exit 0 ;; esac; exit 0'
+case "$1" in
+  -t) exit ${STUB_SSHD_T_RC:-0} ;;
+  -T) if [ "$2" = -C ]; then [ -n "${STUB_SSHD_TC:-}" ] || exit 1; printf "%b" "$STUB_SSHD_TC"; exit 0; fi
+      printf "%b" "${STUB_SSHD_EFFECTIVE:-}"; exit 0 ;;
+  -V) echo "OpenSSH_${STUB_SSHD_VER:-9.6}p1, OpenSSL 3.0.13" >&2; exit 0 ;;
+esac; exit 0'
+  mkstub ip '[ "${STUB_IP_DEV:-eth0}" = none ] && exit 0; echo "default via 192.168.1.1 dev ${STUB_IP_DEV:-eth0} proto dhcp metric 600"'
   # ufw: status verbose prints $STUB_UFW_STATUS
   mkstub ufw 'echo "ufw $*" >> "$STUB_LOG"
 case "$*" in "status verbose") printf "%b" "${STUB_UFW_STATUS:-Status: inactive\n}"; exit ${STUB_UFW_RC:-0} ;; esac; exit 0'
   mkstub firewall-cmd 'echo "firewall-cmd $*" >> "$STUB_LOG"
 case " $* " in
   *" --state "*) [ "${STUB_FWD_RUNNING:-1}" = 1 ] && { echo running; exit 0; }; echo "not running"; exit 252 ;;
+  *" --get-zone-of-interface="*) [ -n "${STUB_FWD_IFZONE:-}" ] || { echo "no zone"; exit 2; }; echo "$STUB_FWD_IFZONE" ;;
   *" --get-default-zone "*) echo "${STUB_FWD_ZONE:-public}" ;;
   *" --list-ports "*) echo "${STUB_FWD_PORTS:-}" ;;
   *" --get-target "*) echo "${STUB_FWD_TARGET:-default}" ;;
 esac; exit 0'
   mkstub firewall-offline-cmd 'echo "firewall-offline-cmd $*" >> "$STUB_LOG"
 case " $* " in
+  *" --get-zone-of-interface="*) [ -n "${STUB_FWD_IFZONE:-}" ] || { echo "no zone"; exit 2; }; echo "$STUB_FWD_IFZONE" ;;
   *" --get-default-zone "*) echo "${STUB_FWD_ZONE:-public}" ;;
   *" --list-ports "*) echo "${STUB_FWD_PORTS:-}" ;;
   *" --get-target "*) echo "${STUB_FWD_TARGET:-default}" ;;
@@ -72,10 +87,14 @@ UFW_CMDS='ufw allow 22/tcp
 ufw allow 1714:1764/tcp
 ufw allow 1714:1764/udp
 ufw default deny incoming
-ufw --force enable'
+ufw --force enable
+systemctl enable ufw.service'
 fw_hash() {   # the hash the job records for the current rules (from its own render)
   ( source "$SJ/firewall.sh"; _fw_setup >/dev/null && printf '%s' "$_fw_hash" )
 }
+pending() { fw_hash > "$OPS_ROOT_STATE/firewall.pending-hash"; }   # what the job writes when it asks (R46)
+ufw_mut() { grep -E '^ufw |^systemctl enable ' "$STUB_LOG" | grep -v 'status verbose' || true; }
+dryact() { env DOTS_OPS_DRY_RUN=1 bash -c 'set -euo pipefail; source "$1"; source "$2"' _ "$LIB" "$SA/$1/$2.sh"; }
 applied() { jq -cn --arg h "$1" '{hash:$h,applied:1,tool:"ufw"}' > "$OPS_ROOT_STATE/firewall.applied"; }
 
 # ---- firewall.json ----
@@ -96,32 +115,53 @@ applied() { jq -cn --arg h "$1" '{hash:$h,applied:1,tool:"ufw"}' > "$OPS_ROOT_ST
   [ ! -e "$OPS_ROOT_STATE/firewall.applied" ]
   [ -z "$(mutations)" ]
 }
+@test "firewall ask binds the approval to the rules hash shown (R46: firewall.pending-hash)" {
+  os "$DEB"; runjob firewall
+  [ "$(cat "$OPS_ROOT_STATE/firewall.pending-hash")" = "$(fw_hash)" ]
+}
 @test "firewall first run even with only one rule missing still asks (no applied file)" {
-  os "$ARCH"; export STUB_UFW_STATUS="${UFW_OK/1714:1764\/udp              ALLOW IN    Anywhere\\n/}"
+  os "$ARCH"; export STUB_ACTIVE="ufw.service" STUB_UFW_STATUS="${UFW_OK/1714:1764\/udp              ALLOW IN    Anywhere\\n/}"
   runjob firewall
   [ -e "$OPS_ROOT_STATE/ask-firewall.json" ]
-  q=$(rstate ask-firewall question); [[ $q == *"1714:1764/udp"* && $q != *"22/tcp (ssh)"* ]]
+  q=$(rstate ask-firewall question); [[ $q == *"1714:1764/udp"* && $q != *"22/tcp (ssh)"* && $q != *"ufw.service"* ]]
   [ -z "$(mutations)" ]
 }
-@test "firewall: live state already matches -> ok, no ask, stale ask withdrawn" {
-  os "$DEB"; export STUB_UFW_STATUS="$UFW_OK"; echo '{}' > "$OPS_ROOT_STATE/ask-firewall.json"
+@test "firewall: live state already matches (ufw.service enabled) -> ok, no ask, stale ask withdrawn" {
+  os "$DEB"; export STUB_ACTIVE="ufw.service" STUB_UFW_STATUS="$UFW_OK"; echo '{}' > "$OPS_ROOT_STATE/ask-firewall.json"
   runjob firewall
   [ "$(rstate firewall status)" = ok ]; [ ! -e "$OPS_ROOT_STATE/ask-firewall.json" ]
   [ -z "$(mutations)" ]
 }
+@test "firewall (R45): ufw active but ufw.service not enabled at boot (Arch) -> a difference" {
+  os "$ARCH"; export STUB_UFW_STATUS="$UFW_OK"
+  runjob firewall
+  [[ $(rstate ask-firewall question) == *"enable ufw.service at boot"* ]]
+  [ -z "$(mutations)" ]
+}
 @test "firewall: LIMIT on ssh and reject default count as satisfied (never loosened)" {
-  os "$DEB"; s="${UFW_OK/22\/tcp                     ALLOW IN/22/tcp                     LIMIT IN}"
+  os "$DEB"; export STUB_ACTIVE="ufw.service"; s="${UFW_OK/22\/tcp                     ALLOW IN/22/tcp                     LIMIT IN}"
   export STUB_UFW_STATUS="${s/Default: deny/Default: reject}"
   runjob firewall
   [ "$(rstate firewall status)" = ok ]
 }
-@test "firewall drift with the same rules hash -> auto re-apply via ops_run and record" {
+@test "firewall (R44): ssh narrowed by hand to an interface or a source counts as present -> in sync" {
+  os "$DEB"; export STUB_ACTIVE="ufw.service"
+  export STUB_UFW_STATUS="${UFW_OK/22\/tcp                     ALLOW IN    Anywhere/22/tcp on tailscale0          ALLOW IN    Anywhere}"
+  runjob firewall
+  [ "$(rstate firewall status)" = ok ]; [ ! -e "$OPS_ROOT_STATE/ask-firewall.json" ]
+  export STUB_UFW_STATUS="${UFW_OK/22\/tcp                     ALLOW IN    Anywhere/22/tcp                     ALLOW IN    192.168.1.0/24}"
+  runjob firewall
+  [ "$(rstate firewall status)" = ok ]; [ -z "$(mutations)" ]
+}
+@test "firewall (R44) drift with the same rules hash -> warn naming the drift + ask, NEVER re-applied" {
   os "$DEB"; applied "$(fw_hash)"
   export STUB_UFW_STATUS='Status: inactive\n'
   runjob firewall
-  [ ! -e "$OPS_ROOT_STATE/ask-firewall.json" ]
-  [ "$(grep '^ufw ' "$STUB_LOG" | grep -v 'status verbose')" = "$UFW_CMDS" ]
-  [ "$(rstate firewall status)" = ok ]; [[ $(rstate firewall summary) == *"re-applied"* ]]
+  [ -z "$(mutations)" ]
+  [ "$(rstate firewall status)" = warn ]; [[ $(rstate firewall summary) == "drift: "*"enable ufw"* ]]
+  [[ $(rstate ask-firewall question) == *"drifted from the approved rules"* ]]
+  [ "$(rstate ask-firewall action)" = "root:firewall apply" ]
+  [ "$(cat "$OPS_ROOT_STATE/firewall.pending-hash")" = "$(fw_hash)" ]
 }
 @test "firewall drift, rules changed since the last apply -> ask again, never applies" {
   os "$ARCH"; applied "0000deadbeef"
@@ -156,18 +196,31 @@ applied() { jq -cn --arg h "$1" '{hash:$h,applied:1,tool:"ufw"}' > "$OPS_ROOT_ST
   [[ $q == *"firewalld"* && $q == *"1714-1764/tcp"* && $q != *"allow 22/tcp"* ]]
   [ -z "$(mutations)" ]
 }
+@test "firewall fedora (R47): zone of the default-route interface, not the default zone" {
+  os "$FED"; export STUB_IP_DEV=wlp2s0 STUB_FWD_IFZONE=home STUB_FWD_ZONE=public
+  runjob firewall
+  grep -qx 'firewall-cmd --get-zone-of-interface=wlp2s0' "$STUB_LOG"
+  [[ $(rstate ask-firewall question) == *"in zone home"* ]]
+  pending; run dryact firewall apply; [ "$status" -eq 0 ]
+  [[ $output == *"+ firewall-cmd --permanent --zone=home --add-port=22/tcp"* ]]
+}
+@test "firewall fedora (R47): interface bound to no zone, or no default route -> default zone" {
+  os "$FED"; export STUB_IP_DEV=eth0 STUB_FWD_ZONE=FedoraWorkstation
+  runjob firewall; [[ $(rstate ask-firewall question) == *"in zone FedoraWorkstation"* ]]
+  export STUB_IP_DEV=none; runjob firewall; [[ $(rstate ask-firewall question) == *"in zone FedoraWorkstation"* ]]
+}
 
 # ---- firewall apply (action) ----
 @test "firewall apply dry-run (ufw, arch + debian): prints the exact commands, allows before deny+enable, records nothing" {
   for o in "$ARCH" "$DEB"; do
-    os "$o"; run env DOTS_OPS_DRY_RUN=1 bash -c 'set -euo pipefail; source "$1"; source "$2"' _ "$LIB" "$SA/firewall/apply.sh"
+    os "$o"; pending; run dryact firewall apply
     [ "$status" -eq 0 ]
     [ "$(grep '^+ ' <<< "$output")" = "$(sed 's/^/+ /' <<< "$UFW_CMDS")" ]
   done
   [ ! -e "$OPS_ROOT_STATE/firewall.applied" ]; [ -z "$(mutations)" ]
 }
 @test "firewall apply dry-run (fedora, running): exact firewall-cmd --permanent commands then reload" {
-  os "$FED"; run env DOTS_OPS_DRY_RUN=1 bash -c 'set -euo pipefail; source "$1"; source "$2"' _ "$LIB" "$SA/firewall/apply.sh"
+  os "$FED"; pending; run dryact firewall apply
   [ "$status" -eq 0 ]
   [ "$(grep '^+ ' <<< "$output")" = "+ firewall-cmd --permanent --zone=public --add-port=22/tcp
 + firewall-cmd --permanent --zone=public --add-port=1714-1764/tcp
@@ -176,7 +229,7 @@ applied() { jq -cn --arg h "$1" '{hash:$h,applied:1,tool:"ufw"}' > "$OPS_ROOT_ST
 }
 @test "firewall apply dry-run (fedora, stopped): rules land offline BEFORE firewalld starts; ACCEPT target tightened" {
   os "$FED"; export STUB_FWD_RUNNING=0 STUB_FWD_TARGET=ACCEPT STUB_FWD_ZONE=FedoraWorkstation
-  run env DOTS_OPS_DRY_RUN=1 bash -c 'set -euo pipefail; source "$1"; source "$2"' _ "$LIB" "$SA/firewall/apply.sh"
+  pending; run dryact firewall apply
   [ "$status" -eq 0 ]
   [ "$(grep '^+ ' <<< "$output")" = "+ firewall-offline-cmd --zone=FedoraWorkstation --add-port=22/tcp
 + firewall-offline-cmd --zone=FedoraWorkstation --add-port=1714-1764/tcp
@@ -185,14 +238,23 @@ applied() { jq -cn --arg h "$1" '{hash:$h,applied:1,tool:"ufw"}' > "$OPS_ROOT_ST
 + systemctl enable --now firewalld.service" ]
 }
 @test "firewall apply (real, stubbed ufw): runs the commands, records the rules hash, withdraws the ask" {
-  os "$DEB"; echo '{}' > "$OPS_ROOT_STATE/ask-firewall.json"
+  os "$DEB"; echo '{}' > "$OPS_ROOT_STATE/ask-firewall.json"; pending
   run runact firewall apply; [ "$status" -eq 0 ]
   [ "$(jq -r .hash "$OPS_ROOT_STATE/firewall.applied")" = "$(fw_hash)" ]
-  [ "$(rstate firewall status)" = ok ]; [ ! -e "$OPS_ROOT_STATE/ask-firewall.json" ]
-  [ "$(grep '^ufw ' "$STUB_LOG" | grep -v 'status verbose')" = "$UFW_CMDS" ]
+  [ "$(rstate firewall status)" = ok ]; [ ! -e "$OPS_ROOT_STATE/ask-firewall.json" ]; [ ! -e "$OPS_ROOT_STATE/firewall.pending-hash" ]
+  [ "$(ufw_mut)" = "$UFW_CMDS" ]
+}
+@test "firewall apply (R46): rules changed since the approval -> fail 're-asking', exit 1, nothing applied" {
+  os "$DEB"; echo '{}' > "$OPS_ROOT_STATE/ask-firewall.json"; echo 0000deadbeef > "$OPS_ROOT_STATE/firewall.pending-hash"
+  run runact firewall apply; [ "$status" -ne 0 ]
+  [ "$(rstate firewall status)" = fail ]; [ "$(rstate firewall summary)" = "rules changed since approval — re-asking" ]
+  [ -z "$(ufw_mut)" ]; [ ! -e "$OPS_ROOT_STATE/firewall.applied" ]
+  grep -qx 'systemctl start --no-block dots-ops@firewall.service' "$STUB_LOG"   # the job re-asks with the current diff
+  rm -f "$OPS_ROOT_STATE/firewall.pending-hash"; : > "$STUB_LOG"   # no pending hash at all (approval of an old ask) -> same
+  run runact firewall apply; [ "$status" -ne 0 ]; [ -z "$(ufw_mut)" ]
 }
 @test "firewall apply: a failing command -> fail, nothing recorded, exit 1" {
-  os "$DEB"; mkstub ufw 'echo "ufw $*" >> "$STUB_LOG"; case "$*" in "status verbose") echo "Status: inactive";; "default"*) exit 1;; esac; exit 0'
+  os "$DEB"; pending; mkstub ufw 'echo "ufw $*" >> "$STUB_LOG"; case "$*" in "status verbose") echo "Status: inactive";; "default"*) exit 1;; esac; exit 0'
   run runact firewall apply; [ "$status" -eq 1 ]
   [ "$(rstate firewall status)" = fail ]; [ ! -e "$OPS_ROOT_STATE/firewall.applied" ]
   run ! grep -q 'ufw --force enable' "$STUB_LOG"   # never enabled after a failed step
@@ -263,6 +325,62 @@ applied() { jq -cn --arg h "$1" '{hash:$h,applied:1,tool:"ufw"}' > "$OPS_ROOT_ST
   runjob ssh-harden
   [ "$(rstate ssh-harden status)" = warn ]; [[ $(rstate ssh-harden summary) == *passwordauthentication* ]]
 }
+@test "ssh-harden (R47): key file from sshd -T -C (authorizedkeysfile %u, absolute) is the one checked" {
+  os "$DEB"; export STUB_ACTIVE="ssh.service"; mkdir -p "$BATS_TEST_TMPDIR/keys"
+  export STUB_SSHD_TC="authorizedkeysfile $BATS_TEST_TMPDIR/keys/%u\nstrictmodes no\n"
+  echo 'ssh-ed25519 AAAA k' > "$OWNER_HOME/.ssh/authorized_keys"   # not read by this sshd
+  runjob ssh-harden
+  grep -qx 'sshd -T -C user=alice,host=localhost,addr=127.0.0.1' "$STUB_LOG"
+  [ "$(rstate ssh-harden summary)" = "skipped: no authorized_keys — would lock you out" ]
+  echo 'ssh-ed25519 AAAA k' > "$BATS_TEST_TMPDIR/keys/alice"; runjob ssh-harden
+  [ -e "$OPS_ROOT_STATE/ask-ssh-harden.json" ]
+}
+@test "ssh-harden (R47): relative authorizedkeysfile tokens are under home; %h/%% expanded; 'none' ignored" {
+  os "$DEB"; export STUB_ACTIVE="ssh.service"; mkdir -p "$OWNER_HOME/.config/ssh%keys"
+  export STUB_SSHD_TC="authorizedkeysfile none .ssh/authorized_keys %h/.config/ssh%%keys/%u\nstrictmodes yes\n"
+  echo 'ssh-ed25519 AAAA k' > "$OWNER_HOME/.config/ssh%keys/alice"
+  runjob ssh-harden; [ -e "$OPS_ROOT_STATE/ask-ssh-harden.json" ]
+  rm "$OWNER_HOME/.config/ssh%keys/alice"; echo 'ssh-ed25519 AAAA k' > "$OWNER_HOME/.ssh/authorized_keys"
+  runjob ssh-harden; [ -e "$OPS_ROOT_STATE/ask-ssh-harden.json" ]; [ "$(rstate ssh-harden status)" = warn ]
+  [ "$(rstate ssh-harden summary)" = "hardening awaits approval" ]
+}
+@test "ssh-harden (R47): StrictModes yes + group-writable home or ~/.ssh -> keys unusable, warn skip; StrictModes no -> asks" {
+  os "$DEB"; export STUB_ACTIVE="ssh.service"; echo 'ssh-ed25519 AAAA k' > "$OWNER_HOME/.ssh/authorized_keys"
+  chmod 775 "$OWNER_HOME"
+  export STUB_SSHD_TC='authorizedkeysfile .ssh/authorized_keys\nstrictmodes yes\n'
+  runjob ssh-harden
+  [ "$(rstate ssh-harden status)" = warn ]
+  [[ $(rstate ssh-harden summary) == "skipped: no authorized_keys — would lock you out (StrictModes rejects $OWNER_HOME)" ]]
+  [ ! -e "$OPS_ROOT_STATE/ask-ssh-harden.json" ]
+  chmod 755 "$OWNER_HOME"; chmod 777 "$OWNER_HOME/.ssh"; runjob ssh-harden
+  [[ $(rstate ssh-harden summary) == *"StrictModes rejects $OWNER_HOME/.ssh)" ]]
+  export STUB_SSHD_TC='authorizedkeysfile .ssh/authorized_keys\nstrictmodes no\n'; runjob ssh-harden
+  [ -e "$OPS_ROOT_STATE/ask-ssh-harden.json" ]
+  chmod 700 "$OWNER_HOME/.ssh"
+}
+@test "ssh-harden (R47): sshd -T -C failing -> falls back to ~/.ssh/authorized_keys with StrictModes assumed" {
+  os "$DEB"; export STUB_ACTIVE="ssh.service"; unset STUB_SSHD_TC; echo 'ssh-ed25519 AAAA k' > "$OWNER_HOME/.ssh/authorized_keys"
+  runjob ssh-harden; [ -e "$OPS_ROOT_STATE/ask-ssh-harden.json" ]
+  chmod 666 "$OWNER_HOME/.ssh/authorized_keys"; runjob ssh-harden
+  [[ $(rstate ssh-harden summary) == *"StrictModes rejects $OWNER_HOME/.ssh/authorized_keys)" ]]
+}
+@test "ssh-harden (R47): hardening installed and the keys vanished -> warn 'hardening active, no authorized_keys'" {
+  os "$DEB"; export STUB_ACTIVE="ssh.service"; cp "$R/system/dots-ops/sshd/50-dots.conf" "$OPS_SSHD_DIR/"
+  runjob ssh-harden
+  [ "$(rstate ssh-harden status)" = warn ]
+  [ "$(rstate ssh-harden summary)" = "hardening active, no authorized_keys: remote login impossible" ]
+}
+@test "ssh-harden (R47): OpenSSH < 8.7 -> drop-in without KbdInteractiveAuthentication (ask, apply, in-sync check)" {
+  os "$DEB"; export STUB_ACTIVE="ssh.service" STUB_UNITS="ssh.service" STUB_SSHD_VER=8.4; echo 'ssh-ed25519 AAAA k' > "$OWNER_HOME/.ssh/authorized_keys"
+  runjob ssh-harden
+  q=$(rstate ask-ssh-harden question); [[ $q == *"PasswordAuthentication no"* && $q != *KbdInteractive* ]]
+  run runact ssh-harden apply; [ "$status" -eq 0 ]
+  run ! grep -q KbdInteractiveAuthentication "$OPS_SSHD_DIR/50-dots.conf"
+  grep -qx 'PasswordAuthentication no' "$OPS_SSHD_DIR/50-dots.conf"
+  export STUB_SSHD_EFFECTIVE='permitrootlogin no\npasswordauthentication no\n'
+  runjob ssh-harden; [ "$(rstate ssh-harden status)" = ok ]
+  export STUB_SSHD_VER=8.7; runjob ssh-harden; [ -e "$OPS_ROOT_STATE/ask-ssh-harden.json" ]   # 8.7 knows it: wants the line
+}
 @test "50-dots.conf carries exactly the three hardening settings" {
   [ "$(grep -vE '^\s*(#|$)' "$R/system/dots-ops/sshd/50-dots.conf")" = "PermitRootLogin no
 PasswordAuthentication no
@@ -307,7 +425,8 @@ KbdInteractiveAuthentication no" ]
   os "$ARCH"; export STUB_ACTIVE="sshd.service" STUB_UNITS="sshd.service"; echo 'ssh-ed25519 AAAA k' > "$OWNER_HOME/.ssh/authorized_keys"
   run env DOTS_OPS_DRY_RUN=1 bash -c 'set -euo pipefail; source "$1"; source "$2"' _ "$LIB" "$SA/ssh-harden/apply.sh"
   [ "$status" -eq 0 ]
-  [[ $output == *"+ install -m 644 $R/system/dots-ops/sshd/50-dots.conf $OPS_SSHD_DIR/50-dots.conf"* ]]
+  [[ $output == *"+ install -m 644 $OPS_ROOT_STATE/ssh-harden.desired.conf $OPS_SSHD_DIR/50-dots.conf"* ]]
+  cmp "$R/system/dots-ops/sshd/50-dots.conf" "$OPS_ROOT_STATE/ssh-harden.desired.conf"   # OpenSSH 9.6: unchanged
   [[ $output == *"+ sshd -t"* && $output == *"+ systemctl reload sshd.service"* ]]
   [ ! -e "$OPS_SSHD_DIR/50-dots.conf" ]
 }
