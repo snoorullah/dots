@@ -1,2 +1,4 @@
 #!/bin/sh
 echo "fstrim $*" >> "${STUB_LOG:-/dev/null}"
+# STUB_FSTRIM_ERR: print this message and fail
+[ -z "${STUB_FSTRIM_ERR:-}" ] || { echo "$STUB_FSTRIM_ERR"; exit 1; }

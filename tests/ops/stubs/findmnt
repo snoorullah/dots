@@ -1,0 +1,11 @@
+#!/bin/sh
+# stub findmnt: STUB_FINDMNT lines are "FSTYPE SIZE USE% TARGET... OPTS" (OPTS = last word, e.g. rw|ro).
+# With `-O rw` only rw lines are printed; output columns are FSTYPE SIZE USE% TARGET (as `-o FSTYPE,SIZE,USE%,TARGET`).
+echo "findmnt $*" >> "${STUB_LOG:-/dev/null}"
+want_rw=0; case " $* " in *" -O rw "*) want_rw=1 ;; esac
+printf '%b' "${STUB_FINDMNT:-ext4 500000000000 10% /\n}" | while read -r line; do
+  [ -n "$line" ] || continue
+  opts=${line##* }; rest=${line% *}
+  [ "$want_rw" = 0 ] || [ "$opts" = rw ] || continue
+  printf '%s\n' "$rest"
+done

@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "systemd-run $*" >> "${STUB_LOG:-/dev/null}"

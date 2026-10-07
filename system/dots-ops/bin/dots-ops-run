@@ -15,13 +15,13 @@ IFS=$' \t\n'
 set -euo pipefail
 umask 022
 if [ "${OPS_TEST:-0}" = 1 ] && [ "$EUID" != 0 ]; then   # tests only: never honoured for root
-  P=${OPS_ROOT_PREFIX:?}; JOB_BIN=$P/dots-ops-job; RUN_DIR=$P/run; SYSTEMCTL=(echo systemctl)
+  P=${OPS_ROOT_PREFIX:?}; JOB_BIN=$P/dots-ops-job; RUN_DIR=$P/run; SYSTEMCTL=(echo systemctl); SYSRUN=(echo systemd-run)
 else
   [ "$EUID" = 0 ] || { echo "dots-ops-run: must run as root (sudo -n dots-ops-run ...)" >&2; exit 1; }
   # sudo resets most of the environment already; drop anything that could still steer the lib or a job
   for v in $(compgen -e); do case $v in OPS_*|DOTS_OPS_*) unset "$v" ;; esac; done
   export HOME=/root
-  P=/usr/local/lib/dots-ops; JOB_BIN=/usr/local/bin/dots-ops-job; RUN_DIR=/run/dots-ops; SYSTEMCTL=(systemctl)
+  P=/usr/local/lib/dots-ops; JOB_BIN=/usr/local/bin/dots-ops-job; RUN_DIR=/run/dots-ops; SYSTEMCTL=(systemctl); SYSRUN=(systemd-run)
 fi
 
 die() { echo "dots-ops-run: $1" >&2; exit 2; }
@@ -55,7 +55,8 @@ case $act in
     root_owned "$P/.." "$P" "$P/jobs" "$P/jobs/$job.sh"
     if [ "$act" = run ]; then exec "${SYSTEMCTL[@]}" start --no-block "dots-ops@$job.service"; fi
     root_owned "${JOB_BIN%/*}" "$JOB_BIN"
-    OPS_FORCE=1 OPS_IS_ROOT=1 exec "$JOB_BIN" "$job" ;;
+    # R26: async via a transient unit (clean environment, survives the caller, never blocks the user job)
+    exec "${SYSRUN[@]}" --no-block --collect --unit="dots-ops-now-$job" --setenv=OPS_FORCE=1 --setenv=OPS_IS_ROOT=1 "$JOB_BIN" "$job" ;;
 esac
 
 f="$P/actions/$job/$act.sh"

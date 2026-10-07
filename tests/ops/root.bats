@@ -38,11 +38,11 @@ trun() { run env OPS_TEST=1 OPS_ROOT_PREFIX="$P" OPS_STATE="$BATS_TEST_TMPDIR/st
   [[ $output == "systemctl start --no-block dots-ops@updates-full.service" ]]
   trun nope run; [ "$status" -eq 2 ]
 }
-@test "run-now (R4) runs the root job synchronously with OPS_FORCE=1, allow-listed like run" {
+@test "run-now (R4/R26) starts a transient unit asynchronously with OPS_FORCE=1, allow-listed like run" {
   touch "$P/jobs/disk-clean-system.sh"
-  printf '#!/bin/sh\necho "job $1 force=$OPS_FORCE root=$OPS_IS_ROOT"\n' > "$P/dots-ops-job"; chmod +x "$P/dots-ops-job"
+  printf '#!/bin/sh\n' > "$P/dots-ops-job"; chmod +x "$P/dots-ops-job"
   trun disk-clean-system run-now; [ "$status" -eq 0 ]
-  [[ $output == "job disk-clean-system force=1 root=1" ]]
+  [[ $output == "systemd-run --no-block --collect --unit=dots-ops-now-disk-clean-system --setenv=OPS_FORCE=1 --setenv=OPS_IS_ROOT=1 $P/dots-ops-job disk-clean-system" ]]
   trun nope run-now; [ "$status" -eq 2 ]
 }
 @test "system idle-run (R3/R14) sets the root idle flag and restarts the system idle target" {

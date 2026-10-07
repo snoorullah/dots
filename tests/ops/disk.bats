@@ -39,42 +39,49 @@ asroot() {   # root-job context: state in $OPS_ROOT_STATE, os-release from $1
   OPS_OS_RELEASE="$BATS_TEST_TMPDIR/missing" run ops_family; [ "$output" = unknown ]
 }
 
-# ---- disk-watch ----
+# ---- disk-watch ----  (STUB_FINDMNT lines: FSTYPE SIZE USE% TARGET OPTS)
+dw() { STUB_FINDMNT="$1" runjob "$UJ/disk-watch.sh"; }
 @test "disk-watch: healthy mounts -> ok, nothing started" {
-  STUB_DF='/dev/sda1 1000 100 900 10% /\n/dev/sdb1 1000 500 500 50% /data\n' runjob "$UJ/disk-watch.sh"
+  dw 'ext4 500000000000 10% / rw\nxfs 500000000000 50% /data rw\n'
   [ "$(ustate disk-watch status)" = ok ]
-  ! grep -q 'dots-ops@disk-clean-user' "$STUB_LOG"
+  ! grep -q 'disk-clean-user' "$STUB_LOG"
   ! grep -q 'run-now' "$STUB_LOG"
+  grep -q 'findmnt -rn -b -O rw' "$STUB_LOG"
 }
-@test "disk-watch: 91% -> warn naming the mount, starts both cleaners" {
-  STUB_DF='/dev/sda1 1000 910 90 91% /\n/dev/sdb1 1000 500 500 50% /data\n' runjob "$UJ/disk-watch.sh"
+@test "disk-watch: rw ext4 at 91% -> warn naming only that mount, starts both cleaners with OPS_FORCE" {
+  dw 'ext4 500000000000 91% / rw\nxfs 500000000000 50% /data rw\n'
   [ "$(ustate disk-watch status)" = warn ]
   [[ $(ustate disk-watch summary) == *"/ 91%"* ]]
   [[ $(ustate disk-watch summary) != *"/data"* ]]
-  grep -q 'systemctl --user start --no-block dots-ops@disk-clean-user.service' "$STUB_LOG"
+  grep -qxF "systemd-run --user --no-block --collect --setenv=OPS_FORCE=1 $HOME/.local/bin/dots-ops-job disk-clean-user" "$STUB_LOG"
   grep -q 'sudo /fake/dots-ops-run disk-clean-system run-now' "$STUB_LOG"
 }
 @test "disk-watch: 96% -> fail" {
-  STUB_DF='/dev/sda1 1000 960 40 96% /\n' runjob "$UJ/disk-watch.sh"
+  dw 'ext4 500000000000 96% / rw\n'
   [ "$(ustate disk-watch status)" = fail ]
   [[ $(ustate disk-watch summary) == *"/ 96%"* ]]
 }
-@test "disk-watch: mount points with spaces are kept whole" {
-  STUB_DF='/dev/sdc1 1000 900 100 90% /mnt/my disk\n' runjob "$UJ/disk-watch.sh"
+@test "disk-watch: 100% iso9660, 99% 300 MiB vfat, 100% ro ext4, tmpfs/fuse -> ok (no false alarms)" {
+  dw 'iso9660 8000000000 100% /run/media/u/DISC rw\nvfat 314572800 99% /boot rw\next4 500000000000 100% /mnt/ro ro\ntmpfs 8000000000 100% /run rw\nfuse.portal 9000000000 100% /run/doc rw\nefivarfs 9000000000 100% /sys/efi rw\n'
+  [ "$(ustate disk-watch status)" = ok ]
+  ! grep -q 'disk-clean' "$STUB_LOG"
+}
+@test "disk-watch: mount points with spaces (findmnt \\x20) are kept whole" {
+  dw 'ext4 500000000000 90% /mnt/my\\x20disk rw\n'
   [[ $(ustate disk-watch summary) == *"/mnt/my disk 90%"* ]]
 }
 @test "disk-watch: refused sudo does not crash, user cleaner still started, still warn" {
   printf '#!/bin/sh\nexit 1\n' > "$OPS_SUDO"
-  STUB_DF='/dev/sda1 1000 900 100 90% /\n' run runjob "$UJ/disk-watch.sh"
+  STUB_FINDMNT='ext4 500000000000 90% / rw\n' run runjob "$UJ/disk-watch.sh"
   [ "$status" -eq 0 ]
   [ "$(ustate disk-watch status)" = warn ]
-  grep -q 'dots-ops@disk-clean-user' "$STUB_LOG"
+  grep -q 'disk-clean-user' "$STUB_LOG"
   grep -q 'sudo' "$OPS_STATE/log.jsonl"
 }
 @test "disk-watch: dry-run prints instead of starting" {
-  STUB_DF='/dev/sda1 1000 900 100 90% /\n' DOTS_OPS_DRY_RUN=1 run runjob "$UJ/disk-watch.sh"
-  [[ $output == *"+ systemctl --user start --no-block dots-ops@disk-clean-user.service"* ]]
-  ! grep -q systemctl "$STUB_LOG"
+  STUB_FINDMNT='ext4 500000000000 90% / rw\n' DOTS_OPS_DRY_RUN=1 run runjob "$UJ/disk-watch.sh"
+  [[ $output == *"+ systemd-run --user --no-block --collect --setenv=OPS_FORCE=1 $HOME/.local/bin/dots-ops-job disk-clean-user"* ]]
+  ! grep -q systemd-run "$STUB_LOG"
 }
 
 # ---- disk-clean-user ----
@@ -125,7 +132,7 @@ asroot() {   # root-job context: state in $OPS_ROOT_STATE, os-release from $1
   run job_main; [[ $output == *"+ dnf clean packages"* ]]
   asroot 'ID=arch\n'
   if ! command -v paccache >/dev/null; then run job_main; [[ $output != *paccache* ]]; fi
-  printf '#!/bin/sh\n' > "$BATS_TEST_TMPDIR/stubs-paccache"; mkdir -p "$BATS_TEST_TMPDIR/pc"
+  mkdir -p "$BATS_TEST_TMPDIR/pc"
   printf '#!/bin/sh\n' > "$BATS_TEST_TMPDIR/pc/paccache"; chmod +x "$BATS_TEST_TMPDIR/pc/paccache"
   PATH="$BATS_TEST_TMPDIR/pc:$PATH" run job_main; [[ $output == *"+ paccache -rk2"* ]]
 }
@@ -177,12 +184,46 @@ ATA_OK='{"smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"name"
   [[ $(rstate smart summary) == *"sda"*"reallocated"* ]]
   [ "$(jq -r .reallocated "$OPS_ROOT_STATE/smart-sda.json")" = 8 ]
 }
-@test "smart: nvme media_errors increased -> fail; unchanged -> ok" {
+@test "smart: nvme media_errors increased -> fail; unchanged after the 7-day window -> ok" {
   sm; smartdisk nvme0n1 '{"smart_status":{"passed":true},"nvme_smart_health_information_log":{"media_errors":3}}'
   mkdir -p "$OPS_ROOT_STATE"; echo '{"reallocated":0,"media_errors":1}' > "$OPS_ROOT_STATE/smart-nvme0n1.json"
   STUB_LSBLK='nvme0n1 disk\n' runjob "$SJ/smart.sh"
   [ "$(rstate smart status)" = fail ]; [[ $(rstate smart summary) == *media_errors* ]]
+  jq '.fail_until=1' "$OPS_ROOT_STATE/smart-nvme0n1.json" > "$BATS_TEST_TMPDIR/x" && mv "$BATS_TEST_TMPDIR/x" "$OPS_ROOT_STATE/smart-nvme0n1.json"
   STUB_LSBLK='nvme0n1 disk\n' runjob "$SJ/smart.sh"
+  [ "$(rstate smart status)" = ok ]
+}
+
+@test "smart: attribute id 5 counts even with a different name; no smart_status -> skipped as not capable" {
+  sm; smartdisk sda '{"serial_number":"S/N 1","smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":5,"name":"Retired_Block_Count","raw":{"value":9}}]}}'
+  smartdisk sdb '{"model_name":"usb bridge"}'
+  mkdir -p "$OPS_ROOT_STATE"; echo '{"reallocated":1,"media_errors":0}' > "$OPS_ROOT_STATE/smart-S_N_1.json"
+  STUB_LSBLK='sda disk\nsdb disk\n' runjob "$SJ/smart.sh"
+  [ "$(rstate smart status)" = fail ]; [[ $(rstate smart summary) == *"sda reallocated 1->9"* ]]
+  [[ $(rstate smart summary) != *sdb* ]]
+  [ ! -e "$OPS_ROOT_STATE/smart-sdb.json" ]
+  sm; STUB_LSBLK='sdb disk\n' runjob "$SJ/smart.sh"
+  [ "$(rstate smart summary)" = "n/a: no SMART-capable disks" ]
+}
+@test "smart: counters keyed by serial survive a kernel-name change" {
+  sm; smartdisk sda '{"serial_number":"ABC-123","smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":5,"name":"Reallocated_Sector_Ct","raw":{"value":4}}]}}'
+  STUB_LSBLK='sda disk\n' runjob "$SJ/smart.sh"
+  [ -e "$OPS_ROOT_STATE/smart-ABC-123.json" ]
+  smartdisk sdb '{"serial_number":"ABC-123","smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":5,"name":"Reallocated_Sector_Ct","raw":{"value":6}}]}}'
+  STUB_LSBLK='sdb disk\n' runjob "$SJ/smart.sh"
+  [ "$(rstate smart status)" = fail ]; [[ $(rstate smart summary) == *"sdb reallocated 4->6"* ]]
+}
+@test "smart: an increase keeps failing for 7 days (fail_until), then recovers" {
+  sm; smartdisk sda '{"serial_number":"Z1","smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":5,"name":"Reallocated_Sector_Ct","raw":{"value":8}}]}}'
+  mkdir -p "$OPS_ROOT_STATE"; echo '{"reallocated":2,"media_errors":0}' > "$OPS_ROOT_STATE/smart-Z1.json"
+  STUB_LSBLK='sda disk\n' runjob "$SJ/smart.sh"
+  [ "$(rstate smart status)" = fail ]
+  fu=$(jq -r .fail_until "$OPS_ROOT_STATE/smart-Z1.json"); now=$(date +%s)
+  [ "$fu" -gt $((now + 600000)) ] && [ "$fu" -le $((now + 604800 + 5)) ]
+  STUB_LSBLK='sda disk\n' runjob "$SJ/smart.sh"   # counters now unchanged, still failing
+  [ "$(rstate smart status)" = fail ]; [[ $(rstate smart summary) == *"recently"* ]]
+  echo '{"reallocated":8,"media_errors":0,"fail_until":1}' > "$OPS_ROOT_STATE/smart-Z1.json"   # window elapsed
+  STUB_LSBLK='sda disk\n' runjob "$SJ/smart.sh"
   [ "$(rstate smart status)" = ok ]
 }
 
@@ -207,7 +248,20 @@ ATA_OK='{"smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"name"
   [ "$(rstate trim status)" = ok ]
 }
 
+@test "trim: fstrim -av failing because discard is unsupported -> ok n/a; other failures warn" {
+  asroot 'ID=arch\n'
+  STUB_FSTRIM_ERR='fstrim: /: the discard operation is not supported' runjob "$SJ/trim.sh"
+  [ "$(rstate trim status)" = ok ]; [ "$(rstate trim summary)" = "n/a: discard unsupported" ]
+  STUB_FSTRIM_ERR='fstrim: /: FITRIM ioctl failed: Input/output error' runjob "$SJ/trim.sh"
+  [ "$(rstate trim status)" = warn ]
+}
+
 # ---- containers-prune/volumes action ----
+@test "containers-prune volumes: survives set -euo pipefail when docker prints no reclaimed line" {
+  run env STUB_DOCKER_OUT='nothing to do\n' bash -c "set -euo pipefail; source $R/home/private_dot_local/lib/dots-ops/lib.sh; source $R/system/dots-ops/actions/containers-prune/volumes.sh; echo reached"
+  [ "$status" -eq 0 ]; [[ $output == *reached* ]]
+  [ "$(jq -r .summary "$OPS_STATE/state/containers-prune.json")" = "volumes pruned" ]
+}
 @test "containers-prune volumes: prunes with --volumes and records the reclaimed line" {
   source "$R/system/dots-ops/actions/containers-prune/volumes.sh"
   grep -q 'docker system prune --volumes -f' "$STUB_LOG"
