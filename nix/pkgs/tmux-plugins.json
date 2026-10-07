@@ -56,13 +56,6 @@
     "hash": "sha256-GziFDuBXdfsnT6XLJK/f58/b4K0BjucnECFE0sSnz3w="
   },
   {
-    "dir": "tmux-thumbs",
-    "owner": "fcsonline",
-    "repo": "tmux-thumbs",
-    "rev": "ae91d5f7c0d989933e86409833c46a1eca521b6a",
-    "hash": "sha256-uZ3URZuHYqPjhikT4XRsRhD7U+lVAyu+gMO/9ITNbc4="
-  },
-  {
     "dir": "tmux-yank",
     "owner": "tmux-plugins",
     "repo": "tmux-yank",

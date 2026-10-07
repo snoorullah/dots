@@ -20,7 +20,7 @@
 # Override individual color tokens on top of the base theme.
 # Accepts: hex (#rrggbb), named colors, rgb(r,g,b), or panel_bg = "reset"
 [theme.custom]
-sidebar_bg = "{{ .palette.bg }}"
+sidebar_bg = "{{ .palette.term.bg }}"
 # active_row_bg = "#1e1e2e"
 # selection_bg = "#313244"
 # panel_bg = "reset"
@@ -99,7 +99,8 @@ prefix = "ctrl+space"            # same prefix as tmux-config
 # remote_image_paste = "ctrl+v" # only active in herdr --remote; empty disables raw-key image paste
 # new_tab = "prefix+c"
 # rename_tab = "prefix+shift+t"
-# previous_tab = "prefix+p"
+# Rebound from the default prefix+p, which the pass popup keeps (same habit as tmux). prefix+comma is unused by any default binding.
+previous_tab = "prefix+comma"
 # next_tab = "prefix+n"
 # move_tab_previous = ""   # optional, e.g. "alt+shift+left" moves the tab toward the front
 # move_tab_next = ""       # optional, e.g. "alt+shift+right" moves the tab toward the back

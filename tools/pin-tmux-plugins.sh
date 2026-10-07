@@ -8,6 +8,8 @@ tmp=$(mktemp); trap 'rm -f "$tmp"' EXIT
 printf '[' > "$tmp"; sep=
 while read -r slug; do
   owner=${slug%/*}; repo=${slug#*/}
+  # tmux-thumbs needs a compiled binary: nix/pkgs/overlay.nix links the prebuilt nixpkgs package instead.
+  [ "$repo" != tmux-thumbs ] || continue
   rev=$(awk -v r="$repo" '$1==r{print $2}' $cfg/plugins.lock)
   src=lock
   [ -n "$rev" ] || { rev=$(git -C "$live/$repo" rev-parse HEAD 2>/dev/null || true); src=live; }
@@ -19,4 +21,6 @@ while read -r slug; do
 done < <(grep -oE "@plugin '[^']+'" $cfg/tmux.conf | sed -E "s/@plugin '([^']+)'/\1/")
 printf ']\n' >> "$tmp"
 nix run nixpkgs#jq -- . "$tmp" > $out
-nix run nixpkgs#jq -- length $out
+n=$(nix run nixpkgs#jq -- length $out)
+echo "$n"
+[ "$n" -eq 14 ] || { echo "expected 14 pinned plugins (15 @plugins minus tmux-thumbs), got $n" >&2; exit 1; }

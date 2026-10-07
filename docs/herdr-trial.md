@@ -23,10 +23,11 @@ Decision: Herdr wins only if 1–5 and 8 pass. Record the decision and date here
   client attaches with plain `herdr`). The tmux unit is not deployed while `multiplexer = "herdr"`.
 - Config: `~/.config/herdr/config.toml` (chezmoi-rendered). Validate with `herdr config check`; reload the
   running server with `herdr server reload-config`.
-- Prefix is `ctrl+space` (same as tmux-config). `prefix+p` is bound to the pass popup and `prefix+S` to the SSH
-  key popup; check with `prefix+?` that `prefix+p` (Herdr's default previous-tab) now opens the popup. If not,
-  rebind `previous_tab` in `[keys]`.
+- Prefix is `ctrl+space` (same as tmux-config). `prefix+p` opens the pass popup and `prefix+S` the SSH key popup
+  (as in tmux). Herdr's default `previous_tab` (`prefix+p`) was rebound to `prefix+comma`; `prefix+?` lists the
+  active bindings.
 - Toasts: `[ui.toast] delivery = "system"` sends background notifications through the OS service (SwayNC).
 - The shared scripts (pass-menu, ssh-menu, task-status, git-status, ssh-askpass) live in `~/.config/dots-mux`
-  under both multiplexers. `claude-notify.sh` stays under `~/.config/tmux/scripts` (tmux only); Herdr does its own
+  under both multiplexers. `claude-notify.sh` stays deployed under `~/.config/tmux/scripts` in both modes (the Claude Code hook points
+  there; it exits early outside tmux); Herdr does its own
   agent notifications.

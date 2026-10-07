@@ -10,7 +10,17 @@ README.md
 .config/systemd/user/herdr.service
 {{- end }}
 {{- if ne .multiplexer "tmux" }}
-.config/tmux
+.config/tmux/tmux.conf
+.config/tmux/tmux.remote.conf
+.config/tmux/plugins.lock
+.config/tmux/plugins
+.config/tmux/LICENSE
+.config/tmux/assets
+.config/tmux/scripts/fzf-*.sh
+.config/tmux/scripts/mux-picker.sh
+.config/tmux/scripts/pr-status.sh
+.config/tmux/scripts/renew-env.sh
+.config/tmux/scripts/yank.sh
 .tmux.conf
 .config/systemd/user/tmux.service
 .config/otter-launcher/scripts/otter-tmux.sh
