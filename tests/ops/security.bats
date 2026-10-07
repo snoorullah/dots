@@ -18,7 +18,7 @@ setup() {
   export ORIG_PATH="$PATH" PATH="$BIN:$PATH"
   export STUB_LOG="$BATS_TEST_TMPDIR/calls.log"; : > "$STUB_LOG"
   export OPS_IS_ROOT=1 OPS_ROOT_STATE="$BATS_TEST_TMPDIR/root" OPS_STATE="$BATS_TEST_TMPDIR/rootlog"
-  mkdir -p "$OPS_STATE/state" "$OPS_STATE/pending" "$OPS_STATE/queue" "$OPS_STATE/locks" "$OPS_ROOT_STATE"
+  mkdir -p "$OPS_STATE/state" "$OPS_STATE/pending" "$OPS_STATE/queue" "$OPS_STATE/locks" "$OPS_ROOT_STATE/root"
   export OPS_SYS_DIR="$R/system/dots-ops" P="$R/system/dots-ops"   # P = the runner's prefix when an action is sourced
   # ssh fixtures
   export OPS_SSHD_CONFIG="$BATS_TEST_TMPDIR/etc-ssh/sshd_config" OPS_SSHD_DIR="$BATS_TEST_TMPDIR/etc-ssh/sshd_config.d"
@@ -95,10 +95,10 @@ fw_hash() {   # the hash the job records for the current rules (from its own ren
 fw_rhash() {   # the state-independent ruleset hash recorded in firewall.applied
   ( source "$SJ/firewall.sh"; _fw_setup >/dev/null && printf '%s' "$_fw_rhash" )
 }
-pending() { fw_hash > "$OPS_ROOT_STATE/firewall.pending-hash"; }   # what the job writes when it asks (R46)
+pending() { fw_hash > "$OPS_ROOT_STATE/root/firewall.pending-hash"; }   # what the job writes when it asks (R46)
 ufw_mut() { grep -E '^ufw |^systemctl enable ' "$STUB_LOG" | grep -v 'status verbose' || true; }
 dryact() { env DOTS_OPS_DRY_RUN=1 bash -c 'set -euo pipefail; source "$1"; source "$2"' _ "$LIB" "$SA/$1/$2.sh"; }
-applied() { jq -cn --arg h "$1" '{hash:$h,applied:1,tool:"ufw"}' > "$OPS_ROOT_STATE/firewall.applied"; }
+applied() { jq -cn --arg h "$1" '{hash:$h,applied:1,tool:"ufw"}' > "$OPS_ROOT_STATE/root/firewall.applied"; }
 
 # ---- firewall.json ----
 @test "firewall.json: default deny, ssh 22/tcp, kdeconnect 1714:1764 tcp+udp (R39)" {
@@ -115,12 +115,12 @@ applied() { jq -cn --arg h "$1" '{hash:$h,applied:1,tool:"ufw"}' > "$OPS_ROOT_ST
   [[ $q == *"allow 22/tcp (ssh)"* && $q == *"allow 1714:1764/udp (kdeconnect)"* && $q == *"enable ufw"* ]]
   [[ $q == *"Docker"* && $q == *"first apply on this machine"* ]]
   [ "$(rstate firewall status)" = warn ]
-  [ ! -e "$OPS_ROOT_STATE/firewall.applied" ]
+  [ ! -e "$OPS_ROOT_STATE/root/firewall.applied" ]
   [ -z "$(mutations)" ]
 }
 @test "firewall ask binds the approval to the rules hash shown (R46: firewall.pending-hash)" {
   os "$DEB"; runjob firewall
-  [ "$(cat "$OPS_ROOT_STATE/firewall.pending-hash")" = "$(fw_hash)" ]
+  [ "$(cat "$OPS_ROOT_STATE/root/firewall.pending-hash")" = "$(fw_hash)" ]
 }
 @test "firewall first run even with only one rule missing still asks (no applied file)" {
   os "$ARCH"; export STUB_ACTIVE="ufw.service" STUB_UFW_STATUS="${UFW_OK/1714:1764\/udp              ALLOW IN    Anywhere\\n/}"
@@ -164,14 +164,14 @@ applied() { jq -cn --arg h "$1" '{hash:$h,applied:1,tool:"ufw"}' > "$OPS_ROOT_ST
   [ "$(rstate firewall status)" = warn ]; [[ $(rstate firewall summary) == "drift: "*"enable ufw"* ]]
   [[ $(rstate ask-firewall question) == *"drifted from the approved rules"* ]]
   [ "$(rstate ask-firewall action)" = "root:firewall apply" ]
-  [ "$(cat "$OPS_ROOT_STATE/firewall.pending-hash")" = "$(fw_hash)" ]
+  [ "$(cat "$OPS_ROOT_STATE/root/firewall.pending-hash")" = "$(fw_hash)" ]
 }
 @test "firewall drift, rules changed since the last apply -> ask again, never applies" {
   os "$ARCH"; applied "0000deadbeef"
   export STUB_UFW_STATUS='Status: inactive\n'
   runjob firewall
   [ -e "$OPS_ROOT_STATE/ask-firewall.json" ]; [[ $(rstate ask-firewall question) == *"rules changed"* ]]
-  [ -z "$(mutations)" ]; [ "$(jq -r .hash "$OPS_ROOT_STATE/firewall.applied")" = 0000deadbeef ]
+  [ -z "$(mutations)" ]; [ "$(jq -r .hash "$OPS_ROOT_STATE/root/firewall.applied")" = 0000deadbeef ]
 }
 @test "firewall nixos -> ok n/a managed by networking.firewall; no ufw/firewalld -> ok n/a" {
   os "$NIX"; runjob firewall
@@ -228,22 +228,22 @@ applied() { jq -cn --arg h "$1" '{hash:$h,applied:1,tool:"ufw"}' > "$OPS_ROOT_ST
   export STUB_FWD_TARGET=ACCEPT; h_accept=$(fw_hash); [ "$h_default" != "$h_accept" ]
   runjob firewall
   [[ $(rstate ask-firewall question) == *"Runs: firewall-cmd --permanent --zone=public --add-port=22/tcp; "*"firewall-cmd --permanent --zone=public --set-target=default; firewall-cmd --reload" ]]
-  [ "$(cat "$OPS_ROOT_STATE/firewall.pending-hash")" = "$h_accept" ]
-  rm -f "$OPS_ROOT_STATE/firewall.pending-hash"; export STUB_FWD_RUNNING=0
+  [ "$(cat "$OPS_ROOT_STATE/root/firewall.pending-hash")" = "$h_accept" ]
+  rm -f "$OPS_ROOT_STATE/root/firewall.pending-hash"; export STUB_FWD_RUNNING=0
   [ "$(fw_hash)" != "$h_accept" ]
   runjob firewall
   [[ $(rstate ask-firewall question) == *"firewall-offline-cmd --zone=public --set-target=default; systemctl enable --now firewalld.service" ]]
   [ -z "$(mutations)" ]
 }
 @test "firewall (R48): render changes while an approval is pending -> withdrawn, not overwritten" {
-  os "$DEB"; runjob firewall; h1=$(cat "$OPS_ROOT_STATE/firewall.pending-hash")
-  echo "$h1" | sed 's/^./x/' > "$OPS_ROOT_STATE/firewall.pending-hash"   # pretend the pending ask showed another render
+  os "$DEB"; runjob firewall; h1=$(cat "$OPS_ROOT_STATE/root/firewall.pending-hash")
+  echo "$h1" | sed 's/^./x/' > "$OPS_ROOT_STATE/root/firewall.pending-hash"   # pretend the pending ask showed another render
   runjob firewall
-  [ ! -e "$OPS_ROOT_STATE/ask-firewall.json" ]; [ ! -e "$OPS_ROOT_STATE/firewall.pending-hash" ]
+  [ ! -e "$OPS_ROOT_STATE/ask-firewall.json" ]; [ ! -e "$OPS_ROOT_STATE/root/firewall.pending-hash" ]
   [ "$(rstate firewall status)" = warn ]
   [ "$(rstate firewall summary)" = "rules changed while an approval was pending — re-asking" ]
   runjob firewall   # next run asks fresh, bound to the current render
-  [ -e "$OPS_ROOT_STATE/ask-firewall.json" ]; [ "$(cat "$OPS_ROOT_STATE/firewall.pending-hash")" = "$(fw_hash)" ]
+  [ -e "$OPS_ROOT_STATE/ask-firewall.json" ]; [ "$(cat "$OPS_ROOT_STATE/root/firewall.pending-hash")" = "$(fw_hash)" ]
   [ -z "$(mutations)" ]
 }
 @test "firewall (R48) end to end: ask A relayed -> rules change -> job run -> owner approves A -> nothing applied, fresh ask shown" {
@@ -266,13 +266,13 @@ RUN
   runjob firewall                                              # H2 != H1 -> withdraw
   [ ! -e "$OPS_ROOT_STATE/ask-firewall.json" ]
   run asuser answer firewall approve                           # the owner clicks the OLD question before the relay ran
-  [ -z "$(ufw_mut)" ]; [ ! -e "$OPS_ROOT_STATE/firewall.applied" ]
+  [ -z "$(ufw_mut)" ]; [ ! -e "$OPS_ROOT_STATE/root/firewall.applied" ]
   [ "$(rstate firewall summary)" = "rules changed since approval — re-asking" ]
   grep -qx 'systemctl start --no-block dots-ops@firewall.service' "$STUB_LOG"
   runjob firewall                                              # what that restart runs: a fresh ask for H2
   asuser relay
   qb=$(jq -r .question "$U/pending/firewall.json"); [[ $qb == *"allow 8080/tcp (dev)"* ]]
-  [ "$(cat "$OPS_ROOT_STATE/firewall.pending-hash")" = "$(fw_hash)" ]
+  [ "$(cat "$OPS_ROOT_STATE/root/firewall.pending-hash")" = "$(fw_hash)" ]
   [ -z "$(ufw_mut)" ]
 }
 
@@ -283,7 +283,7 @@ RUN
     [ "$status" -eq 0 ]
     [ "$(grep '^+ ' <<< "$output")" = "$(sed 's/^/+ /' <<< "$UFW_CMDS")" ]
   done
-  [ ! -e "$OPS_ROOT_STATE/firewall.applied" ]; [ -z "$(mutations)" ]
+  [ ! -e "$OPS_ROOT_STATE/root/firewall.applied" ]; [ -z "$(mutations)" ]
 }
 @test "firewall apply dry-run (fedora, running): exact firewall-cmd --permanent commands then reload" {
   os "$FED"; pending; run dryact firewall apply
@@ -306,23 +306,23 @@ RUN
 @test "firewall apply (real, stubbed ufw): runs the commands, records the rules hash, withdraws the ask" {
   os "$DEB"; echo '{}' > "$OPS_ROOT_STATE/ask-firewall.json"; pending
   run runact firewall apply; [ "$status" -eq 0 ]
-  [ "$(jq -r .hash "$OPS_ROOT_STATE/firewall.applied")" = "$(fw_rhash)" ]
-  [ "$(rstate firewall status)" = ok ]; [ ! -e "$OPS_ROOT_STATE/ask-firewall.json" ]; [ ! -e "$OPS_ROOT_STATE/firewall.pending-hash" ]
+  [ "$(jq -r .hash "$OPS_ROOT_STATE/root/firewall.applied")" = "$(fw_rhash)" ]
+  [ "$(rstate firewall status)" = ok ]; [ ! -e "$OPS_ROOT_STATE/ask-firewall.json" ]; [ ! -e "$OPS_ROOT_STATE/root/firewall.pending-hash" ]
   [ "$(ufw_mut)" = "$UFW_CMDS" ]
 }
 @test "firewall apply (R46): rules changed since the approval -> fail 're-asking', exit 1, nothing applied" {
-  os "$DEB"; echo '{}' > "$OPS_ROOT_STATE/ask-firewall.json"; echo 0000deadbeef > "$OPS_ROOT_STATE/firewall.pending-hash"
+  os "$DEB"; echo '{}' > "$OPS_ROOT_STATE/ask-firewall.json"; echo 0000deadbeef > "$OPS_ROOT_STATE/root/firewall.pending-hash"
   run runact firewall apply; [ "$status" -ne 0 ]
   [ "$(rstate firewall status)" = fail ]; [ "$(rstate firewall summary)" = "rules changed since approval — re-asking" ]
-  [ -z "$(ufw_mut)" ]; [ ! -e "$OPS_ROOT_STATE/firewall.applied" ]
+  [ -z "$(ufw_mut)" ]; [ ! -e "$OPS_ROOT_STATE/root/firewall.applied" ]
   grep -qx 'systemctl start --no-block dots-ops@firewall.service' "$STUB_LOG"   # the job re-asks with the current diff
-  rm -f "$OPS_ROOT_STATE/firewall.pending-hash"; : > "$STUB_LOG"   # no pending hash at all (approval of an old ask) -> same
+  rm -f "$OPS_ROOT_STATE/root/firewall.pending-hash"; : > "$STUB_LOG"   # no pending hash at all (approval of an old ask) -> same
   run runact firewall apply; [ "$status" -ne 0 ]; [ -z "$(ufw_mut)" ]
 }
 @test "firewall apply: a failing command -> fail, nothing recorded, exit 1" {
   os "$DEB"; pending; mkstub ufw 'echo "ufw $*" >> "$STUB_LOG"; case "$*" in "status verbose") echo "Status: inactive";; "default"*) exit 1;; esac; exit 0'
   run runact firewall apply; [ "$status" -eq 1 ]
-  [ "$(rstate firewall status)" = fail ]; [ ! -e "$OPS_ROOT_STATE/firewall.applied" ]
+  [ "$(rstate firewall status)" = fail ]; [ ! -e "$OPS_ROOT_STATE/root/firewall.applied" ]
   run ! grep -q 'ufw --force enable' "$STUB_LOG"   # never enabled after a failed step
 }
 
@@ -502,8 +502,8 @@ KbdInteractiveAuthentication no" ]
   os "$ARCH"; export STUB_ACTIVE="sshd.service" STUB_UNITS="sshd.service"; echo 'ssh-ed25519 AAAA k' > "$OWNER_HOME/.ssh/authorized_keys"
   run env DOTS_OPS_DRY_RUN=1 bash -c 'set -euo pipefail; source "$1"; source "$2"' _ "$LIB" "$SA/ssh-harden/apply.sh"
   [ "$status" -eq 0 ]
-  [[ $output == *"+ install -m 644 $OPS_ROOT_STATE/ssh-harden.desired.conf $OPS_SSHD_DIR/50-dots.conf"* ]]
-  cmp "$R/system/dots-ops/sshd/50-dots.conf" "$OPS_ROOT_STATE/ssh-harden.desired.conf"   # OpenSSH 9.6: unchanged
+  [[ $output == *"+ install -m 644 $OPS_ROOT_STATE/root/ssh-harden.desired.conf $OPS_SSHD_DIR/50-dots.conf"* ]]
+  cmp "$R/system/dots-ops/sshd/50-dots.conf" "$OPS_ROOT_STATE/root/ssh-harden.desired.conf"   # OpenSSH 9.6: unchanged
   [[ $output == *"+ sshd -t"* && $output == *"+ systemctl reload sshd.service"* ]]
   [ ! -e "$OPS_SSHD_DIR/50-dots.conf" ]
 }
@@ -513,17 +513,17 @@ LYN1='hardening_index=70\nwarning[]=SSH-7408|weak|\n'
 @test "audit is heavy; lynis via ops_run with the exact flags; first run = baseline ok" {
   source "$SJ/audit.sh"; [ "$OPS_HEAVY" = 1 ]
   os "$DEB"; export STUB_LYNIS_REPORT="$LYN1"; runjob audit
-  grep -qx "lynis audit system --quick --no-colors --report-file $OPS_ROOT_STATE/lynis-report.dat" "$STUB_LOG"
+  grep -qx "lynis audit system --quick --no-colors --report-file $OPS_ROOT_STATE/root/lynis-report.dat" "$STUB_LOG"
   [ "$(rstate audit status)" = ok ]; [[ $(rstate audit summary) == *"index 70"*"1 warning"* ]]
-  [ "$(jq -r .hardening_index "$OPS_ROOT_STATE/audit-last.json")" = 70 ]
+  [ "$(jq -r .hardening_index "$OPS_ROOT_STATE/root/audit-last.json")" = 70 ]
 }
 @test "audit: hardening score drop -> warn" {
-  os "$DEB"; echo '{"hardening_index":75,"warnings":["SSH-7408"],"t":1}' > "$OPS_ROOT_STATE/audit-last.json"
+  os "$DEB"; echo '{"hardening_index":75,"warnings":["SSH-7408"],"t":1}' > "$OPS_ROOT_STATE/root/audit-last.json"
   export STUB_LYNIS_REPORT="$LYN1"; OPS_FORCE=1 runjob audit
   [ "$(rstate audit status)" = warn ]; [[ $(rstate audit summary) == *"75 -> 70"* ]]
 }
 @test "audit: new warning id -> warn; unchanged -> ok" {
-  os "$DEB"; echo '{"hardening_index":70,"warnings":[],"t":1}' > "$OPS_ROOT_STATE/audit-last.json"
+  os "$DEB"; echo '{"hardening_index":70,"warnings":[],"t":1}' > "$OPS_ROOT_STATE/root/audit-last.json"
   export STUB_LYNIS_REPORT="$LYN1"; OPS_FORCE=1 runjob audit
   [ "$(rstate audit status)" = warn ]; [[ $(rstate audit summary) == *"new warning"*"SSH-7408"* ]]
   OPS_FORCE=1 runjob audit; [ "$(rstate audit status)" = ok ]
@@ -538,11 +538,11 @@ LYN1='hardening_index=70\nwarning[]=SSH-7408|weak|\n'
   [ "$(rstate audit status)" = ok ]; [[ $(rstate audit summary) == "n/a: lynis not installed"* ]]
   mkstub lynis 'echo "lynis $*" >> "$STUB_LOG"'
   run env DOTS_OPS_DRY_RUN=1 bash -c 'source "$1"; source "$2"; job_main' _ "$LIB" "$SJ/audit.sh"
-  [[ $output == *"+ lynis audit system --quick --no-colors --report-file $OPS_ROOT_STATE/lynis-report.dat"* ]]
+  [[ $output == *"+ lynis audit system --quick --no-colors --report-file $OPS_ROOT_STATE/root/lynis-report.dat"* ]]
   run ! grep -q '^lynis' "$STUB_LOG"
 }
 @test "audit: ran less than 6 days ago -> skipped unless forced (it is also pulled by the idle target)" {
-  os "$DEB"; jq -cn --argjson t "$(date +%s)" '{hardening_index:70,warnings:[],t:$t}' > "$OPS_ROOT_STATE/audit-last.json"
+  os "$DEB"; jq -cn --argjson t "$(date +%s)" '{hardening_index:70,warnings:[],t:$t}' > "$OPS_ROOT_STATE/root/audit-last.json"
   runjob audit; run ! grep -q '^lynis' "$STUB_LOG"
   export STUB_LYNIS_REPORT="$LYN1"; OPS_FORCE=1 runjob audit; grep -q '^lynis' "$STUB_LOG"
 }

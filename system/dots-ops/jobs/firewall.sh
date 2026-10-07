@@ -1,7 +1,7 @@
 # firewall (root): bring the host firewall to the ruleset in firewall.json (R39), never without the owner's say-so the
 # first time. ufw on arch/debian, firewalld on fedora; NixOS uses networking.firewall (dots-ops.nix) -> ok n/a.
 #   live state matches            -> ok (stale ask withdrawn)
-#   differs, never applied here   -> ALWAYS ask with the diff (no /var/lib/dots-ops/firewall.applied)  [Review Focus 5]
+#   differs, never applied here   -> ALWAYS ask with the diff (no /var/lib/dots-ops/root/firewall.applied)  [Review Focus 5]
 #   differs, same rules hash      -> drift: warn naming what differs + ask; NEVER re-applied silently (R44: hand changes win)
 #   differs, rules hash changed   -> ask again
 # Every ask shows the exact command list and writes its hash to firewall.pending-hash; the apply action refuses when
@@ -113,10 +113,10 @@ _fw_apply() {
     fi
   done <<< "$_fw_cmds"
   if [ "${DOTS_OPS_DRY_RUN:-0}" = 1 ]; then ops_log firewall info "dry run: nothing recorded"; return 0; fi
-  mkdir -p "$OPS_ROOT_STATE"
+  mkdir -p "$OPS_ROOT_DATA"
   jq -cn --arg h "$_fw_rhash" --arg tool "$_fw_tool" --argjson t "$(ops_now)" '{hash:$h,tool:$tool,applied:$t}' \
-    > "$OPS_ROOT_STATE/firewall.applied.tmp" && mv "$OPS_ROOT_STATE/firewall.applied.tmp" "$OPS_ROOT_STATE/firewall.applied"
-  rm -f "$OPS_ROOT_STATE/ask-firewall.json" "$OPS_ROOT_STATE/firewall.pending-hash"
+    > "$OPS_ROOT_DATA/firewall.applied.tmp" && mv "$OPS_ROOT_DATA/firewall.applied.tmp" "$OPS_ROOT_DATA/firewall.applied"
+  rm -f "$OPS_ROOT_STATE/ask-firewall.json" "$OPS_ROOT_DATA/firewall.pending-hash"
   ops_state firewall ok "$1"
 }
 
@@ -124,8 +124,8 @@ _fw_apply() {
 # carries the exact command list. 1 = an approval for ANOTHER hash was pending: it is withdrawn instead of overwritten
 # (R48 — the owner may still be looking at the old question), warn, and the next run asks fresh.
 _fw_ask() {
-  local ph="$OPS_ROOT_STATE/firewall.pending-hash" old cmds
-  mkdir -p "$OPS_ROOT_STATE"
+  local ph="$OPS_ROOT_DATA/firewall.pending-hash" old cmds
+  mkdir -p "$OPS_ROOT_DATA"
   old=$(head -n 1 "$ph" 2>/dev/null) || old=""
   if [ -n "$old" ] && [ "$old" != "$_fw_hash" ]; then
     rm -f "$ph" "$OPS_ROOT_STATE/ask-firewall.json"   # the relay withdraws the user's pending; a late approve is refused
@@ -142,10 +142,10 @@ job_main() {
   _fw_setup || { ops_state firewall "$_fw_st" "$_fw_msg"; return 0; }
   _fw_live || { ops_state firewall warn "$_fw_msg"; return 0; }
   if [ "${#_fw_items[@]}" -eq 0 ]; then
-    rm -f "$ask" "$OPS_ROOT_STATE/firewall.pending-hash"; ops_state firewall ok "in sync ($_fw_tool)"; return 0
+    rm -f "$ask" "$OPS_ROOT_DATA/firewall.pending-hash"; ops_state firewall ok "in sync ($_fw_tool)"; return 0
   fi
   diff=$(printf '%s; ' "${_fw_items[@]}"); diff=${diff%; }
-  prev=$(jq -r '.hash // empty' "$OPS_ROOT_STATE/firewall.applied" 2>/dev/null) || prev=""
+  prev=$(jq -r '.hash // empty' "$OPS_ROOT_DATA/firewall.applied" 2>/dev/null) || prev=""
   if [ "$_fw_tool" = ufw ]; then note="Note: ufw does not filter Docker-published ports (Docker writes its own iptables rules)."
   else note="Note: Docker-published ports bypass firewalld zones."; fi
   if [ -z "$prev" ]; then

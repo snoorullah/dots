@@ -16,7 +16,7 @@ job_main() {
     media=$(jq -r '.nvme_smart_health_information_log.media_errors // 0' <<< "$json")
     serial=$(jq -r '.serial_number // empty' <<< "$json" | tr -c 'A-Za-z0-9_\n-' _)
     key=${serial:-$name}
-    sf=$OPS_ROOT_STATE/smart-$key.json
+    sf=$OPS_ROOT_DATA/smart-$key.json
     prev_r=$(jq -r '.reallocated // empty' "$sf" 2>/dev/null) || true
     prev_m=$(jq -r '.media_errors // empty' "$sf" 2>/dev/null) || true
     fu=$(jq -r '.fail_until // 0' "$sf" 2>/dev/null) || true
@@ -27,7 +27,7 @@ job_main() {
     if [ -n "$prev_m" ] && [ "$media" -gt "$prev_m" ]; then inc=1; bad+="${bad:+; }$name media_errors $prev_m->$media"; fi
     if [ "$inc" = 1 ]; then fu=$((now + 604800))
     elif [ "$fu" -gt "$now" ]; then bad+="${bad:+; }$name error counters rose recently (failing until $(date -d "@$fu" +%F))"; fi
-    mkdir -p "$OPS_ROOT_STATE"
+    mkdir -p "$OPS_ROOT_DATA"
     jq -cn --argjson r "$realloc" --argjson m "$media" --argjson f "$fu" '{reallocated:$r,media_errors:$m,fail_until:$f}' > "$sf.tmp" && mv "$sf.tmp" "$sf"
   done < <(lsblk -dno NAME,TYPE 2>/dev/null)
   if [ "$found" = 0 ]; then ops_state smart ok "n/a: no SMART-capable disks"

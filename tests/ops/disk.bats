@@ -167,7 +167,7 @@ ATA_OK='{"smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"name"
   sm; smartdisk sda "$ATA_OK"
   STUB_LSBLK='sda disk\nzram0 disk\nsr0 rom\n' runjob "$SJ/smart.sh"
   [ "$(rstate smart status)" = ok ]
-  [ "$(jq -r .reallocated "$OPS_ROOT_STATE/smart-sda.json")" = 0 ]
+  [ "$(jq -r .reallocated "$OPS_ROOT_STATE/root/smart-sda.json")" = 0 ]
   ! grep -q zram "$STUB_LOG"
 }
 @test "smart: failing health -> fail even when smartctl exits nonzero" {
@@ -178,18 +178,18 @@ ATA_OK='{"smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"name"
 }
 @test "smart: reallocated sectors increased vs last run -> fail" {
   sm; smartdisk sda '{"smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"name":"Reallocated_Sector_Ct","raw":{"value":8}}]}}'
-  mkdir -p "$OPS_ROOT_STATE"; echo '{"reallocated":2,"media_errors":0}' > "$OPS_ROOT_STATE/smart-sda.json"
+  mkdir -p "$OPS_ROOT_STATE/root"; echo '{"reallocated":2,"media_errors":0}' > "$OPS_ROOT_STATE/root/smart-sda.json"
   STUB_LSBLK='sda disk\n' runjob "$SJ/smart.sh"
   [ "$(rstate smart status)" = fail ]
   [[ $(rstate smart summary) == *"sda"*"reallocated"* ]]
-  [ "$(jq -r .reallocated "$OPS_ROOT_STATE/smart-sda.json")" = 8 ]
+  [ "$(jq -r .reallocated "$OPS_ROOT_STATE/root/smart-sda.json")" = 8 ]
 }
 @test "smart: nvme media_errors increased -> fail; unchanged after the 7-day window -> ok" {
   sm; smartdisk nvme0n1 '{"smart_status":{"passed":true},"nvme_smart_health_information_log":{"media_errors":3}}'
-  mkdir -p "$OPS_ROOT_STATE"; echo '{"reallocated":0,"media_errors":1}' > "$OPS_ROOT_STATE/smart-nvme0n1.json"
+  mkdir -p "$OPS_ROOT_STATE/root"; echo '{"reallocated":0,"media_errors":1}' > "$OPS_ROOT_STATE/root/smart-nvme0n1.json"
   STUB_LSBLK='nvme0n1 disk\n' runjob "$SJ/smart.sh"
   [ "$(rstate smart status)" = fail ]; [[ $(rstate smart summary) == *media_errors* ]]
-  jq '.fail_until=1' "$OPS_ROOT_STATE/smart-nvme0n1.json" > "$BATS_TEST_TMPDIR/x" && mv "$BATS_TEST_TMPDIR/x" "$OPS_ROOT_STATE/smart-nvme0n1.json"
+  jq '.fail_until=1' "$OPS_ROOT_STATE/root/smart-nvme0n1.json" > "$BATS_TEST_TMPDIR/x" && mv "$BATS_TEST_TMPDIR/x" "$OPS_ROOT_STATE/root/smart-nvme0n1.json"
   STUB_LSBLK='nvme0n1 disk\n' runjob "$SJ/smart.sh"
   [ "$(rstate smart status)" = ok ]
 }
@@ -197,32 +197,32 @@ ATA_OK='{"smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"name"
 @test "smart: attribute id 5 counts even with a different name; no smart_status -> skipped as not capable" {
   sm; smartdisk sda '{"serial_number":"S/N 1","smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":5,"name":"Retired_Block_Count","raw":{"value":9}}]}}'
   smartdisk sdb '{"model_name":"usb bridge"}'
-  mkdir -p "$OPS_ROOT_STATE"; echo '{"reallocated":1,"media_errors":0}' > "$OPS_ROOT_STATE/smart-S_N_1.json"
+  mkdir -p "$OPS_ROOT_STATE/root"; echo '{"reallocated":1,"media_errors":0}' > "$OPS_ROOT_STATE/root/smart-S_N_1.json"
   STUB_LSBLK='sda disk\nsdb disk\n' runjob "$SJ/smart.sh"
   [ "$(rstate smart status)" = fail ]; [[ $(rstate smart summary) == *"sda reallocated 1->9"* ]]
   [[ $(rstate smart summary) != *sdb* ]]
-  [ ! -e "$OPS_ROOT_STATE/smart-sdb.json" ]
+  [ ! -e "$OPS_ROOT_STATE/root/smart-sdb.json" ]
   sm; STUB_LSBLK='sdb disk\n' runjob "$SJ/smart.sh"
   [ "$(rstate smart summary)" = "n/a: no SMART-capable disks" ]
 }
 @test "smart: counters keyed by serial survive a kernel-name change" {
   sm; smartdisk sda '{"serial_number":"ABC-123","smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":5,"name":"Reallocated_Sector_Ct","raw":{"value":4}}]}}'
   STUB_LSBLK='sda disk\n' runjob "$SJ/smart.sh"
-  [ -e "$OPS_ROOT_STATE/smart-ABC-123.json" ]
+  [ -e "$OPS_ROOT_STATE/root/smart-ABC-123.json" ]
   smartdisk sdb '{"serial_number":"ABC-123","smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":5,"name":"Reallocated_Sector_Ct","raw":{"value":6}}]}}'
   STUB_LSBLK='sdb disk\n' runjob "$SJ/smart.sh"
   [ "$(rstate smart status)" = fail ]; [[ $(rstate smart summary) == *"sdb reallocated 4->6"* ]]
 }
 @test "smart: an increase keeps failing for 7 days (fail_until), then recovers" {
   sm; smartdisk sda '{"serial_number":"Z1","smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":5,"name":"Reallocated_Sector_Ct","raw":{"value":8}}]}}'
-  mkdir -p "$OPS_ROOT_STATE"; echo '{"reallocated":2,"media_errors":0}' > "$OPS_ROOT_STATE/smart-Z1.json"
+  mkdir -p "$OPS_ROOT_STATE/root"; echo '{"reallocated":2,"media_errors":0}' > "$OPS_ROOT_STATE/root/smart-Z1.json"
   STUB_LSBLK='sda disk\n' runjob "$SJ/smart.sh"
   [ "$(rstate smart status)" = fail ]
-  fu=$(jq -r .fail_until "$OPS_ROOT_STATE/smart-Z1.json"); now=$(date +%s)
+  fu=$(jq -r .fail_until "$OPS_ROOT_STATE/root/smart-Z1.json"); now=$(date +%s)
   [ "$fu" -gt $((now + 600000)) ] && [ "$fu" -le $((now + 604800 + 5)) ]
   STUB_LSBLK='sda disk\n' runjob "$SJ/smart.sh"   # counters now unchanged, still failing
   [ "$(rstate smart status)" = fail ]; [[ $(rstate smart summary) == *"recently"* ]]
-  echo '{"reallocated":8,"media_errors":0,"fail_until":1}' > "$OPS_ROOT_STATE/smart-Z1.json"   # window elapsed
+  echo '{"reallocated":8,"media_errors":0,"fail_until":1}' > "$OPS_ROOT_STATE/root/smart-Z1.json"   # window elapsed
   STUB_LSBLK='sda disk\n' runjob "$SJ/smart.sh"
   [ "$(rstate smart status)" = ok ]
 }

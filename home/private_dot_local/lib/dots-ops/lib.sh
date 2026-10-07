@@ -7,10 +7,23 @@ if [ "$OPS_IS_ROOT" = 1 ]; then   # root has no usable HOME under systemd/sudo; 
 else
   : "${OPS_STATE:=${XDG_STATE_HOME:-$HOME/.local/state}/dots-ops}"
 fi
+# R61: root bookkeeping that is not a status/ask file (lynis report, audit baseline, SMART counters, firewall hashes,
+# ssh-harden copies, the pkg lock) lives one level down: the user's relay path unit watches only the top level, and
+# every write there costs a relay run (PathChanged trigger limit).
+: "${OPS_ROOT_DATA:=$OPS_ROOT_STATE/root}"
 : "${OPS_NOTIFY:=notify-send}"
 : "${OPS_REMIND_SECS:=86400}"
 mkdir -p "$OPS_STATE/state" "$OPS_STATE/pending" "$OPS_STATE/queue" "$OPS_STATE/locks" 2>/dev/null || true
 if [ "$OPS_IS_ROOT" = 1 ]; then chmod 700 "$OPS_STATE/locks" 2>/dev/null || true; fi   # nobody else may hold root's locks
+if [ "$OPS_IS_ROOT" = 1 ]; then   # R61 upgrade path: move bookkeeping an older version left at the watched top level
+  for _f in "$OPS_ROOT_STATE"/firewall.applied "$OPS_ROOT_STATE"/firewall.pending-hash "$OPS_ROOT_STATE"/audit-last.json \
+            "$OPS_ROOT_STATE"/lynis-report.dat "$OPS_ROOT_STATE"/ssh-harden.*.conf "$OPS_ROOT_STATE"/smart-*.json; do
+    [ -f "$_f" ] || continue
+    mkdir -p "$OPS_ROOT_DATA" 2>/dev/null || break
+    if [ -e "$OPS_ROOT_DATA/${_f##*/}" ]; then rm -f "$_f"; else mv "$_f" "$OPS_ROOT_DATA/" 2>/dev/null || true; fi
+  done
+  unset _f
+fi
 
 ops_now() { date +%s; }
 

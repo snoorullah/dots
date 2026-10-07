@@ -4,7 +4,7 @@
 # last audit is younger than 6 days unless forced (`dots-ops run audit --now`), so idle periods don't rerun lynis.
 OPS_HEAVY=1
 job_main() {
-  local rep="$OPS_ROOT_STATE/lynis-report.dat" last="$OPS_ROOT_STATE/audit-last.json" now t rc=0 out
+  local rep="$OPS_ROOT_DATA/lynis-report.dat" last="$OPS_ROOT_DATA/audit-last.json" now t rc=0 out
   local idx nw prev_idx new n vul issues=() base
   now=$(ops_now)
   command -v lynis >/dev/null 2>&1 || { ops_state audit ok "n/a: lynis not installed"; return 0; }
@@ -16,7 +16,7 @@ job_main() {
   if [ "${DOTS_OPS_DRY_RUN:-0}" = 1 ]; then
     ops_run lynis audit system --quick --no-colors --report-file "$rep"; return 0
   fi
-  mkdir -p "$OPS_ROOT_STATE"; rm -f "$rep"   # never parse a stale report
+  mkdir -p "$OPS_ROOT_DATA"; rm -f "$rep"   # never parse a stale report
   out=$(ops_run lynis audit system --quick --no-colors --report-file "$rep" 2>&1) || rc=$?
   idx=$(sed -n 's/^hardening_index=\([0-9][0-9]*\)$/\1/p' "$rep" 2>/dev/null | tail -n 1) || idx=""
   if [ -z "$idx" ]; then

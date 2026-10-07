@@ -173,6 +173,30 @@ fakebin() {   # id/stat/systemctl/jq/env/bash that leave a marker if anything ex
     bash -uc 'source "$1"; echo "$OPS_STATE"' _ "$R/home/private_dot_local/lib/dots-ops/lib.sh"
   [ "$status" -eq 0 ]; [ "$output" = "$BATS_TEST_TMPDIR/rs/root" ]
 }
+@test "R61 non-status root files live in <root state>/root (unwatched); the watched top level holds only <job>.json/ask-<job>.json" {
+  # every path root code builds directly under $OPS_ROOT_STATE is an ask file; the rest goes through $OPS_ROOT_DATA
+  run bash -c "grep -rhoE '\\\$OPS_ROOT_STATE/[^\"\$ ]*' '$R/system/dots-ops' | sort -u"
+  for p in $output; do [[ $p == '$OPS_ROOT_STATE/ask-'* ]] || { echo "non-status file at the watched top level: $p"; return 1; }; done
+  run env -u OPS_ROOT_DATA OPS_IS_ROOT=1 OPS_ROOT_STATE="$BATS_TEST_TMPDIR/rs" OPS_STATE="$BATS_TEST_TMPDIR/rs/root" bash -c 'source "$1"; echo "$OPS_ROOT_DATA"' _ "$R/home/private_dot_local/lib/dots-ops/lib.sh"
+  [ "$output" = "$BATS_TEST_TMPDIR/rs/root" ]
+  grep -q '^: "${OPS_ROOT_STATE:=/var/lib/dots-ops}"' "$R/home/private_dot_local/lib/dots-ops/lib.sh"
+  for f in jobs/audit.sh jobs/smart.sh jobs/firewall.sh actions/firewall/apply.sh actions/ssh-harden/apply.sh; do
+    grep -q 'OPS_ROOT_DATA' "$R/system/dots-ops/$f" || { echo "$f does not use OPS_ROOT_DATA"; return 1; }
+  done
+}
+@test "R61 root lib moves old top-level bookkeeping files into root/ once (upgrade path)" {
+  rs="$BATS_TEST_TMPDIR/rs"; mkdir -p "$rs/root"
+  for f in firewall.applied firewall.pending-hash audit-last.json lynis-report.dat ssh-harden.desired.conf smart-S1.json; do echo "old $f" > "$rs/$f"; done
+  echo new > "$rs/root/smart-S2.json"; echo old > "$rs/smart-S2.json"   # a newer copy already moved wins
+  echo '{"job":"smart","status":"ok"}' > "$rs/smart.json"; echo '{}' > "$rs/ask-firewall.json"
+  run env OPS_IS_ROOT=1 OPS_ROOT_STATE="$rs" OPS_STATE="$rs/root" bash -c 'source "$1"' _ "$R/home/private_dot_local/lib/dots-ops/lib.sh"
+  [ "$status" -eq 0 ]
+  for f in firewall.applied firewall.pending-hash audit-last.json lynis-report.dat ssh-harden.desired.conf smart-S1.json; do
+    [ ! -e "$rs/$f" ]; [ "$(cat "$rs/root/$f")" = "old $f" ]
+  done
+  [ ! -e "$rs/smart-S2.json" ]; [ "$(cat "$rs/root/smart-S2.json")" = new ]
+  [ -e "$rs/smart.json" ] && [ -e "$rs/ask-firewall.json" ]   # status and ask files stay where the relay watches
+}
 @test "root ops_ask writes ask-<job>.json for the relay instead of a local pending/UI" {
   setup_ops
   OPS_IS_ROOT=1 ops_ask reboot "Reboot for kernel?" "root:reboot apply"
