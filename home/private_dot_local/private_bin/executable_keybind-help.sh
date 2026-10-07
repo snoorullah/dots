@@ -41,6 +41,7 @@ read -r -d '' ROWS <<'EOF'
   Super + G               Git profile switcher
   Super + T               tmux sessions
   Super + Shift + O       Bookmarks
+  Super + Shift + N       Notification center (SwayNC)
   Super + N               Obsidian search
   Super + ,               Zen browser tabs
   Super + M               Media / playerctl

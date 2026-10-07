@@ -28,7 +28,7 @@ sel=$(find . -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -
               --header=$'  \e[35;1motter\e[0m \e[90m· wallpaper\e[0m\n' \
               --prompt='  ' --pointer='▌' --marker='▌' \
               --color='bg:-1,bg+:-1,fg:-1,fg+:15,hl:5,hl+:13,pointer:5,prompt:5,marker:5,gutter:-1,spinner:8,header:8,border:8,preview-bg:-1,preview-border:8' \
-              --preview="chafa -f kitty -s \${FZF_PREVIEW_COLUMNS}x\${FZF_PREVIEW_LINES} '$WALLS/{}'" \
+              --preview="printf '\033_Ga=d\033\\\\'; chafa -f kitty -s \${FZF_PREVIEW_COLUMNS}x\${FZF_PREVIEW_LINES} '$WALLS/{}'" \
               --preview-window='right:58%:border-left') || exit 0
 [ -n "$sel" ] || exit 0
 
