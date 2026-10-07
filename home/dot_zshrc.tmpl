@@ -8,12 +8,7 @@ if [ -z "$SSH_AUTH_SOCK" ]; then
     eval $(ssh-agent)
 fi
 
-# Fix kitty colors
-if [[ "$TERM" == "xterm-kitty" ]]; then
-    export TERM=xterm-256color
-fi
-
-# Update PATH (ensure Kitty, local binaries are available)
+# Update PATH (ensure local binaries are available)
 export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:$PATH"
 # asdf v0.11 needs asdf.sh sourced: it puts BOTH $ASDF_DIR/bin (the `asdf`
 # command itself) and the shims dir on PATH. The previous hand-rolled line added
@@ -53,7 +48,7 @@ zstyle ':omz:plugins:alias-finder' cheaper yes  # disabled by default
 source $ZSH/oh-my-zsh.sh
 
 # Aliases for common commands
-alias k="kitty"       # Open Kitty
+alias k="ghostty"      # Open Ghostty
 alias ll="ls -la"     # Detailed list
 alias gs="git status" # Shortcut for git status
 alias mtl='microk8s kubectl'

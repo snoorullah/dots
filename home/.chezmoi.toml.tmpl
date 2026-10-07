@@ -16,6 +16,5 @@ encryption = "age"
 [data]
   gpu = {{ $gpu | quote }}
   multiplexer = {{ $mux | quote }}
-  footLigatures = true
   timetrack = false
   hasAgeKey = {{ if stat $key }}true{{ else }}false{{ end }}

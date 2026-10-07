@@ -69,7 +69,7 @@ $tui"
         "$dislike")    "$YTM" dislike >/dev/null 2>&1 ;;
         "$queue")      peek_queue ;;
         "$search")     do_search ;;
-        "$tui")        setsid -f kitty -e "$YTM" >/dev/null 2>&1 ;;
+        "$tui")        setsid -f ghostty -e "$YTM" >/dev/null 2>&1 ;;
     esac
 }
 main

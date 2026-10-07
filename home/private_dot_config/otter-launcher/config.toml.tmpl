@@ -44,20 +44,20 @@ unbind_proc = true
 [[modules]]
 description = "  shell"
 prefix = "sh"
-cmd = "kitty --hold -e sh -c '{}'"
+cmd = "ghostty --wait-after-command=true -e sh -c '{}'"
 with_argument = true
 unbind_proc = true
 
 [[modules]]
 description = "  wallpaper picker"
 prefix = "wp"
-cmd = "kitty --class wallpaper --config {{ .chezmoi.homeDir }}/.config/kitty/otter.conf -e {{ .chezmoi.homeDir }}/.local/bin/wallpaper"
+cmd = "ghostty --class=dots.wallpaper --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e {{ .chezmoi.homeDir }}/.local/bin/wallpaper"
 unbind_proc = true
 
 [[modules]]
 description = "  bluetooth"
 prefix = "bt"
-cmd = "kitty --class bluetuith --config {{ .chezmoi.homeDir }}/.config/kitty/bluetuith.conf -e bluetuith"
+cmd = "ghostty --class=dots.bluetuith --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup-bluetuith -e bluetuith"
 unbind_proc = true
 
 [[modules]]
@@ -133,11 +133,11 @@ cmd = "{{ .chezmoi.homeDir }}/.config/otter-launcher/scripts/otter-files.sh"
 [[modules]]
 description = "  clipboard"
 prefix = "cl"
-cmd = "kitty --class clipse --config {{ .chezmoi.homeDir }}/.config/kitty/otter.conf -e {{ .chezmoi.homeDir }}/.local/bin/clipse"
+cmd = "ghostty --class=dots.clipse --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e {{ .chezmoi.homeDir }}/.local/bin/clipse"
 unbind_proc = true
 
 [[modules]]
 description = "  tasks"
 prefix = "tw"
-cmd = "kitty --class tasktui --config {{ .chezmoi.homeDir }}/.config/kitty/tasktui.conf -e {{ .chezmoi.homeDir }}/.local/bin/tw-tui"
+cmd = "ghostty --class=dots.tasktui --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup-tasktui -e {{ .chezmoi.homeDir }}/.local/bin/tw-tui"
 unbind_proc = true

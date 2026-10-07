@@ -65,15 +65,15 @@ project_path="$PROJECTS_DIR/$project_name"
 mkdir -p "$HOME/.cache/adhd"; printf '%s' "$project_name" > "$HOME/.cache/adhd/active-project"
 
 # Sub-menu: choose which application to open the project with. Same
-# three actions + open commands as rofi-projects.sh (VS Code / kitty /
+# three actions + open commands as rofi-projects.sh (VS Code / ghostty /
 # xdg-open); GUI launches are detached with setsid -f per the otter
-# convention so this script (running in an otter-spawned kitty) can exit
+# convention so this script (running in an otter-spawned terminal) can exit
 # immediately without lingering.
 actions=$'  Open in VS Code\n  Open Terminal\n󰉋  Open File Manager'
 action="$(echo "$actions" | fzf --header="$project_name")"
 
 case "$action" in
     *"VS Code"*)       setsid -f code "$project_path" >/dev/null 2>&1 ;;
-    *"Terminal"*)       setsid -f kitty --directory "$project_path" >/dev/null 2>&1 ;;
+    *"Terminal"*)       setsid -f ghostty --working-directory="$project_path" >/dev/null 2>&1 ;;
     *"File Manager"*)   setsid -f xdg-open "$project_path" >/dev/null 2>&1 ;;
 esac

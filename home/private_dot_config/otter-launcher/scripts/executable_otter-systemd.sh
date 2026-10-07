@@ -62,6 +62,6 @@ case "$action" in
         notify-send "Systemd" "Restarted: $name" -t 3000
         ;;
     "view logs")
-        setsid -f kitty --config "$HOME/.config/kitty/otter.conf" -e journalctl -u "${name}.service" -f --no-pager >/dev/null 2>&1
+        setsid -f ghostty --class=dots.otter --gtk-single-instance=false --config-file="$HOME/.config/ghostty/popup" -e journalctl -u "${name}.service" -f --no-pager >/dev/null 2>&1
         ;;
 esac

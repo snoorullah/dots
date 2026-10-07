@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # waybar-project.sh — project + branch of whatever terminal pane is focused.
-#   kitty running tmux → that client's active pane cwd (tty match)
-#   plain kitty        → cwd of the terminal's foreground process
+#   ghostty running tmux → that client's active pane cwd (tty match)
+#   plain ghostty      → cwd of the terminal's foreground process
 #   path in ~/work/<p> → "<p>  <branch>"; tmux pane outside ~/work → session name
 #   non-terminal focus → keep the last value (cache), so the bar doesn't blank
 # The Super+P picker (otter-projects.sh) still seeds the cache.
@@ -17,7 +17,7 @@ read -r cls pid < <(hyprctl activewindow -j 2>/dev/null | python3 -c 'import jso
 try: c=json.load(sys.stdin); print(c.get("class","-"), c.get("pid",0))
 except Exception: print("- 0")')
 
-if [ "$cls" = kitty ] && [ "${pid:-0}" -gt 0 ]; then
+if [ "$cls" = com.mitchellh.ghostty ] && [ "${pid:-0}" -gt 0 ]; then
   for child in $(ps --ppid "$pid" -o pid= 2>/dev/null); do
     tty=$(ps -o tty= -p "$child" | tr -d ' ')
     [ -n "$tty" ] && [ "$tty" != "?" ] || continue

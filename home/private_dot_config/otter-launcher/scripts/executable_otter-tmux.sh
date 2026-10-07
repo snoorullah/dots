@@ -3,7 +3,7 @@
 #
 # Ported from rofi-tmux.sh: list/attach existing sessions, create a new
 # named session, or kill a session. Preserves the original's inside-tmux
-# vs outside-tmux detection (switch-client vs attach; spawn a kitty only
+# vs outside-tmux detection (switch-client vs attach; spawn a terminal only
 # when invoked from outside tmux).
 set -uo pipefail
 source "$HOME/.config/otter-launcher/scripts/_otter-fzf.sh"
@@ -41,9 +41,9 @@ if [[ "$chosen" == "$new_entry" ]]; then
         if [[ -n "${TMUX:-}" ]]; then
             tmux new-session -d -s "$session_name" && tmux switch-client -t "$session_name"
         else
-            # Not inside tmux: spawn a new kitty terminal running the new
+            # Not inside tmux: spawn a new terminal running the new
             # tmux session, detached so this script can exit immediately.
-            setsid -f kitty -e tmux new-session -s "$session_name" >/dev/null 2>&1
+            setsid -f ghostty -e tmux new-session -s "$session_name" >/dev/null 2>&1
         fi
         notify-send "Tmux" "Created session: $session_name" -t 3000
     fi
@@ -69,6 +69,6 @@ else
     if [[ -n "${TMUX:-}" ]]; then
         tmux switch-client -t "$session_name"
     else
-        setsid -f kitty -e tmux attach-session -t "$session_name" >/dev/null 2>&1
+        setsid -f ghostty -e tmux attach-session -t "$session_name" >/dev/null 2>&1
     fi
 fi

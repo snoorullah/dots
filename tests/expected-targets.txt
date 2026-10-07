@@ -5,6 +5,9 @@ f all .config/waybar/config.jsonc
 f all .config/waybar/style.css
 f all .config/ghostty/config
 f all .config/ghostty/popup
+f all .config/ghostty/popup-bluetuith
+f all .config/ghostty/popup-tasktui
+f all .config/ghostty/images/bluetuith-bg.png
 f all .config/otter-launcher/config.toml
 f all .config/otter-launcher/git-profiles.conf
 f all .config/otter-launcher/images/otter.png
@@ -31,7 +34,8 @@ f all .config/yazi/theme.toml
 f all .config/yazi/Dracula.tmTheme
 f all .config/clipse/config.json
 f all .config/clipse/custom_theme.json
-f all .config/mako/config
+f all .config/swaync/config.json
+f all .config/swaync/style.css
 f all .config/swayosd/style.css
 f all .config/starship.toml
 x all .config/starship/scripts/pipeline.sh

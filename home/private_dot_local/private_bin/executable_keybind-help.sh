@@ -11,7 +11,7 @@ FZF="${FZF_BIN:-fzf}"
 # Each row: "<keys padded>  <description>". "──" rows are section headers.
 read -r -d '' ROWS <<'EOF'
 ━━━━━━━  WINDOWS  ━━━━━━━
-  Super + Return          Terminal (kitty)
+  Super + Return          Terminal (ghostty)
   Super + Shift + Q       Close window
   Alt + F4                Close window
   Super + F               Fullscreen
