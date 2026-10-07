@@ -23,8 +23,8 @@ extraTools:
     - { name: ytm-player, version: 2.0.0, source: "pipx list --json",
         readme: "https://github.com/peternaame-boop/ytm-player (pip install ytm-player; pipx used for isolation)" }
   uv:   # UV_TOOL_BIN_DIR=~/.local/bin uv tool install --python X name==version (uv fetches Python X if missing)
-    - { name: syncall, version: 1.8.8, python: "3.12", source: "PyPI JSON API latest (not installed on this machine)",
-        readme: "https://github.com/bergercookie/syncall (pip install syncall; requires python <=3.12.5, so 3.12)" }
+    - { name: syncall, version: 1.8.8, python: "3.12.5", source: "PyPI JSON API latest (not installed on this machine)",
+        readme: "https://github.com/bergercookie/syncall (pip install syncall; requires_python <=3.12.5,>=3.8.1 — pin 3.12.5 exactly, a bare 3.12 resolves to a newer patch)" }
   # argonaut, HyprCapture and hypr-kdeconnect-fix are Nix packages now (nix/pkgs/overlay.nix, nix/home.nix; R25).
   grok:   # vendor installer (~/.grok/docs/user-guide/01-getting-started.md; https://docs.x.ai/build/overview.md)
     version: 1.0.41

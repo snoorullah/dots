@@ -25,7 +25,7 @@ want=(
   "install --locked --root $h/.local --version 0.3.28 linear-cli"
   "install --locked --root $h/.local --version 0.1.0 tttui"
   "pipx install --force ytm-player=="
-  "uv tool install --force --python 3.12 syncall==1.8.8"
+  "uv tool install --force --python 3.12.5 syncall==1.8.8"
   "<rev from $h/.nix-profile/share/aether/REV>"
   "running unverified vendor installer"
   "env SHELL=/bin/sh bash "
