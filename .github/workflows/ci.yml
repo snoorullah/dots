@@ -34,6 +34,30 @@ jobs:
           d="$(mktemp -d)"
           bash tests/render.sh tests/data-nvidia-tmux.toml "$d"
           HOME="$d" bash tests/in-home.sh --sentinel
+  ops-bats:
+    # dots-ops tests (tests/ops). Every tool the tests use is installed here, so a `skip` would hide a real gap:
+    # the run fails on any skipped test (skips stay explicit in the tests, never silent).
+    runs-on: ubuntu-latest
+    env:
+      YQ_VERSION: v4.47.1
+      YQ_SHA256: 0fb28c6680193c41b364193d0c0fc4a03177aecde51cfc04d506b1517158c2fb
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y bats jq perl git util-linux sudo
+      - name: install yq (mikefarah v4, pinned)
+        run: |
+          curl -fsSL -o /tmp/yq "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
+          echo "${YQ_SHA256}  /tmp/yq" | sha256sum -c -
+          sudo install -m 755 /tmp/yq /usr/local/bin/yq
+      - run: sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin
+      - run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - run: command -v bats jq yq flock systemd-analyze visudo chezmoi perl git
+      - name: root.bats static checks (units, sudoers, installer)
+        run: bats tests/ops/root.bats
+      - name: bats tests/ops
+        run: |
+          bats --tap tests/ops | tee /tmp/ops.tap
+          if grep -E '^(ok|not ok) .*# skip' /tmp/ops.tap; then echo "::error::skipped ops tests: install the missing tool"; exit 1; fi
   distro:
     runs-on: ubuntu-latest
     strategy:

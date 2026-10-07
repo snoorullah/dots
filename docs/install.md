@@ -106,3 +106,10 @@ install time (the committed one is a placeholder). The `10-nix` script does noth
 packages come from the rebuild. home-manager runs with `useUserPackages = false`, so the packages land in
 `~/.nix-profile` exactly as on other distros; the session PATH adds `/run/wrappers/bin` and
 `/run/current-system/sw/bin` instead of `/usr/...`.
+
+## 9. Maintenance (dots-ops)
+
+After the first apply, dots-ops keeps the machine tidy: disk cleanup, updates, backups, firewall and ssh checks,
+cluster health, one Waybar icon, and approvals for anything risky. The installer adds you to the `dots-ops` group,
+so log out and back in once. Backups need `RESTIC_REPOSITORY` and `RESTIC_PASSWORD` in your hand-copied `~/.secrets`.
+See [dots-ops.md](dots-ops.md) for how it works and the cutover fire drill.

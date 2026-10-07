@@ -35,6 +35,15 @@ for f in ~/dots/home/.chezmoiscripts/*.tmpl; do
   bash -n /tmp/rendered.sh || { echo "FAIL bash -n $f"; exit 1; }
   echo "script ok: $(basename "$f")"
 done
+# dots-ops root installer (never executed): must render for this family (gpu=mesa, so the non-NixOS branch), parse,
+# carry a real content hash (find|sha256sum ran in this distro) and still install the runner, units and sudoers rule.
+chezmoi execute-template < ~/dots/home/.chezmoiscripts/run_onchange_after_26-dots-ops-system.sh.tmpl > /tmp/dots-ops-install.sh
+bash -n /tmp/dots-ops-install.sh || { echo "FAIL bash -n dots-ops installer"; exit 1; }
+grep -qE '^# dots-ops system install hash: [0-9a-f]{64}( +-)?$' /tmp/dots-ops-install.sh || { echo "FAIL dots-ops installer: no content hash rendered"; exit 1; }
+for needle in '/usr/local/bin/dots-ops-run' 'visudo -cf' '/etc/sudoers.d/dots-ops' 'groupadd --system dots-ops'; do
+  grep -qF -- "$needle" /tmp/dots-ops-install.sh || { echo "FAIL dots-ops installer: missing '$needle'"; exit 1; }
+done
+echo "dots-ops installer ok (rendered + bash -n)"
 chezmoi execute-template < ~/dots/home/.chezmoiscripts/run_once_before_00-system.sh.tmpl > /tmp/root-system.sh
 DOTS_PKG_LIST=1 bash /tmp/root-system.sh > /tmp/dots-pkgs.txt || { echo "FAIL root script DOTS_PKG_LIST mode"; exit 1; }
 cat /tmp/dots-pkgs.txt
