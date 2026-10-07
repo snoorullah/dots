@@ -6,11 +6,16 @@ else LIB="${OPS_LIB:-$HOME/.local/lib/dots-ops/lib.sh}"; [ -f "$LIB" ] || LIB=/u
 source "$LIB"
 : "${OPS_JOBS_DIR:=$HOME/.local/lib/dots-ops/jobs}"
 here=$(dirname "$(readlink -f "$0")")
-usage() { echo "usage: dots-ops run <job> [--now] | answer <job> <approve|alt|skip|snooze> [token] | idle-start [--fallback] | idle-end | perf-mode [on|off|toggle] | pins-bump | relay | waybar | status" >&2; exit 2; }
+usage() { echo "usage: dots-ops run <job> [--now] | answer <job> <approve|alt|skip|snooze> [token] | idle-start [--fallback] | idle-end [--fallback] | perf-mode [on|off|toggle] | pins-bump | relay | waybar | status" >&2; exit 2; }
 
 sudo_runner() {   # R8: sudo -n only; returns the runner rc (callers decide if it is fatal)
   local sc; read -ra sc <<< "$OPS_SUDO"
   "${sc[@]}" "$OPS_RUNNER" "$@" || { local rc=$?; ops_log system warn "sudo runner failed (rc=$rc): $*"; return "$rc"; }
+}
+logind_hint() {   # true|false — best effort SetIdleHint on our logind session (hypridle runs us inside the session)
+  busctl call org.freedesktop.login1 /org/freedesktop/login1/session/auto org.freedesktop.login1.Session SetIdleHint b "$1" \
+    >/dev/null 2>&1 || ops_log system info "could not set the logind idle hint ($1)"
+  return 0
 }
 idle_runner() {   # system idle-run|idle-end — R60: a refused sudo is visible (Waybar), not just a log line; success clears it
   local rc=0
@@ -173,15 +178,18 @@ case "${1:-}" in
       # R58: and logind agrees the user has been idle >= 15 min (a resume into active work is not idle, locked or not)
       if ops_on_ac && { pgrep -x hyprlock >/dev/null 2>&1 || ! loginctl list-sessions --no-legend 2>/dev/null | grep -q .; } \
          && ops_logind_idle; then
-        systemd-run --user --on-active=2h "$(readlink -f "$0")" idle-end >/dev/null 2>&1 || ops_log system warn "could not schedule idle-end"
+        systemd-run --user --on-active=2h "$(readlink -f "$0")" idle-end --fallback >/dev/null 2>&1 || ops_log system warn "could not schedule idle-end"
       else
         ops_log system info "fallback skipped: not on AC, not locked, or logind not idle for 15 min"; exit 0
       fi
+    else   # hypridle's 15-min idle: tell logind too (R58: the fallback trusts logind's IdleHint, which hypridle may not set)
+      logind_hint true
     fi
     mkdir -p "$(dirname "$OPS_IDLE_FLAG")"; touch "$OPS_IDLE_FLAG"
     systemctl --user restart --no-block dots-ops-idle.target || ops_log system warn "idle target failed to start"   # R14
     idle_runner idle-run ;;
-  idle-end)
+  idle-end)   # --fallback: the end of the fallback window, not user input — the idle hint stays as it is
+    [ "${2:-}" = --fallback ] || logind_hint false
     rm -f "$OPS_IDLE_FLAG"
     systemctl --user stop --no-block dots-ops-idle.target || true
     idle_runner idle-end ;;   # R3
@@ -191,7 +199,7 @@ case "${1:-}" in
     case $want in on|off) ;; toggle) if [ "$cur" = on ]; then want=off; else want=on; fi ;; *) usage ;; esac
     ppd=1; command -v powerprofilesctl >/dev/null || ppd=0
     if [ "$want" = on ]; then profile=performance
-    elif ops_on_ac; then profile=balanced; else profile=power-saver; fi
+    else profile=$(ops_default_profile); fi   # R63: the power-profile job's rule (laptop AC/battery, desktop balanced)
     note="profile $profile"
     if [ "$ppd" = 1 ]; then ops_run powerprofilesctl set "$profile" || note="could not set profile $profile"
     else note="power profiles unavailable"; fi

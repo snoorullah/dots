@@ -10,5 +10,3 @@ max_age_hours = 48
 contexts = ["admin@onprem-s2a", "ovh"]
 [jobs.k8s-health]
 enabled = true
-[jobs.updates-security]
-enabled = true

@@ -36,7 +36,7 @@ setup() {
 }
 stubs() {   # fake systemctl/systemd-run/pgrep/loginctl recording argv; sudo stub is OPS_SUDO
   mkdir -p "$BATS_TEST_TMPDIR/fakebin"; : > "$BATS_TEST_TMPDIR/calls.log"
-  local c; for c in systemctl systemd-run; do
+  local c; for c in systemctl systemd-run busctl; do
     printf '#!/bin/sh\necho "%s $*" >> %s/calls.log\n' "$c" "$BATS_TEST_TMPDIR" > "$BATS_TEST_TMPDIR/fakebin/$c"
   done
   printf '#!/bin/sh\n[ -n "$STUB_LOCKED" ]\n' > "$BATS_TEST_TMPDIR/fakebin/pgrep"
@@ -100,6 +100,18 @@ EOF
   STUB_LOCKED=1 STUB_SESSION=1 STUB_IDLE_MIN=16 run bash "$BIN/executable_dots-ops" idle-start --fallback
   [ -e "$OPS_IDLE_FLAG" ]
 }
+@test "R58 idle-start / idle-end set the logind session idle hint (so the fallback check sees hypridle's idle), best effort" {
+  stubs
+  run bash "$BIN/executable_dots-ops" idle-start; [ "$status" -eq 0 ]
+  grep -qx 'busctl call org.freedesktop.login1 /org/freedesktop/login1/session/auto org.freedesktop.login1.Session SetIdleHint b true' "$BATS_TEST_TMPDIR/calls.log"
+  run bash "$BIN/executable_dots-ops" idle-end; [ "$status" -eq 0 ]
+  grep -qx 'busctl call org.freedesktop.login1 /org/freedesktop/login1/session/auto org.freedesktop.login1.Session SetIdleHint b false' "$BATS_TEST_TMPDIR/calls.log"
+  : > "$BATS_TEST_TMPDIR/calls.log"; STUB_LOCKED=1 run bash "$BIN/executable_dots-ops" idle-start --fallback
+  run ! grep -q busctl "$BATS_TEST_TMPDIR/calls.log"   # the fallback reads the hint, never sets it
+  run bash "$BIN/executable_dots-ops" idle-end --fallback; [ "$status" -eq 0 ]; [ ! -e "$OPS_IDLE_FLAG" ]
+  run ! grep -q busctl "$BATS_TEST_TMPDIR/calls.log"   # nor does the end of the fallback window
+  printf '#!/bin/sh\nexit 1\n' > "$BATS_TEST_TMPDIR/fakebin/busctl"; run bash "$BIN/executable_dots-ops" idle-start; [ "$status" -eq 0 ]
+}
 @test "R58 fallback timer is not Persistent (a missed 03:30 must not fire on resume)" {
   t="$BATS_TEST_DIRNAME/../../home/private_dot_config/systemd/private_user/dots-ops-fallback.timer"
   grep -qx 'OnCalendar=\*-\*-\* 03:30:00' "$t"
@@ -109,7 +121,7 @@ EOF
   stubs; STUB_LOCKED=1 STUB_SESSION=1 run bash "$BIN/executable_dots-ops" idle-start --fallback
   [ "$status" -eq 0 ]; [ -e "$OPS_IDLE_FLAG" ]
   grep -q 'systemctl --user restart --no-block dots-ops-idle.target' "$BATS_TEST_TMPDIR/calls.log"
-  grep -Eq '^systemd-run --user --on-active=2h /.*/executable_dots-ops idle-end$' "$BATS_TEST_TMPDIR/calls.log"
+  grep -Eq '^systemd-run --user --on-active=2h /.*/executable_dots-ops idle-end --fallback$' "$BATS_TEST_TMPDIR/calls.log"
 }
 @test "fallback with no graphical session on AC proceeds" {
   stubs; run bash "$BIN/executable_dots-ops" idle-start --fallback

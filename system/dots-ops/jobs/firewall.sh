@@ -12,13 +12,14 @@
 # before the default-deny/enable step, so an approved apply cannot cut off ssh or kdeconnect. A rule for the same
 # port/proto narrowed to an interface or source (e.g. `22/tcp on tailscale0`, `22/tcp ALLOW IN 192.168.1.0/24`) counts
 # as present (R44). The apply action (actions/firewall/apply.sh) sources this file and calls _fw_apply.
+# The ssh rule follows sshd's real port(s) from `sshd -T` (R63); without sshd it is firewall.json's 22/tcp.
 : "${OPS_SYS_DIR:=/usr/local/lib/dots-ops}"
 
 # _fw_setup: tool + rules + rendered target + hash. 1 = nothing to do, with _fw_st (ok|warn) and _fw_msg set.
 _fw_setup() {
   local fam rules line port proto why
   _fw_tool=""; _fw_rules=(); _fw_cmds=""; _fw_hash=""; _fw_rhash=""; _fw_zone=""; _fw_running=0; _fw_target=default; _fw_q=()
-  _fw_st=ok; _fw_msg=""
+  _fw_st=ok; _fw_msg=""; _fw_note=""
   fam=$(ops_family)
   case $fam in
     nixos)        _fw_msg="n/a: managed by networking.firewall"; return 1 ;;
@@ -43,6 +44,19 @@ _fw_setup() {
   fi
   while IFS=$'\t' read -r port proto why; do _fw_rules+=("$port"$'\t'"$proto"$'\t'"$why"); done \
     < <(jq -r '.allow[] | [(.port | tostring), .proto, ((.why // "") | gsub("[^A-Za-z0-9 _.-]"; ""))] | @tsv' "$rules")
+  # R63: ssh is allowed on the port(s) sshd really listens on (`sshd -T`), not blindly 22. No sshd, or no answer
+  # (broken config, no host keys) -> the 22/tcp rule from firewall.json stays. The ports end up in the rendered
+  # command list, so the hash (R46) and the ask text cover them.
+  local sp="" p nr=()
+  if command -v sshd >/dev/null 2>&1; then
+    sp=$(sshd -T 2>/dev/null | awk '$1 == "port" && $2 ~ /^[0-9]+$/ && $2 > 0 && $2 < 65536 { print $2 }' | sort -un) || sp=""
+  fi
+  if [ -n "$sp" ] && [ "$sp" != 22 ]; then
+    for p in $sp; do nr+=("$p"$'\t'tcp$'\t'ssh); done
+    for line in "${_fw_rules[@]}"; do IFS=$'\t' read -r port proto why <<< "$line"; [ "$port/$proto" = 22/tcp ] || nr+=("$line"); done
+    _fw_rules=("${nr[@]}")
+    _fw_note="sshd listens on port(s) $(paste -sd, - <<< "$sp" | sed 's/,/, /g') (sshd -T), so ssh is allowed there instead of 22."
+  fi
   if [ "$_fw_tool" = ufw ]; then
     for line in "${_fw_rules[@]}"; do IFS=$'\t' read -r port proto why <<< "$line"; _fw_cmds+="ufw allow $port/$proto"$'\n'; done
     _fw_cmds+="ufw default deny incoming"$'\n'"ufw --force enable"$'\n'   # after the allows: no window without ssh
@@ -148,6 +162,7 @@ job_main() {
   prev=$(jq -r '.hash // empty' "$OPS_ROOT_DATA/firewall.applied" 2>/dev/null) || prev=""
   if [ "$_fw_tool" = ufw ]; then note="Note: ufw does not filter Docker-published ports (Docker writes its own iptables rules)."
   else note="Note: Docker-published ports bypass firewalld zones."; fi
+  [ -z "$_fw_note" ] || note="Note: $_fw_note $note"
   if [ -z "$prev" ]; then
     _fw_ask "Firewall ($_fw_tool) first apply on this machine — will: $diff. Rules you added yourself are kept. $note Apply?" || return 0
     ops_state firewall warn "first apply awaits approval (${#_fw_items[@]} changes)"

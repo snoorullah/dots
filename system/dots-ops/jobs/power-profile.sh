@@ -2,15 +2,7 @@
 # no battery (desktop) -> balanced. The user's perf-mode toggle is user state root cannot see; it re-asserts itself on its next toggle.
 job_main() {
   command -v powerprofilesctl >/dev/null || { ops_state power-profile ok "n/a: power-profiles-daemon not installed"; return 0; }
-  local d bat=0 profile
-  for d in "$OPS_POWER_DIR"/*; do
-    [ -e "$d/type" ] || continue
-    grep -q Device "$d/scope" 2>/dev/null && continue   # peripheral batteries (mouse, headset)
-    [ "$(cat "$d/type")" = Battery ] && bat=1
-  done
-  if [ "$bat" = 0 ]; then profile=balanced
-  elif ops_on_ac; then profile=performance
-  else profile=power-saver; fi
+  local profile; profile=$(ops_default_profile)   # the same rule perf-mode off uses (R63)
   if ops_run powerprofilesctl set "$profile"; then ops_state power-profile ok "profile $profile"
   else ops_state power-profile warn "powerprofilesctl set $profile failed"; fi
 }

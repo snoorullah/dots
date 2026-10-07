@@ -39,6 +39,17 @@ sudo install -m 644 "$W/system/dots-ops/sshd/50-dots.conf" "$L/sshd/50-dots.conf
 printf '%s\n' "$me" | sudo install -m 644 -o root -g root /dev/stdin /etc/dots-ops/owner
 sudo chown -R root:root "$L" /var/lib/dots-ops /usr/local/bin/dots-ops-run /usr/local/bin/dots-ops-job
 sudo chmod -R go-w "$L"; sudo chmod 755 /var/lib/dots-ops
+# R63: a dots-ops unit that left the repo must not keep firing: disable it, then remove its file (transient units
+# such as dots-ops-act-*/dots-ops-reboot-scheduled live in /run, not here)
+for u in /etc/systemd/system/dots-ops*; do
+  [ -f "$u" ] || continue
+  b=${u##*/}
+  [ -e "$W/system/dots-ops/units/$b" ] && continue
+  case $b in *.service|*.timer|*.path|*.target) ;; *) continue ;; esac
+  sudo systemctl disable --now "$b" 2>/dev/null || true
+  sudo rm -f "/etc/systemd/system/$b"
+  echo "dots-ops: removed stale unit $b"
+done
 sudo install -m 644 "$W/system/dots-ops/units/"* /etc/systemd/system/
 if [ -d "$W/system/dots-ops/udev" ]; then sudo install -m 644 "$W/system/dots-ops/udev/"* /etc/udev/rules.d/; fi
 tmp=$(mktemp); cp "$W/system/dots-ops/sudoers" "$tmp"

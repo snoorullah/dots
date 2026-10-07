@@ -549,3 +549,8 @@ RN='systemctl start --no-block dots-ops@reboot-needed.service'
 @test "R37 user job unit allows 2h" {
   grep -qx 'TimeoutStartSec=2h' "$R/home/private_dot_config/systemd/private_user/dots-ops@.service"
 }
+@test "R63 config.toml has no root-job knobs (root ignores the user config, R18)" {
+  c="$R/home/private_dot_config/dots-ops/config.toml"
+  run ! grep -q 'updates-security' "$c"
+  for j in "$SJ"/*.sh; do n=$(basename "$j" .sh); run ! grep -qF "[jobs.$n]" "$c"; done
+}

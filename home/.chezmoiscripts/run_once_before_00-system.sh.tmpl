@@ -26,18 +26,18 @@ KEYD_TAG=v2.6.0 KEYD_COMMIT=7c0aecb8bfd34dc8642bf4eefd2e59c89e61cec3   # github.
 {{- if eq $fam "arch" }}
 
 # ---- Arch family: package lists ----
-REQ=(pipewire pipewire-pulse wireplumber polkit hyprlock xdg-desktop-portal-gtk tailscale wireshark-cli pacman-contrib fwupd lynis ufw arch-audit power-profiles-daemon{{ if eq .gpu "nvidia" }} nvidia-container-toolkit{{ end }})
+REQ=(pipewire pipewire-pulse wireplumber polkit hyprlock xdg-desktop-portal-gtk tailscale wireshark-cli pacman-contrib fwupd lynis ufw arch-audit{{ if eq .gpu "nvidia" }} nvidia-container-toolkit{{ end }})
 FRESH=(docker)
-OPT=(keyd greetd greetd-tuigreet)
+OPT=(keyd greetd greetd-tuigreet power-profiles-daemon)   # power-profiles-daemon: skipped when tlp is installed (they conflict)
 KEYD_BUILD_DEPS=(base-devel git)
 avail()       { pacman -Si "$1" >/dev/null 2>&1; }
 pkg_install() { sudo pacman -S --needed --noconfirm "$@"; }
 {{- else if eq $fam "debian" }}
 
 # ---- Debian / Ubuntu family: package lists ----
-REQ=(pipewire pipewire-pulse wireplumber xdg-desktop-portal-gtk curl gpg ca-certificates wireshark-common unattended-upgrades fwupd lynis ufw power-profiles-daemon)
+REQ=(pipewire pipewire-pulse wireplumber xdg-desktop-portal-gtk curl gpg ca-certificates wireshark-common unattended-upgrades fwupd lynis ufw)
 FRESH=(docker.io)
-OPT=(keyd greetd tuigreet polkitd pkexec policykit-1 hyprlock{{ if eq $id "ubuntu" }} software-properties-common{{ end }})
+OPT=(keyd greetd tuigreet polkitd pkexec policykit-1 hyprlock power-profiles-daemon{{ if eq $id "ubuntu" }} software-properties-common{{ end }})   # power-profiles-daemon: not with tlp
 KEYD_BUILD_DEPS=(build-essential git)
 avail()       { [ -n "$(apt-cache madison "$1" 2>/dev/null)" ]; }
 pkg_install() { sudo DEBIAN_FRONTEND=noninteractive apt-get install -y "$@"; }
@@ -80,6 +80,8 @@ pacman -Qq nvidia-utils >/dev/null 2>&1 || pkg_install nvidia-open-dkms nvidia-u
 [ -e /etc/pam.d/hyprlock ] || printf 'auth include system-login\n' | sudo tee /etc/pam.d/hyprlock >/dev/null
 if [ "$DOCKER_PRESENT" = 0 ]; then pkg_install "${FRESH[@]}"; else echo "docker: already installed, not touching it" >&2; fi
 opt_install greetd greetd-tuigreet || true   # greetd is configured below only if tuigreet ended up installed
+# R63: powerprofilesctl for dots-ops power-profile/perf-mode; tlp and power-profiles-daemon conflict, tlp wins
+if command -v tlp >/dev/null; then echo "power-profiles-daemon: tlp is installed (they conflict); skipped" >&2; else opt_install power-profiles-daemon || true; fi
 {{- else if eq $fam "debian" }}
 
 # ---- Debian / Ubuntu family ----
@@ -89,6 +91,8 @@ echo 'wireshark-common wireshark-common/install-setuid boolean true' | sudo debc
 pkg_install "${REQ[@]}"
 sudo DEBIAN_FRONTEND=noninteractive dpkg-reconfigure -f noninteractive wireshark-common   # applies it if already installed
 if avail polkitd; then opt_install polkitd pkexec || true; else opt_install policykit-1 || true; fi
+# R63: powerprofilesctl for dots-ops power-profile/perf-mode; tlp and power-profiles-daemon conflict, tlp wins
+if command -v tlp >/dev/null; then echo "power-profiles-daemon: tlp is installed (they conflict); skipped" >&2; else opt_install power-profiles-daemon || true; fi
 # greetd's postinst enables greetd.service itself, so greetd is installed ONLY together with tuigreet
 # (tuigreet has no apt package on noble/bookworm; then greetd is not installed at all).
 if avail tuigreet && avail greetd; then pkg_install greetd tuigreet; else echo "greetd: tuigreet not packaged here; greetd not installed" >&2; fi

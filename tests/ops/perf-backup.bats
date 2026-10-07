@@ -103,15 +103,21 @@ perf() { run --separate-stderr bash "$CLI" perf-mode "$@"; }
   grep -qx 'powerprofilesctl set performance' "$STUB_LOG"; grep -qx 'swaync-client -dn' "$STUB_LOG"
   [ "$(cat "$OPS_STATE/perf-mode")" = on ]; grep -q 'on' "$NOTIFY_LOG"
 }
-@test "perf-mode off on AC -> balanced + DND off" {
+@test "R63 perf-mode off = the power-profile rule: laptop on AC -> performance + DND off" {
   mkps AC Mains 1; mkps BAT0 Battery; echo on > "$OPS_STATE/perf-mode"
   perf off; [ "$status" -eq 0 ]
-  grep -qx 'powerprofilesctl set balanced' "$STUB_LOG"; grep -qx 'swaync-client -df' "$STUB_LOG"
+  grep -qx 'powerprofilesctl set performance' "$STUB_LOG"; grep -qx 'swaync-client -df' "$STUB_LOG"
   [ "$(cat "$OPS_STATE/perf-mode")" = off ]
 }
 @test "perf-mode off on battery -> power-saver" {
   mkps AC Mains 0; mkps BAT0 Battery
   perf off; grep -qx 'powerprofilesctl set power-saver' "$STUB_LOG"
+}
+@test "R63 perf-mode off on a desktop (no battery, or only peripheral ones) -> balanced, like power-profile" {
+  perf off; grep -qx 'powerprofilesctl set balanced' "$STUB_LOG"
+  mkps hidpp_battery_0 Battery; echo Device > "$OPS_POWER_DIR/hidpp_battery_0/scope"; : > "$STUB_LOG"
+  perf off; grep -qx 'powerprofilesctl set balanced' "$STUB_LOG"
+  grep -q 'ops_default_profile' "$SJ/power-profile.sh"; grep -q 'ops_default_profile' "$CLI"   # one rule, two callers
 }
 @test "perf-mode default toggles on then off" {
   mkps AC Mains 1

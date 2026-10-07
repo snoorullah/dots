@@ -336,6 +336,19 @@ ops_on_ac() {
   [ "$bat" = 0 ]   # no battery = desktop = AC
 }
 
+ops_default_profile() {   # the power profile for "no special mode" (power-profile job, perf-mode off; R63):
+  # laptop on AC -> performance, laptop on battery -> power-saver, desktop (no system battery) -> balanced
+  local d bat=0
+  for d in "$OPS_POWER_DIR"/*; do
+    [ -e "$d/type" ] || continue
+    grep -q Device "$d/scope" 2>/dev/null && continue   # peripheral batteries (mouse, headset)
+    [ "$(cat "$d/type")" = Battery ] && bat=1
+  done
+  if [ "$bat" = 0 ]; then echo balanced
+  elif ops_on_ac; then echo performance
+  else echo power-saver; fi
+}
+
 ops_idle_ok() {
   ops_on_ac || return 1
   [ -e "$OPS_IDLE_FLAG" ] && return 0

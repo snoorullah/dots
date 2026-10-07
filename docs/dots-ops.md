@@ -21,18 +21,33 @@ Two halves, one shared library (`lib.sh`):
 - `dots-ops-job` takes a lock per job (`flock`, so runs never overlap), checks the job is enabled, and for
   heavy jobs checks the machine is idle and on AC. Then it calls `job_main`.
 - A job reports with `ops_state <job> ok|warn|fail "summary"`. A change of state sends one notification.
+  Only a lasting `fail` reminds you again (every 24 h). A lasting `warn` stays quiet after its first notification.
+- Every dots-ops unit has an `ExecStopPost=` reporter (`dots-ops-job --report-failure`). If a unit crashes, is
+  killed or hits its timeout before the job could report, the job turns `fail` "unit <result>/<code>/<status>"
+  (for example `unit timeout/killed/TERM`). This covers the user and root `dots-ops@.service` and the transient
+  `dots-ops-now-*` / `dots-ops-act-*` units. When the job already reported warn/fail in that run, the reporter
+  stays out of the way.
 - Root jobs write their status to `/var/lib/dots-ops/<job>.json`. The **relay** (`dots-ops-relay.path`) watches
-  that directory and copies each status into your user state, so root jobs show up in Waybar too.
+  that directory and copies each status into your user state, so root jobs show up in Waybar too. Only status
+  and ask files live at that level. Everything else root keeps (lynis report, audit baseline, SMART counters,
+  firewall hashes, locks, the scheduled-reboot marker) is in `/var/lib/dots-ops/root/`, which the relay does not
+  watch, so bookkeeping writes never fire the relay.
 - A job that needs your say-so calls `ops_ask`. That creates an **approval** (a pending file) and a SwayNC
   notification with buttons. Your answer goes through `dots-ops answer`.
 - A root job asks by writing `/var/lib/dots-ops/ask-<job>.json`. The relay turns it into a user approval.
   The relay only accepts root actions in such asks, and drops asks older than 24 h.
 - When you approve a root action, `sudo -n /usr/local/bin/dots-ops-run <job> <action>` starts a transient unit
   `dots-ops-act-<job>-<action>`. It returns at once. The action runs on in its own unit, so logging out
-  cannot kill a half-finished package transaction.
+  cannot kill a half-finished package transaction. A root action that reports its own result uses a state name
+  that no user job has, so the relay never drops it: the volumes prune reports as `containers-prune-volumes`.
+  If the action unit itself dies, it shows up as `<job>-<action>` (for example `updates-full-apply`).
 - **Heavy** jobs wait for idle: `hypridle` runs `dots-ops idle-start` after 15 minutes without input
-  (`timeout = 900` in `~/.config/hypr/hypridle.conf`). Heavy jobs run only when idle AND on AC. A fallback at 03:30 opens a 2 h idle
-  window if the screen is locked (or nobody is logged in) and the machine is on AC.
+  (`timeout = 900` in `~/.config/hypr/hypridle.conf`). `idle-start` also sets the logind idle hint of your
+  session, and `idle-end` clears it. Heavy jobs run only when idle AND on AC.
+- The nightly fallback (`dots-ops-fallback.timer`, 03:30) is a **user** timer. It runs only while your user
+  manager runs, which means while you are logged in (no linger is set up). It opens a 2 h idle window only if
+  the machine is on AC, the screen is locked, and logind reports you idle (`IdleHint=yes`) for at least
+  15 minutes. The timer is not `Persistent`, so a 03:30 missed while the machine slept does not fire on resume.
 
 ## What runs when
 
@@ -41,14 +56,15 @@ Two halves, one shared library (`lib.sh`):
 | Job | Context | Trigger | Heavy | Auto / approve | What it does |
 |---|---|---|---|---|---|
 | `updates-check` | root | daily, 10 min after boot | no | auto (read-only), asks | Counts pending updates (apt / dnf / checkupdates). Pending updates raise an `updates-full` ask. NixOS: n/a |
-| `updates-security` | root | daily 04:00, idle target | yes | auto | Security-only updates: unattended-upgrade (Debian/Ubuntu), `dnf --security` (Fedora/RHEL). Arch and NixOS: n/a |
-| `updates-full` (action) | root | after you approve | n/a | approve | Full native upgrade. The ask shows the count and a kernel/driver flag |
-| `reboot-needed` | root | `dots-ops-reboot.path` (reboot marker) | no | approve | Asks: reboot now, or tonight 03:00 |
+| `updates-security` | root | daily 04:00, idle target | yes | auto | Security-only updates: unattended-upgrade (Debian/Ubuntu), `dnf --security` (Fedora/RHEL). Holds the package lock. Arch and NixOS: n/a |
+| `updates-full` (action) | root | after you approve | n/a | approve | Full native upgrade. The ask shows the count and a kernel/driver flag. Holds the package lock |
+| `reboot-needed` | root | `dots-ops-reboot.path` (`/run/reboot-required`), after updates | no | approve | Asks: reboot now, or tonight 03:00. Neither reboots during a package transaction |
+| `reboot-scheduled` | root | 03:00 timer armed by "Tonight 03:00" | no | (approved) | Reboots if no package transaction runs. Otherwise retries every 15 min, at most 8 times, then warns |
 | `firmware` | root | weekly | no | approve | `fwupdmgr refresh`, asks before installing any firmware update |
 | `audit` | root | weekly, idle target | yes | auto | `lynis` score and warnings, compared with last run (plus `arch-audit` on Arch). Needs lynis, else n/a |
-| `firewall` | root | daily, 5 min after boot, on installer run | no | approve | Compares the live firewall with `firewall.json`. First apply and any drift ask, with the exact commands shown |
+| `firewall` | root | daily, 5 min after boot, on installer run | no | approve | Compares the live firewall with `firewall.json`. First apply and any drift ask, with the exact commands shown. ssh is allowed on the port(s) `sshd -T` reports (22 from `firewall.json` when sshd is missing) |
 | `ssh-harden` | root | daily, 5 min after boot, on installer run | no | approve | Offers the sshd drop-in (no root login, keys only). Skips if you have no usable authorized key |
-| `disk-watch` | user | hourly | no | auto | Warns at `disk.warn` %, fails at `disk.crit` %. At warn it starts both cleaners, forced |
+| `disk-watch` | user | hourly | no | auto | Warns at `disk.warn` %, fails at `disk.crit` %. At warn it starts both cleaners, forced, at most every 6 h |
 | `disk-clean-user` | user | idle target, or forced by disk-watch | yes | auto | Nix GC for your profile, stale caches |
 | `disk-clean-system` | root | daily 03:40, idle target, or forced | yes | auto | Journal vacuum (2 weeks), package cache clean, Nix GC |
 | `smart` | root | daily | no | auto | SMART health and error counters per disk. A rising counter keeps the disk red for 7 days. No SMART disk: n/a |
@@ -56,12 +72,12 @@ Two halves, one shared library (`lib.sh`):
 | `power-profile` | root | udev (AC change), event driven | no | auto | AC: performance. Battery: power-saver. Desktop: balanced |
 | `net-watch` | user | 2 min after boot, then every 5 min | no | auto | DNS, internet, tailscale, kube tunnels. Restarts a down tunnel once, then fails |
 | `containers` | user | hourly | no | auto | Warns on unhealthy or restarting containers. No docker: n/a |
-| `containers-prune` | user | idle target | yes | auto + approve | Prunes dangling images. Asks before the root volumes prune when more than 10 GB is reclaimable |
-| `k8s-health` | user | 5 min after boot, then every 15 min | no | auto | Per kube context: NotReady nodes, CrashLoop pods, expiring certs, failed Argo syncs. One notification per new issue |
+| `containers-prune` | user | idle target | yes | auto + approve | Prunes dangling images. Asks before the root volumes prune when more than 10 GB is reclaimable. The approved prune reports as `containers-prune-volumes` |
+| `k8s-health` | user | 5 min after boot, then every 15 min | no | auto | Per kube context: NotReady nodes, CrashLoop pods, expiring certs, failed Argo syncs. One notification per new issue. A context with any failed query counts as unreachable for that run (its known issues are kept). A configured context missing from this host's kubeconfig is n/a |
 | `backup` | user | idle target | yes | auto | restic snapshot of `$HOME` (plus the dots repo if outside), then forget/prune |
-| `backup-check` | user | weekly | yes | auto | `restic check` of the structure and a 5 % data sample |
+| `backup-check` | user | weekly, idle target | yes | auto | `restic check` of the structure and a 5 % data sample. Skips itself if it ran in the last 7 days |
 | `backup-watch` | user | daily | no | auto | Warns when the newest backup is older than `backup.max_age_hours` |
-| `dots-update` | user | daily | yes | auto | `chezmoi update --apply --no-tty`: pulls the repo, re-runs the Nix switch |
+| `dots-update` | user | daily, idle target | yes | auto | `chezmoi update --apply --no-tty`: pulls the repo, re-runs the Nix switch. Skips itself if it ran in the last day |
 | `pins-check` | user | Mondays 10:00 | no | auto + approve | Compares pinned tools and the nixpkgs lock with upstream. Asks to open a bump PR (`dots-ops pins-bump`) |
 
 Notes:
@@ -71,6 +87,17 @@ Notes:
 - Heavy root jobs are pulled by `dots-ops-system-idle.target`. Heavy user jobs by `dots-ops-idle.target`.
 - On NixOS the root layer comes from `nix/hosts/nixos-laptop/dots-ops.nix`. Package updates and the firewall
   are NixOS' own, so those jobs report n/a.
+- Debian/Ubuntu: `apt-daily-upgrade.timer` (the distro's own unattended-upgrades run) is left to apt. dots-ops
+  does not disable it, so security updates may also run outside the idle gate and outside the package lock.
+- **Package lock.** `updates-full` apply and `updates-security` hold one shared lock
+  (`/var/lib/dots-ops/root/locks/pkg.lock`) for the whole package transaction. If the lock is busy they wait
+  up to 30 min. Then apply fails ("approve again later") and the security run skips with a warn.
+  "Reboot now" refuses with warn "package transaction running — try again" while the lock is held. The reboot
+  ask comes back by itself after the transaction, because both update paths re-run `reboot-needed`.
+- **Tonight 03:00** is not `shutdown -r 03:00`. It arms a transient timer `dots-ops-reboot-scheduled.timer`.
+  At 03:00 it runs the root job `reboot-scheduled`, which reboots only if the package lock is free. If not, it
+  re-arms itself for 15 min later, at most 8 times, then gives up with a warn. Cancel with
+  `sudo systemctl stop dots-ops-reboot-scheduled.timer`.
 
 ## Waybar module and `dots-ops status`
 
@@ -87,7 +114,8 @@ The tooltip lists every non-ok job with its summary, and every waiting approval.
 Left click opens `dots-ops status`. Right click toggles performance mode (`dots-ops perf-mode`).
 
 `dots-ops status` is an fzf list, worst first. Each line is `job ⟂ status ⟂ summary ⟂ age`.
-Status is `ok`, `warn`, `fail`, or `ask` (an approval waiting).
+Status is `ok`, `warn`, `fail`, or `ask` (an approval waiting). An `ask` row also carries the approval's token
+in a hidden field, and the approve, snooze and skip keys pass it on (see below).
 
 | Key | Action |
 |---|---|
@@ -102,8 +130,8 @@ Other commands:
 | Command | Does |
 |---|---|
 | `dots-ops run <job> [--now]` | start a job. Without `--now`: via systemd, async. With `--now`: user job runs in your terminal and ignores the idle gate. Root job: starts a transient unit `dots-ops-now-<job>` and returns at once |
-| `dots-ops answer <job> approve\|alt\|skip\|snooze` | answer an approval (what the buttons do) |
-| `dots-ops idle-start [--fallback]`, `idle-end` | open or close the idle window (hypridle calls these) |
+| `dots-ops answer <job> approve\|alt\|skip\|snooze [token]` | answer an approval (what the buttons do). With a token, only if the approval still shows that content |
+| `dots-ops idle-start [--fallback]`, `idle-end [--fallback]` | open or close the idle window (hypridle calls these; the fallback timer uses `--fallback`) |
 | `dots-ops perf-mode [on\|off\|toggle]` | performance profile plus do-not-disturb |
 | `dots-ops pins-bump` | open the pins bump PR (the approval action of `pins-check`) |
 | `dots-ops relay` | copy root status and asks into user state (the path unit runs this) |
@@ -122,9 +150,16 @@ Each approval is one SwayNC notification with buttons:
 
 - An approval **expires after 24 h** and counts as skip. Approving an expired one does nothing.
 - There is one live approval per job. A missed toast is not lost: see `dots-ops status` or the Waybar count.
-- Approvals are bound to what you saw. The firewall ask stores the hash of the rules and commands it showed.
-  If `firewall.json` changes before you approve, the apply refuses ("rules changed since approval") and a fresh
-  ask is made.
+- Approvals are bound to what you saw. Each toast carries a **token**: the sha256 of the question, action,
+  alternative action and ask time it showed. Your click sends `dots-ops answer <job> <choice> <token>`. If the
+  approval changed in the meantime (the relay replaced a root ask with a new question), the token no longer
+  matches: nothing runs, the log says "stale approval ignored", and the newer approval is shown again. When the
+  relay replaces or withdraws a root ask, it also closes the old toast (it keeps the toast id from
+  `notify-send -p`). `dots-ops answer` by hand, without a token, still works.
+- The firewall ask also stores the hash of the rules and commands it showed. If `firewall.json` changes before
+  you approve, the apply refuses ("rules changed since approval") and a fresh ask is made.
+- If sudo refuses a root action you approved (group not active yet, sudoers missing), the approval is put back,
+  so it is not lost.
 - If no notification daemon runs (TTY login, SwayNC crashed), notifications queue in
   `~/.local/state/dots-ops/queue/` and appear on the next job run.
 
@@ -137,12 +172,15 @@ Each approval is one SwayNC notification with buttons:
 | Waiting approvals | `~/.local/state/dots-ops/pending/<job>.json` |
 | Relay bookkeeping, locks, queue | `~/.local/state/dots-ops/{relayed,locks,queue}/` |
 | Perf-mode flag | `~/.local/state/dots-ops/perf-mode` |
-| Root job status and root asks | `/var/lib/dots-ops/<job>.json`, `/var/lib/dots-ops/ask-<job>.json` |
-| Root log, locks | `/var/lib/dots-ops/root/` |
-| Firewall bookkeeping | `/var/lib/dots-ops/firewall.applied`, `firewall.pending-hash` |
+| Root job status and root asks (the only files the relay watches) | `/var/lib/dots-ops/<job>.json`, `/var/lib/dots-ops/ask-<job>.json` |
+| Root log, locks (including the package lock `locks/pkg.lock`) | `/var/lib/dots-ops/root/` |
+| Root bookkeeping | `/var/lib/dots-ops/root/`: `firewall.applied`, `firewall.pending-hash`, `audit-last.json`, `lynis-report.dat`, `smart-<serial>.json`, `ssh-harden.*.conf`, `reboot-scheduled.json`. An older install's copies at the top level are moved here on the next root run |
+| Ran-within guards, disk-watch backoff | `~/.local/state/dots-ops/{backup-check,dots-update}.last`, `disk-watch.forced` |
+| Toast id of a shown approval | `~/.local/state/dots-ops/pending/<job>.nid` |
 | Owner name for ssh guard | `/etc/dots-ops/owner` |
 | Raw job output | `journalctl --user -u dots-ops@<job>` and `journalctl -u dots-ops@<job>` |
 | Approved root actions | `journalctl -u 'dots-ops-act-*'` |
+| Scheduled reboot | `journalctl -u 'dots-ops-reboot-scheduled*'` |
 | Forced root runs | `journalctl -u 'dots-ops-now-*'` |
 
 Quick log of one job: `jq -r 'select(.job=="backup")' ~/.local/state/dots-ops/log.jsonl`.
@@ -244,6 +282,9 @@ Never restore over your live home without looking first. Restore to a temp targe
   `/usr/local/bin` or `/usr/local/lib` is not root-owned, and refuses symlinks under `system/dots-ops`.
 - Approved actions and forced runs start as transient units (`dots-ops-act-*`, `dots-ops-now-*`). The 3-argument
   `inline` form of the runner only works when systemd set `INVOCATION_ID`, so `sudo` cannot use it directly.
+  These units get the runner's fixed root PATH (`--setenv=PATH=...`), never the caller's.
+- The `ExecStopPost=` failure reporter is the root-owned `/usr/local/bin/dots-ops-job --report-failure` in
+  system units (the store copy on NixOS).
 - Root jobs resolve the owner's home with `getent` from `/etc/dots-ops/owner`, never from the environment.
 - The firewall and sshd are guarded against lockout. A first apply is always an approval with the commands shown.
   `ssh-harden` skips (warn) when you have no usable authorized key, checks `sshd -t`, and removes its file if
@@ -264,6 +305,11 @@ Never restore over your live home without looking first. Restore to a temp targe
 | Secrets are hand-copied | `~/.secrets` is never in the repo | Copy it, mode 0600 (see `docs/install.md`) |
 | Rollback hint | Failure notices name snapper/timeshift only. Root cannot know your home-manager generation | `home-manager generations` |
 | Arch security updates | Arch has no security channel. `updates-security` is n/a and the full update is by approval | |
+| `apt-daily-upgrade.timer` (Debian/Ubuntu) | Left to apt. It can install security updates outside the idle gate and outside the dots-ops package lock | Disable it yourself if you want only dots-ops to update |
+| `perf-mode off` | Returns to the same profile the `power-profile` job would pick: laptop on AC performance, on battery power-saver, desktop balanced. On a laptop on AC, on and off differ only in do-not-disturb | |
+| power-profiles-daemon and tlp | They conflict. The root layer installs power-profiles-daemon only when tlp is absent. With tlp, `power-profile` and `perf-mode` report profiles unavailable | |
+| Fallback needs a session and logind idle | The fallback is a user timer, so it only fires while you are logged in. It trusts logind's idle hint, which `idle-start` sets. If logind `IdleAction=` is configured in `logind.conf`, that action follows the hint | Leave `IdleAction=ignore` (the default) unless you want it |
+| Removed units | The installer disables and deletes any `/etc/systemd/system/dots-ops*` unit that is no longer in the repo | |
 
 ## Fire drill (cutover checklist)
 
@@ -300,13 +346,13 @@ dots-ops status                               # state, summaries, waiting approv
 | 3a | `updates-check` | `dots-ops run updates-check --now` | `ok` "up to date", or `warn` "N pending" and an `updates-full` approval |
 | 3b | `updates-security` | `dots-ops run updates-security --now` | `ok`. Arch and NixOS: n/a |
 | 3c | `updates-full` | approve the ask only if you are ready | The action runs in `dots-ops-act-updates-full-apply`. The button returns at once. Watch `journalctl -fu dots-ops-act-updates-full-apply` |
-| 3d | `reboot-needed` | `dots-ops run reboot-needed --now` | `ok` when nothing is pending. Otherwise an ask: reboot now / Tonight 03:00. Skip it during the drill |
+| 3d | `reboot-needed` | `dots-ops run reboot-needed --now` | `ok` when nothing is pending. Otherwise an ask: reboot now / Tonight 03:00. Skip it during the drill. If you pick Tonight: `systemctl list-timers dots-ops-reboot-scheduled.timer` shows 03:00 |
 | 3e | `firmware` | `dots-ops run firmware --now` | `ok` and n/a without fwupd. With updates: an ask. Skip it |
 | 4a | `net-watch` | `dots-ops run net-watch --now` | `ok` "online". Tunnels with no hand-copied secret are n/a |
 | 4b | `containers` | `dots-ops run containers --now` | `ok`. No docker: n/a |
 | 4c | `containers-prune` | `dots-ops run containers-prune --now` | `ok`. An ask appears only above 10 GB reclaimable. Skip it |
-| 4d | `k8s-health` | `dots-ops run k8s-health --now` | `ok`, or `warn` naming issues. A tunnel that is down shows "<ctx> unreachable" |
-| 5a | `firewall` | `dots-ops run firewall --now` | A `warn` and an ask showing the commands. Read the list. Check ssh (22) is in it. Approve. Then `journalctl -u 'dots-ops-act-*'` and `sudo ufw status` (or `firewall-cmd --list-all`). Run the job again: expect `ok` |
+| 4d | `k8s-health` | `dots-ops run k8s-health --now` | `ok`, or `warn` naming issues. A tunnel that is down shows "<ctx> unreachable". A context not in this host's kubeconfig shows "n/a here" |
+| 5a | `firewall` | `dots-ops run firewall --now` | A `warn` and an ask showing the commands. Read the list. Check your ssh port is in it (`sudo sshd -T \| grep ^port`; 22 by default). Approve. Then `journalctl -u 'dots-ops-act-*'` and `sudo ufw status` (or `firewall-cmd --list-all`). Run the job again: expect `ok` |
 | 5b | `ssh-harden` | `dots-ops run ssh-harden --now` | Without authorized keys: `warn` "skipped: no authorized_keys". With keys: an ask. Keep a second SSH session open, approve, then test a new login |
 | 5c | `audit` | `dots-ops run audit --now` | `ok` with the lynis index, or n/a without lynis. The first run only records a baseline |
 | 6a | `power-profile` | `dots-ops run power-profile --now`, then unplug and replug AC | `ok`. `powerprofilesctl get` follows AC |
@@ -324,3 +370,6 @@ dots-ops status                               # state, summaries, waiting approv
 - [ ] Click the Waybar icon: the status window opens. Snooze one approval (ctrl-s): the `ask` count drops.
 - [ ] Kill SwayNC for a minute, trigger a warn, restart it: the notification shows up (queue).
 - [ ] `journalctl -u 'dots-ops-act-*'` shows only the actions you approved.
+- [ ] Idle hint: leave the machine 16 minutes, then from another device or a TTY run
+      `loginctl show-user $USER -p IdleHint -p IdleSinceHint`. Expect `IdleHint=yes`. If it says `no`, the 03:30
+      fallback will never fire; check that `busctl` exists and that hypridle runs inside your session.

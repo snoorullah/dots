@@ -36,7 +36,7 @@ jobs:
           HOME="$d" bash tests/in-home.sh --sentinel
   ops-bats:
     # dots-ops tests (tests/ops). Every tool the tests use is installed here, so a `skip` would hide a real gap:
-    # the run fails on any skipped test (skips stay explicit in the tests, never silent).
+    # the run fails on any skipped test except the allow-listed /nix one below (R53; a runner has no /nix).
     runs-on: ubuntu-latest
     env:
       YQ_VERSION: v4.47.1

@@ -173,6 +173,26 @@ applied() { jq -cn --arg h "$1" '{hash:$h,applied:1,tool:"ufw"}' > "$OPS_ROOT_ST
   [ -e "$OPS_ROOT_STATE/ask-firewall.json" ]; [[ $(rstate ask-firewall question) == *"rules changed"* ]]
   [ -z "$(mutations)" ]; [ "$(jq -r .hash "$OPS_ROOT_STATE/root/firewall.applied")" = 0000deadbeef ]
 }
+@test "R63 firewall allows sshd's real port(s) from sshd -T instead of 22; hash and ask text carry them" {
+  os "$DEB"; h22=$(fw_hash)
+  export STUB_SSHD_EFFECTIVE='port 2222\naddressfamily any\npermitrootlogin no\n'
+  runjob firewall
+  q=$(rstate ask-firewall question)
+  [[ $q == *"ufw allow 2222/tcp"* && $q != *"ufw allow 22/tcp"* && $q == *"allow 2222/tcp (ssh)"* ]]
+  [[ $q == *"sshd listens on port(s) 2222"* ]]
+  [ "$(cat "$OPS_ROOT_STATE/root/firewall.pending-hash")" = "$(fw_hash)" ]; [ "$(fw_hash)" != "$h22" ]
+  # several ports: each gets a rule
+  export STUB_SSHD_EFFECTIVE='port 22\nport 2222\n'
+  ( source "$SJ/firewall.sh"; _fw_setup; grep -qx 'ufw allow 22/tcp' <<< "$_fw_cmds"; grep -qx 'ufw allow 2222/tcp' <<< "$_fw_cmds" )
+}
+@test "R63 firewall: sshd not installed, or sshd -T without port lines -> the 22/tcp rule from firewall.json" {
+  os "$DEB"; export STUB_SSHD_EFFECTIVE=''
+  ( source "$SJ/firewall.sh"; _fw_setup; grep -qx 'ufw allow 22/tcp' <<< "$_fw_cmds"; [[ $_fw_note != *sshd* ]] )
+  farm="$BATS_TEST_TMPDIR/farm"; mkdir -p "$farm"   # PATH without any sshd: stubs + /usr/bin minus sshd
+  for f in /usr/bin/* /usr/sbin/*; do case ${f##*/} in sshd|sshd-*) ;; *) ln -sf "$f" "$farm/${f##*/}" 2>/dev/null ;; esac; done
+  rm -f "$BIN/sshd"
+  ( PATH="$BIN:$farm"; [ -z "$(command -v sshd)" ]; source "$SJ/firewall.sh"; _fw_setup; grep -qx 'ufw allow 22/tcp' <<< "$_fw_cmds" )
+}
 @test "firewall nixos -> ok n/a managed by networking.firewall; no ufw/firewalld -> ok n/a" {
   os "$NIX"; runjob firewall
   [ "$(rstate firewall summary)" = "n/a: managed by networking.firewall" ]
@@ -579,6 +599,24 @@ render_pkgs() {   # render_pkgs <osRelease id> [idLike]: DOTS_PKG_LIST output of
   run render_pkgs arch;          [ "$status" -eq 0 ]; [[ $output == *" lynis"* && $output == *" ufw"* && $output == *arch-audit* && $output != *firewalld* ]]
   run render_pkgs ubuntu debian; [ "$status" -eq 0 ]; [[ $output == *" lynis"* && $output == *" ufw"* && $output != *arch-audit* && $output != *firewalld* ]]
   run render_pkgs fedora;        [ "$status" -eq 0 ]; [[ $output == *" lynis"* && $output == *firewalld* && $output != *" ufw"* ]]
+}
+@test "R63 power-profiles-daemon is optional (arch, debian) and skipped when tlp is installed (they conflict)" {
+  for d in "arch" "ubuntu debian"; do
+    run render_pkgs $d; [ "$status" -eq 0 ]
+    req=$(grep '^required:' <<< "$output"); opt=$(grep '^optional:' <<< "$output")
+    [[ $req != *power-profiles-daemon* && $opt == *power-profiles-daemon* ]]
+  done
+  s="$R/home/.chezmoiscripts/run_once_before_00-system.sh.tmpl"
+  [ "$(grep -c 'command -v tlp >/dev/null.*opt_install power-profiles-daemon' "$s")" -eq 2 ]   # arch + debian sections
+}
+@test "R63 installer disables and removes dots-ops units in /etc/systemd/system that left the repo, before daemon-reload" {
+  s="$R/home/.chezmoiscripts/run_onchange_after_26-dots-ops-system.sh.tmpl"
+  loop=$(grep -n 'for u in /etc/systemd/system/dots-ops\*' "$s" | cut -d: -f1)
+  dis=$(grep -n 'sudo systemctl disable --now "$b"' "$s" | cut -d: -f1)
+  rmu=$(grep -n 'sudo rm -f "/etc/systemd/system/$b"' "$s" | cut -d: -f1)
+  rel=$(grep -n 'sudo systemctl daemon-reload' "$s" | head -1 | cut -d: -f1)
+  [ -n "$loop" ] && [ -n "$dis" ] && [ -n "$rmu" ] && [ "$loop" -lt "$dis" ] && [ "$dis" -lt "$rmu" ] && [ "$rmu" -lt "$rel" ]
+  grep -q '\[ -e "$W/system/dots-ops/units/$b" \] && continue' "$s"   # units still in the repo are kept
 }
 
 # ---- NixOS module ----
