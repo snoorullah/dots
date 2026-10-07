@@ -1,0 +1,10 @@
+[Unit]
+Description=dots-ops pinned tool freshness (weekly)
+
+[Timer]
+OnCalendar=Mon 10:00
+Persistent=true
+Unit=dots-ops@pins-check.service
+
+[Install]
+WantedBy=timers.target
