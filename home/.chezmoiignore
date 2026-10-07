@@ -1,10 +1,4 @@
 README.md
-{{- if not .hasAgeKey }}
-.secrets
-.kube/config
-.kube/onprem-s2a.yaml
-.kube/ovh-k8s.conf
-{{- end }}
 {{- if ne .multiplexer "herdr" }}
 .config/herdr
 .config/systemd/user/herdr.service

@@ -5,16 +5,9 @@
 {{-   if regexMatch "(?i)nvidia" (output "lspci") -}}{{ $gpu = "nvidia" }}{{- end -}}
 {{- end -}}
 {{- $mux := promptChoiceOnce . "multiplexer" "Multiplexer" (list "tmux" "herdr") "tmux" -}}
-{{- $key := joinPath .chezmoi.homeDir ".config/chezmoi/key.txt" }}
 sourceDir = {{ .chezmoi.sourceDir | quote }}
-{{- if stat $key }}
-encryption = "age"
-[age]
-  identity = {{ $key | quote }}
-  recipient = "AGE_RECIPIENT"
-{{- end }}
+# No secrets in this repo (public), not even encrypted: ~/.secrets, ~/.kube/* and ssh keys are copied by hand.
 [data]
   gpu = {{ $gpu | quote }}
   multiplexer = {{ $mux | quote }}
   timetrack = {{ get . "timetrack" | default false }}   # opt-in kept across re-init (set true in chezmoi.toml)
-  hasAgeKey = {{ if stat $key }}true{{ else }}false{{ end }}

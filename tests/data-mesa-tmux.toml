@@ -2,4 +2,3 @@
   gpu = "mesa"
   multiplexer = "tmux"
   timetrack = false
-  hasAgeKey = false

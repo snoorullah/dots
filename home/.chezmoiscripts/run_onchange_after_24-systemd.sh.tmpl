@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # units hash: {{ output "sh" "-c" (printf "cat %s/private_dot_config/systemd/private_user/* | sha256sum" .chezmoi.sourceDir) | trim }}
-# data: multiplexer={{ .multiplexer }} hasAgeKey={{ .hasAgeKey }} timetrack={{ .timetrack }}
+# data: multiplexer={{ .multiplexer }} timetrack={{ .timetrack }}
 set -uo pipefail
 if ! systemctl --user show-environment >/dev/null 2>&1; then
   echo "systemd: no user manager reachable (ssh without a session?); skipping unit enable" >&2
@@ -8,10 +8,8 @@ if ! systemctl --user show-environment >/dev/null 2>&1; then
 fi
 systemctl --user daemon-reload
 systemctl --user enable --now adhd-prayer-times.timer adhd-salah-schedule.timer aw-server.service
-{{- if .hasAgeKey }}
-# kube tunnels need the decrypted ssh/kube secrets
+# kube tunnels: always enabled; each unit's ConditionPathExists skips it until its hand-copied secret exists
 systemctl --user enable --now onprem-kube-tunnel.service ovh-k8s-tunnel.service
-{{- end }}
 {{- if .timetrack }}
 systemctl --user enable --now awatcher.service timetrack-logind.service timetrack-rollup.timer timetrack-sync.timer
 {{- end }}

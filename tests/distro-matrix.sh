@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs as root in a fresh distro container (repo mounted read-only at /src). Ruling R26: tests the chezmoi
-# side only (no Nix build, no systemd, no sudo semantics): stale pre-existing file, no age key, gpu=mesa.
+# side only (no Nix build, no systemd, no sudo semantics): stale pre-existing file, no secrets, gpu=mesa.
 # The root script is never executed: only its DOTS_PKG_LIST=1 mode, whose "required" packages are then resolved
 # by the distro's package manager in a dry run (apt-get -s / dnf --assumeno / pacman -Sp). Unavailable = FAIL.
 set -euo pipefail
@@ -26,7 +26,7 @@ mkdir -p ~/shim; printf '#!/bin/sh\necho "00:02.0 VGA compatible controller: Int
 # repo root carries .chezmoiroot=home, so --source is the repo root; the prompt key is the prompt text
 PATH="$HOME/shim:$PATH" chezmoi init --apply --force --no-tty --source ~/dots --exclude=scripts --promptChoice Multiplexer=tmux
 ! grep -q stale ~/.config/waybar/config.jsonc || { echo "FAIL stale waybar config survived"; exit 1; }
-test ! -e ~/.secrets || { echo "FAIL ~/.secrets exists without an age key"; exit 1; }
+test ! -e ~/.secrets || { echo "FAIL ~/.secrets created by the repo (secrets are hand-copied, never in it)"; exit 1; }
 test -f ~/.config/hypr/hyprland.lua || { echo "FAIL hyprland.lua not rendered"; exit 1; }
 ! grep -q LIBVA_DRIVER_NAME ~/.config/hypr/hyprland.lua || { echo "FAIL nvidia env in a container render (want gpu=mesa)"; exit 1; }
 # render (never execute) the run scripts for this distro

@@ -503,6 +503,8 @@ git add -A && git commit -m "feat(chezmoi): import live work-PC files verbatim (
 
 ### Task 3: Secrets with chezmoi age (owner runs Step 1–2)
 
+> **Superseded 2026-10-07 (owner):** the repo is public, so secrets stay out of it entirely — see spec D8 and `docs/install.md` §2. Steps below are kept for history only; do not run them.
+
 **Files:** Modify `home/.chezmoi.toml.tmpl` (recipient); create `home/encrypted_private_dot_secrets.age`, `home/dot_kube/encrypted_private_config.age`, `home/dot_kube/encrypted_private_onprem-s2a.yaml.age`, `home/dot_kube/encrypted_private_ovh-k8s.conf.age`.
 
 - [ ] **Step 1 (owner): set the recipient**

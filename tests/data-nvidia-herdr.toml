@@ -2,4 +2,3 @@
   gpu = "nvidia"
   multiplexer = "herdr"
   timetrack = false
-  hasAgeKey = false

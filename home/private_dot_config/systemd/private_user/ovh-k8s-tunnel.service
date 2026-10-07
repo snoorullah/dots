@@ -2,6 +2,8 @@
 Description=SSH tunnel to OVH MicroK8s API (via pve-01)
 After=network-online.target
 Wants=network-online.target
+# secrets are copied by hand (never in this public repo); without them the unit is skipped, not failed
+ConditionPathExists=%h/.ssh/ovh_key
 
 [Service]
 Type=simple

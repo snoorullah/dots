@@ -2,4 +2,3 @@
   gpu = "nvidia"
   multiplexer = "tmux"
   timetrack = false
-  hasAgeKey = false

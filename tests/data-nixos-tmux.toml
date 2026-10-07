@@ -2,4 +2,3 @@
   gpu = "nixos"
   multiplexer = "tmux"
   timetrack = false
-  hasAgeKey = false

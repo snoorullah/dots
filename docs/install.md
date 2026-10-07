@@ -10,11 +10,21 @@ Fedora/RHEL). NixOS gets the root layer from `nix/hosts/nixos-laptop`.
 sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin
 ```
 
-## 2. Age key (optional)
+## 2. Secrets (copied by hand, optional)
 
-Copy your age identity to `~/.config/chezmoi/key.txt` (mode 0600) before the first apply.
-Without it, secrets are skipped: the encrypted files, the kube configs and the two kube tunnel
-units are left out, and everything else works.
+This repo is public, so it holds no secrets, not even encrypted ones. Copy them from an existing
+machine, each with mode 0600: `~/.secrets`, `~/.kube/{config,onprem-s2a.yaml,ovh-k8s.conf}` and
+the SSH keys the tunnels use (`~/.ssh/ovh_key`, plus the keys listed in
+`~/.config/onprem-kube-tunnel.conf`). For example:
+
+```bash
+scp -p oldhost:'.secrets' ~/ && scp -p oldhost:'.kube/{config,onprem-s2a.yaml,ovh-k8s.conf}' ~/.kube/
+chmod 600 ~/.secrets ~/.kube/*
+```
+
+Without them everything else works: shells skip `~/.secrets`, and each kube tunnel unit is skipped
+(`ConditionPathExists`) until its file exists. After copying, run
+`systemctl --user restart onprem-kube-tunnel ovh-k8s-tunnel`.
 
 ## 3. Init, review, apply
 
@@ -49,8 +59,8 @@ You are asked once for the multiplexer (tmux by default, herdr as the trial). Th
 3. `22-userdata` (once): creates `~/.task`, `~/.kube` and the adhd directories, generates prayer times, and clones
    `~/walls`.
 4. `24-systemd` (whenever the units or the data change): enables the user timers and services (after
-   `22-userdata`, so the prayer-time files exist), the selected multiplexer's service, the kube tunnels when an
-   age key is present, and the timetrack units when `timetrack` is on.
+   `22-userdata`, so the prayer-time files exist), the selected multiplexer's service, the kube tunnels (each
+   skipped until its hand-copied secret exists), and the timetrack units when `timetrack` is on.
 5. `90-extra-tools` (whenever the pins change): the pinned npm/cargo/pipx/uv tools, the Grok CLI and the Aether
    Firefox profile. It runs last and puts the Nix profile on its own PATH, so it works on the first apply.
 

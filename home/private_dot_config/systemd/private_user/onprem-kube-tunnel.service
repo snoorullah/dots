@@ -7,6 +7,8 @@
 Description=SSH forward to the on-prem k8s API (10.10.10.10:6443, via any PVE host)
 After=network-online.target
 Wants=network-online.target
+# secrets are copied by hand (never in this public repo); without them the unit is skipped, not failed
+ConditionPathExists=%h/.kube/onprem-s2a.yaml
 
 [Service]
 Type=simple
