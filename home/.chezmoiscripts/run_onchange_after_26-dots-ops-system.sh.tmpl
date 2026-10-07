@@ -19,6 +19,10 @@ if ! PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin command -
   elif command -v dnf >/dev/null; then sudo dnf install -y jq
   else echo "dots-ops: install jq system-wide for root jobs" >&2; fi
 fi
+# R20: a symlink in the source tree would make root install whatever it points at (possibly user-writable)
+if [ -n "$(find "$W/system/dots-ops" -type l)" ]; then
+  echo "dots-ops: symlinks under system/dots-ops; refusing to install:" >&2; find "$W/system/dots-ops" -type l >&2; exit 1
+fi
 L=/usr/local/lib/dots-ops
 # jobs/actions are replaced wholesale so a job or action removed from the repo stops being allow-listed
 sudo rm -rf "$L/jobs" "$L/actions"

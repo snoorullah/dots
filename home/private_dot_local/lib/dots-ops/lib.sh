@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # dots-ops shared library — source it, never execute. Root and user both use this file.
-: "${OPS_IS_ROOT:=$([ "$(id -u)" = 0 ] && echo 1 || echo 0)}"
+: "${OPS_IS_ROOT:=$([ "$EUID" = 0 ] && echo 1 || echo 0)}"
 : "${OPS_ROOT_STATE:=/var/lib/dots-ops}"   # root job statuses + ask files (0755/0644, read by the user relay)
 if [ "$OPS_IS_ROOT" = 1 ]; then   # root has no usable HOME under systemd/sudo; its own log/locks live here
   : "${OPS_STATE:=$OPS_ROOT_STATE/root}"
@@ -13,6 +13,14 @@ mkdir -p "$OPS_STATE/state" "$OPS_STATE/pending" "$OPS_STATE/queue" "$OPS_STATE/
 if [ "$OPS_IS_ROOT" = 1 ]; then chmod 700 "$OPS_STATE/locks" 2>/dev/null || true; fi   # nobody else may hold root's locks
 
 ops_now() { date +%s; }
+
+ops_file_trusted() {   # path... — 0 if every path exists, is owned by root and is not group/other-writable (R20)
+  local f m
+  for f in "$@"; do
+    [ -e "$f" ] && [ "$(stat -Lc %u "$f")" = 0 ] || return 1
+    m=$(stat -Lc %a "$f"); [ $(( 0$m & 022 )) = 0 ] || return 1
+  done
+}
 
 ops_log() {   # job level msg...
   local job=$1 level=$2; shift 2
@@ -80,7 +88,7 @@ fi
 if [ "$OPS_IS_ROOT" = 1 ]; then   # R3: root has no XDG_RUNTIME_DIR; the flag lives in /run/dots-ops
   : "${OPS_IDLE_FLAG:=/run/dots-ops/idle}"
 else
-  : "${OPS_IDLE_FLAG:=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/dots-ops/idle}"
+  : "${OPS_IDLE_FLAG:=${XDG_RUNTIME_DIR:-/run/user/$EUID}/dots-ops/idle}"
 fi
 : "${OPS_POWER_DIR:=/sys/class/power_supply}"
 

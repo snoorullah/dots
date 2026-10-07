@@ -45,10 +45,11 @@ let
   units = builtins.attrNames (builtins.readDir (sys + "/units"));
   withSuffix = sfx: map (lib.removeSuffix sfx) (builtins.filter (lib.hasSuffix sfx) units);
   # tools root jobs need on PATH (the user's Nix profile is never on root's PATH)
-  rootPath = [ pkgs.jq pkgs.yq-go pkgs.util-linux pkgs.gawk pkgs.procps "/run/current-system/sw" ];
+  rootPath = [ pkgs.jq pkgs.util-linux pkgs.gawk pkgs.procps "/run/current-system/sw" ];
+  runners = "${pkg}/bin/dots-ops-run, /run/current-system/sw/bin/dots-ops-run";
 in
 {
-  environment.systemPackages = [ pkg pkgs.jq pkgs.yq-go ];
+  environment.systemPackages = [ pkg pkgs.jq ];
   systemd.packages = [ pkg ];
   services.udev.packages = [ pkg ];
   systemd.services."dots-ops@".path = rootPath;
@@ -57,8 +58,15 @@ in
   systemd.paths = lib.genAttrs (withSuffix ".path") (_: { wantedBy = [ "paths.target" ]; });
   systemd.tmpfiles.rules = [ "d /var/lib/dots-ops 0755 root root -" "d /run/dots-ops 0755 root root -" ];
   users.groups.dots-ops = { };
+  # R19: same defense in depth as system/dots-ops/sudoers — no caller environment or PATH reaches the runner
+  security.sudo.extraConfig = ''
+    Cmnd_Alias DOTS_OPS_RUN = ${runners}
+    Defaults!DOTS_OPS_RUN env_reset
+    Defaults!DOTS_OPS_RUN secure_path="/run/wrappers/bin:/run/current-system/sw/bin"
+  '';
   security.sudo.extraRules = [{
     groups = [ "dots-ops" ];
+    runAs = "root";   # same as (root) in system/dots-ops/sudoers; the module default is ALL:ALL
     commands = [
       { command = "${pkg}/bin/dots-ops-run"; options = [ "NOPASSWD" ]; }
       { command = "/run/current-system/sw/bin/dots-ops-run"; options = [ "NOPASSWD" ]; }

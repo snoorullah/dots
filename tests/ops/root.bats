@@ -62,10 +62,10 @@ trun() { run env OPS_TEST=1 OPS_ROOT_PREFIX="$P" OPS_STATE="$BATS_TEST_TMPDIR/st
   [ "$status" -ne 0 ]; [ ! -e "$BATS_TEST_TMPDIR/applied" ]
 }
 @test "runner shebang is absolute (sudo may keep the caller's PATH) and production paths are root-owned" {
-  head -1 "$RUN" | grep -qx '#!/bin/bash'
+  head -1 "$RUN" | grep -qx '#!/bin/bash -p'
   grep -q '^  P=/usr/local/lib/dots-ops;' "$RUN"
   grep -q 'JOB_BIN=/usr/local/bin/dots-ops-job' "$RUN"
-  ! grep -nE '\$HOME|/home/|XDG_' "$RUN"
+  run ! grep -nE '\$HOME|/home/|XDG_' "$RUN"
 }
 
 # ---- units + sudoers (Review Focus 1) ----
@@ -78,11 +78,74 @@ trun() { run env OPS_TEST=1 OPS_ROOT_PREFIX="$P" OPS_STATE="$BATS_TEST_TMPDIR/st
   u="$R/system/dots-ops/units/dots-ops@.service"
   grep -qx 'ExecStart=/usr/local/bin/dots-ops-job %i' "$u"
   grep -qx 'Environment=OPS_IS_ROOT=1' "$u"
-  ! grep -q '^User=' "$u"
+  run ! grep -q '^User=' "$u"
   [ -f "$R/system/dots-ops/units/dots-ops-system-idle.target" ]
 }
 @test "sudoers file has exactly one rule" {
-  [ "$(grep -cvE '^\s*(#|$)' "$R/system/dots-ops/sudoers")" -eq 1 ]
+  s="$R/system/dots-ops/sudoers"
+  [ "$(grep -cvE '^\s*(#|$|Defaults)' "$s")" -eq 1 ]
+  # R19: the runner never sees the caller's environment or PATH, even on distros without a global secure_path
+  grep -qx 'Defaults!/usr/local/bin/dots-ops-run env_reset' "$s"
+  grep -qx 'Defaults!/usr/local/bin/dots-ops-run secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"' "$s"
+  [ "$(grep -c '^Defaults' "$s")" -eq 2 ]
+  if command -v visudo >/dev/null; then cp "$s" "$BATS_TEST_TMPDIR/sudoers"; visudo -cf "$BATS_TEST_TMPDIR/sudoers"; fi
+}
+
+# ---- R19: the production prologue runs nothing from the caller's PATH/env ----
+fakebin() {   # id/stat/systemctl/jq/env/bash that leave a marker if anything executes them
+  mkdir -p "$BATS_TEST_TMPDIR/evil"; local c
+  for c in id stat systemctl jq env bash mkdir touch date compgen sudo; do
+    printf '#!/bin/sh\n: > %s/marker-%s\n' "$BATS_TEST_TMPDIR" "$c" > "$BATS_TEST_TMPDIR/evil/$c"
+  done
+  chmod +x "$BATS_TEST_TMPDIR"/evil/*
+}
+@test "non-root without OPS_TEST: refuses before running anything from the caller's PATH" {
+  fakebin; touch "$P/jobs/updates-full.sh"
+  for a in "updates-full run" "updates-full run-now" "system idle-run" "updates-full apply" "../x run"; do
+    run env PATH="$BATS_TEST_TMPDIR/evil:$PATH" OPS_ROOT_PREFIX="$P" "$RUN" $a
+    [ "$status" -ne 0 ]
+  done
+  run ls "$BATS_TEST_TMPDIR"; [[ $output != *marker-* ]]
+}
+@test "OPS_TEST mode also ignores the caller's PATH (fixed PATH is the first statement)" {
+  fakebin; touch "$P/jobs/updates-full.sh"
+  run env PATH="$BATS_TEST_TMPDIR/evil:$PATH" OPS_TEST=1 OPS_ROOT_PREFIX="$P" "$RUN" updates-full run
+  [ "$status" -eq 0 ]
+  run ls "$BATS_TEST_TMPDIR"; [[ $output != *marker-* ]]
+  run grep -nE '^(export PATH=|unset BASH_ENV)' "$RUN"; [[ ${lines[0]} == *"export PATH=/run/wrappers/bin:"* ]]
+  first_cmd=$(grep -vnE '^\s*(#|$)' "$RUN" | head -1); [[ $first_cmd == *"export PATH="* ]]
+}
+@test "an exported BASH_ENV / function does not run in the runner (bash -p)" {
+  printf 'touch %s/bashenv-ran\n' "$BATS_TEST_TMPDIR" > "$BATS_TEST_TMPDIR/benv.sh"
+  run env BASH_ENV="$BATS_TEST_TMPDIR/benv.sh" ENV="$BATS_TEST_TMPDIR/benv.sh" "$RUN" updates-full run
+  [ "$status" -ne 0 ]; [ ! -e "$BATS_TEST_TMPDIR/bashenv-ran" ]
+  run env BASH_ENV="$BATS_TEST_TMPDIR/benv.sh" OPS_TEST=1 OPS_ROOT_PREFIX="$P" "$RUN" system idle-end
+  [ "$status" -eq 0 ]; [ ! -e "$BATS_TEST_TMPDIR/bashenv-ran" ]
+  # control: plain bash does honour BASH_ENV, so the assertion above is meaningful
+  env BASH_ENV="$BATS_TEST_TMPDIR/benv.sh" bash -c true; [ -e "$BATS_TEST_TMPDIR/bashenv-ran" ]
+}
+@test "R22: job names starting with ask- are reserved" {
+  touch "$P/jobs/ask-x.sh"; mkdir -p "$P/actions/ask-x"; printf 'true\n' > "$P/actions/ask-x/apply.sh"
+  trun ask-x run; [ "$status" -eq 2 ]
+  trun ask-x apply; [ "$status" -eq 2 ]
+}
+
+# ---- R20: root only runs root-owned, non-writable job files ----
+@test "ops_file_trusted accepts root-owned 0755/0644 files and rejects user-owned or world-writable ones" {
+  setup_ops
+  ops_file_trusted /usr /etc/passwd
+  touch "$BATS_TEST_TMPDIR/mine"
+  run ops_file_trusted "$BATS_TEST_TMPDIR/mine"; [ "$status" -ne 0 ]        # not root-owned
+  run ops_file_trusted /tmp; [ "$status" -ne 0 ]                            # root-owned but 1777
+  run ops_file_trusted /etc/passwd /nonexistent; [ "$status" -ne 0 ]
+}
+@test "dots-ops-job (as root) refuses untrusted job files via ops_file_trusted" {
+  # the guard only runs at EUID 0; assert it is wired before the job is sourced
+  j="$R/home/private_dot_local/private_bin/executable_dots-ops-job"
+  guard=$(grep -n 'EUID" = 0 \] && ! ops_file_trusted "\$OPS_JOBS_DIR" "\$OPS_JOBS_DIR/\$job.sh"' "$j" | cut -d: -f1)
+  src=$(grep -n 'source "\$OPS_JOBS_DIR/\$job.sh"' "$j" | cut -d: -f1)
+  [ -n "$guard" ] && [ -n "$src" ] && [ "$guard" -lt "$src" ]
+  sed -n "$((guard+1))p" "$j" | grep -q 'exit 2'
 }
 
 # ---- lib: root defaults ----
@@ -104,6 +167,7 @@ trun() { run env OPS_TEST=1 OPS_ROOT_PREFIX="$P" OPS_STATE="$BATS_TEST_TMPDIR/st
 # ---- relay: root state → user state ----
 relay_setup() {
   setup_ops; export OPS_ASK_UI=0 OPS_IS_ROOT=0 OPS_LIB="$R/home/private_dot_local/lib/dots-ops/lib.sh"
+  export OPS_JOBS_DIR="$BATS_TEST_TMPDIR/userjobs"; mkdir -p "$OPS_JOBS_DIR"
   mkdir -p "$OPS_ROOT_STATE"; CLI="$R/home/private_dot_local/private_bin/executable_dots-ops"
 }
 rootstate() { jq -cn --arg j "$1" --arg s "$2" --arg m "$3" --argjson t "$4" '{job:$j,status:$s,summary:$m,changed:$t,notified:0}' > "$OPS_ROOT_STATE/$1.json"; }
@@ -120,22 +184,41 @@ rootstate() { jq -cn --arg j "$1" --arg s "$2" --arg m "$3" --argjson t "$4" '{j
 }
 @test "relay turns a root ask file into a user pending approval, once per ask" {
   relay_setup
-  jq -cn '{question:"Apply updates?",action:"root:updates-full apply",asked:5}' > "$OPS_ROOT_STATE/ask-updates-full.json"
+  jq -cn '{question:"Apply updates?",action:"root:updates-full apply",asked:$t}' --argjson t "$(date +%s)" > "$OPS_ROOT_STATE/ask-updates-full.json"
   run bash "$CLI" relay; [ "$status" -eq 0 ]
   p="$OPS_STATE/pending/updates-full.json"
   [ "$(jq -r .action "$p")" = "root:updates-full apply" ] && [ "$(jq -r .question "$p")" = "Apply updates?" ]
   [ ! -e "$OPS_STATE/state/ask-updates-full.json" ]       # asks are not statuses
   rm -f "$p"                                               # user skipped it
   run bash "$CLI" relay; [ ! -e "$p" ]                     # same ask → not re-asked
-  jq -cn '{question:"Apply updates?",action:"root:updates-full apply",asked:9}' > "$OPS_ROOT_STATE/ask-updates-full.json"
+  jq -cn '{question:"Apply updates?",action:"root:updates-full apply",asked:($t+1)}' --argjson t "$(date +%s)" > "$OPS_ROOT_STATE/ask-updates-full.json"
   run bash "$CLI" relay; [ -e "$p" ]                       # root asked again → re-asked
 }
 @test "relay ignores non-root actions, bad names and bad statuses" {
   relay_setup
-  jq -cn '{question:"x",action:"user:touch /tmp/pwn"}' > "$OPS_ROOT_STATE/ask-evil.json"
+  jq -cn '{question:"x",action:"user:touch /tmp/pwn",asked:$t}' --argjson t "$(date +%s)" > "$OPS_ROOT_STATE/ask-evil.json"
   rootstate weird bogus "x" 5; cp "$OPS_ROOT_STATE/weird.json" "$OPS_ROOT_STATE/Bad_Name.json"
   run bash "$CLI" relay; [ "$status" -eq 0 ]
   [ ! -e "$OPS_STATE/pending/evil.json" ] && [ ! -e "$OPS_STATE/state/weird.json" ] && [ ! -e "$OPS_STATE/state/Bad_Name.json" ]
+}
+@test "R21: relay drops a root ask older than 24h (logged once, not asked)" {
+  relay_setup
+  jq -cn --argjson t $(( $(date +%s) - 86401 )) '{question:"old?",action:"root:reboot apply",asked:$t}' > "$OPS_ROOT_STATE/ask-reboot.json"
+  run bash "$CLI" relay; [ "$status" -eq 0 ]
+  [ ! -e "$OPS_STATE/pending/reboot.json" ]
+  [ "$(grep -c 'dropped stale root ask' "$OPS_STATE/log.jsonl")" -eq 1 ]
+  run bash "$CLI" relay
+  [ "$(grep -c 'dropped stale root ask' "$OPS_STATE/log.jsonl")" -eq 1 ]
+  jq -cn '{question:"no time",action:"root:reboot apply"}' > "$OPS_ROOT_STATE/ask-reboot.json"   # no asked = stale
+  run bash "$CLI" relay; [ ! -e "$OPS_STATE/pending/reboot.json" ]
+}
+@test "R22: relay skips a root status whose name belongs to a user job (logged)" {
+  relay_setup; touch "$OPS_JOBS_DIR/backup.sh"
+  jq -cn '{job:"backup",status:"fail",summary:"root says",changed:100,notified:0}' > "$OPS_ROOT_STATE/backup.json"
+  ops_state backup ok "user backup fine"
+  run bash "$CLI" relay; [ "$status" -eq 0 ]
+  [ "$(jq -r .summary "$OPS_STATE/state/backup.json")" = "user backup fine" ]
+  grep -q 'collides with user job' "$OPS_STATE/log.jsonl"
 }
 @test "relay with no root state dir is a no-op" {
   relay_setup; OPS_ROOT_STATE="$BATS_TEST_TMPDIR/none" run bash "$CLI" relay; [ "$status" -eq 0 ]
@@ -160,10 +243,14 @@ render_installer() {   # data-file → rendered script path
   s=$(render_installer data-nvidia-tmux.toml); bash -n "$s"
   grep -qE '^# dots-ops system install hash: [0-9a-f]{64}  -$' "$s"
   grep -q 'visudo -cf' "$s"; grep -q '/etc/sudoers.d/dots-ops' "$s"
+  # R20: symlink check comes before anything is copied
+  sl=$(grep -n 'find "$W/system/dots-ops" -type l' "$s" | head -1 | cut -d: -f1)
+  cp1=$(grep -n 'sudo install' "$s" | head -1 | cut -d: -f1)
+  [ -n "$sl" ] && [ "$sl" -lt "$cp1" ]
   grep -q 'install -m 755 .*/system/dots-ops/bin/dots-ops-run" /usr/local/bin/dots-ops-run' "$s"
   grep -qx 'L=/usr/local/lib/dots-ops' "$s"; grep -q 'chown -R root:root "$L"' "$s"; grep -q 'chmod -R go-w "$L"' "$s"
 }
 @test "installer is a no-op on NixOS (the Nix module installs it there)" {
   s=$(render_installer data-nixos-tmux.toml); bash -n "$s"
-  ! grep -q sudo "$s"
+  run ! grep -q sudo "$s"
 }

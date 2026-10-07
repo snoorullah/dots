@@ -1,3 +1,6 @@
 # dots-ops: the only privilege path. Group dots-ops may run the root-owned runner without a password;
 # the runner itself allow-lists <job>/<action> against root-owned files under /usr/local/lib/dots-ops.
+# Defense in depth (R19): never pass the caller's environment or PATH to the runner.
+Defaults!/usr/local/bin/dots-ops-run env_reset
+Defaults!/usr/local/bin/dots-ops-run secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 %dots-ops ALL=(root) NOPASSWD: /usr/local/bin/dots-ops-run

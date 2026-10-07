@@ -1,23 +1,26 @@
-#!/bin/bash
+#!/bin/bash -p
 # Root entry point for approved/scheduled root work: the ONLY privilege path of dots-ops.
 # Called as `sudo -n dots-ops-run <job> <action>` by group dots-ops (sudoers rule), or by root.
 #   <job> run              start the system unit dots-ops@<job>.service (non-blocking)
 #   <job> run-now          run the root job now, synchronously, bypassing the idle/AC gate (R4)
 #   <job> <action>         source the approved action <prefix>/actions/<job>/<action>.sh
 #   system idle-run|idle-end   set/clear the root idle flag and restart/stop dots-ops-system-idle.target (R3/R14)
-# Only files under the root-owned prefix are ever sourced or executed. The absolute shebang matters:
-# sudo may keep the caller's PATH, so `#!/usr/bin/env bash` would let the caller choose root's bash.
+# Only files under the root-owned prefix are ever sourced or executed.
+# The absolute `#!/bin/bash -p` shebang matters: sudo may keep the caller's PATH (no secure_path on Arch/NixOS), so
+# `env bash` would let the caller pick root's bash; -p (privileged mode) makes bash ignore BASH_ENV/ENV, exported
+# functions, SHELLOPTS/BASHOPTS/CDPATH/GLOBIGNORE. Nothing below may run an external command before PATH is fixed.
+export PATH=/run/wrappers/bin:/run/current-system/sw/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+unset BASH_ENV ENV CDPATH GLOBIGNORE
+IFS=$' \t\n'
 set -euo pipefail
 umask 022
-if [ "${OPS_TEST:-0}" = 1 ]; then   # tests only: never honoured for root
-  [ "$(id -u)" != 0 ] || { echo "dots-ops-run: OPS_TEST refused as root" >&2; exit 2; }
+if [ "${OPS_TEST:-0}" = 1 ] && [ "$EUID" != 0 ]; then   # tests only: never honoured for root
   P=${OPS_ROOT_PREFIX:?}; JOB_BIN=$P/dots-ops-job; RUN_DIR=$P/run; SYSTEMCTL=(echo systemctl)
 else
-  [ "$(id -u)" = 0 ] || { echo "dots-ops-run: must run as root (sudo -n dots-ops-run ...)" >&2; exit 1; }
+  [ "$EUID" = 0 ] || { echo "dots-ops-run: must run as root (sudo -n dots-ops-run ...)" >&2; exit 1; }
   # sudo resets most of the environment already; drop anything that could still steer the lib or a job
-  for v in $(compgen -e); do case $v in OPS_*|DOTS_OPS_*|BASH_ENV|ENV|CDPATH|GLOBIGNORE) unset "$v" ;; esac; done
-  export PATH=/run/wrappers/bin:/run/current-system/sw/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-  export HOME=/root IFS=$' \t\n'
+  for v in $(compgen -e); do case $v in OPS_*|DOTS_OPS_*) unset "$v" ;; esac; done
+  export HOME=/root
   P=/usr/local/lib/dots-ops; JOB_BIN=/usr/local/bin/dots-ops-job; RUN_DIR=/run/dots-ops; SYSTEMCTL=(systemctl)
 fi
 
@@ -34,6 +37,7 @@ root_owned() {
 [ $# -eq 2 ] || die "usage: dots-ops-run <job> <action>"
 job=$1; act=$2
 [[ $job =~ ^[a-z0-9][a-z0-9-]*$ && $act =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "invalid job/action name"
+[[ $job != ask-* ]] || die "invalid job name (ask- is reserved for relay ask files)"   # R22
 
 if [ "$job" = system ]; then
   case $act in

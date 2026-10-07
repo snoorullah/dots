@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run one dots-ops job: lock, enabled check, idle/AC gate for heavy jobs, then job_main.
 set -uo pipefail
-if [ "$(id -u)" = 0 ]; then   # R2/R17: root never loads user-writable code or env-supplied paths
+if [ "$EUID" = 0 ]; then   # R2/R17: root never loads user-writable code or env-supplied paths
   LIB=/usr/local/lib/dots-ops/lib.sh
   OPS_JOBS_DIR=/usr/local/lib/dots-ops/jobs; OPS_CONFIG=/etc/dots-ops/config.toml
 else LIB="${OPS_LIB:-$HOME/.local/lib/dots-ops/lib.sh}"; [ -f "$LIB" ] || LIB=/usr/local/lib/dots-ops/lib.sh; fi
@@ -14,6 +14,9 @@ job=${1:?usage: dots-ops-job <job>}
 [[ $job =~ ^[a-z0-9-]+$ ]] || { echo "bad job name" >&2; exit 2; }
 [ "$(ops_cfg "jobs.$job.enabled" true)" = true ] || { ops_log "$job" info "disabled in config"; exit 0; }
 [ -f "$OPS_JOBS_DIR/$job.sh" ] || { ops_log "$job" fail "no such job"; exit 2; }
+if [ "$EUID" = 0 ] && ! ops_file_trusted "$OPS_JOBS_DIR" "$OPS_JOBS_DIR/$job.sh"; then   # R20: root runs root-owned code only
+  ops_log "$job" fail "refused: job file not root-owned or writable by others"; exit 2
+fi
 OPS_HEAVY=0; source "$OPS_JOBS_DIR/$job.sh"
 ops_lock "$job"
 if [ "$OPS_HEAVY" = 1 ] && [ "${OPS_FORCE:-0}" != 1 ] && ! ops_idle_ok; then
