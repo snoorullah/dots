@@ -1,0 +1,11 @@
+[Unit]
+Description=timetrack - systemd-logind session/lock/suspend capture
+
+[Service]
+Type=simple
+ExecStart=%h/.nix-profile/bin/timetrack-logind
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

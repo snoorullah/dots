@@ -68,6 +68,7 @@
 
   # ── Login → Hyprland (greetd + tuigreet) ──
   programs.hyprland.enable = true;
+  programs.hyprlock.enable = true;
   services.greetd = {
     enable = true;
     settings.default_session = {
@@ -86,6 +87,10 @@
   };
   services.libinput.enable = true;
 
+  # ── keyd (homerow mods); same keymap the chezmoi root layer installs on other distros ──
+  services.keyd.enable = true;
+  environment.etc."keyd/default.conf".source = ../../../system/keyd/default.conf;
+
   # ── Fonts ──
   fonts.packages = with pkgs; [
     nerd-fonts.jetbrains-mono
@@ -99,15 +104,20 @@
   users.users.devsupreme = {
     isNormalUser = true;
     description = "devsupreme";
-    extraGroups = [ "wheel" "networkmanager" "video" "audio" "docker" ];
+    extraGroups = [ "wheel" "networkmanager" "video" "audio" "docker" "wireshark" ];
     shell = pkgs.zsh;
   };
 
   # ── Containers ── (client tools live in the home dev layer; daemon here)
   virtualisation.docker.enable = true;
+  hardware.nvidia-container-toolkit.enable = true;   # NVIDIA host: CDI for `docker run --gpus`
+
+  # ── Network / capture ── (`tailscale up` is the owner's step)
+  services.tailscale.enable = true;
+  programs.wireshark.enable = true;                  # dumpcap wrapper; user is in the wireshark group above
 
   # Minimal system-wide tooling; everything else is in the home layer.
-  environment.systemPackages = with pkgs; [ git vim wget ];
+  environment.systemPackages = with pkgs; [ git vim wget chezmoi ];
 
   # First release this host was built from — do NOT bump on upgrades.
   system.stateVersion = "25.11";

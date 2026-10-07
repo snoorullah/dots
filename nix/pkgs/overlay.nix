@@ -1,6 +1,7 @@
 final: prev: {
   otter-launcher  = final.callPackage ./otter-launcher.nix { };
   aether          = final.callPackage ./aether.nix { };
+  timetrack       = final.callPackage ./timetrack { };
   dotsAdhanPython = final.python3.withPackages (ps: [ (final.callPackage ./adhanpy.nix { python3Packages = ps; }) ]);
   # tmux plugins pinned by tools/pin-tmux-plugins.sh; ~/.config/tmux/plugins -> ~/.nix-profile/share/tmux-plugins
   # tmux-thumbs is the exception: it needs a compiled binary, so it comes prebuilt from nixpkgs.

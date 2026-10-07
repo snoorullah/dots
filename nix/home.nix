@@ -43,7 +43,7 @@ in {
     hypridle hyprpolkitagent xdg-desktop-portal-hyprland hyprpicker
     waybar swaynotificationcenter swayosd awww (gl ghostty) chafa otter-launcher clipse yazi ffmpegthumbnailer unar file fd
     grim slurp wl-clipboard playerctl brightnessctl networkmanagerapplet bluetuith libnotify papirus-icon-theme
-    (lib.hiPrio taskwarrior3) timewarrior taskwarrior-tui aw-server-rust awatcher dotsAdhanPython
+    (lib.hiPrio taskwarrior3) timewarrior taskwarrior-tui aw-server-rust awatcher dotsAdhanPython timetrack
     zsh antidote starship zoxide fzf eza bat ripgrep jq gh neovim git chezmoi
     tmux dotsTmuxPluginFarm inputs.herdr.packages.${pkgs.system}.default
     kubectl k9s openssh
