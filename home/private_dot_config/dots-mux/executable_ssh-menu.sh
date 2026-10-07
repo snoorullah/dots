@@ -16,8 +16,19 @@ if [ -z "${TMUX_FZF_FLOAT:-}" ] && [ -n "${TMUX:-}" ]; then
     exec "$HOME/.config/tmux/scripts/fzf-float.sh" "$0" "$@"
 fi
 
+# Works under tmux and Herdr: tmux status-line message when in tmux, desktop toast otherwise.
+note() {
+  if [ -n "${TMUX:-}" ]; then
+    tmux display-message "$1"
+  elif command -v notify-send >/dev/null 2>&1; then
+    notify-send --app-name="dots-mux" "$1"
+  else
+    printf '%s\n' "$1" >&2
+  fi
+}
+
 SSH_DIR="$HOME/.ssh"
-ASKPASS="$HOME/.config/tmux/scripts/ssh-askpass.sh"
+ASKPASS="$HOME/.config/dots-mux/ssh-askpass.sh"
 
 # Key registry: name|file|description
 KEYS=(
@@ -64,7 +75,7 @@ $line"
 done
 
 if [ -z "$entries" ]; then
-    tmux display-message "No SSH keys found in $SSH_DIR"
+    note "No SSH keys found in $SSH_DIR"
     exit 0
 fi
 
@@ -111,33 +122,33 @@ case "$key" in
                 count=$((count + 1))
             fi
         done
-        tmux display-message "Loaded $count SSH keys (expire in 1h)"
+        note "Loaded $count SSH keys (expire in 1h)"
         ;;
 
     ctrl-d)
         # Flush all keys from agent
         ssh-add -D 2>/dev/null
-        tmux display-message "All SSH keys unloaded from agent"
+        note "All SSH keys unloaded from agent"
         ;;
 
     ctrl-u)
         # Unload selected key
         if [ -n "$selected_file" ]; then
             ssh-add -d "$selected_file" 2>/dev/null
-            tmux display-message "Unloaded: $selected_name"
+            note "Unloaded: $selected_name"
         fi
         ;;
 
     ctrl-p)
         # Add passphrase to key and store in pass
         if [ -z "$selected_file" ]; then
-            tmux display-message "No key selected"
+            note "No key selected"
             exit 0
         fi
 
         # Check if already has passphrase
         if ! ssh-keygen -y -P "" -f "$selected_file" &>/dev/null; then
-            tmux display-message "$selected_name already has a passphrase"
+            note "$selected_name already has a passphrase"
             exit 0
         fi
 
@@ -145,7 +156,7 @@ case "$key" in
         new_pass=$(pass generate -n "ssh/$selected_name" 32 2>/dev/null | tail -1)
 
         if [ -z "$new_pass" ]; then
-            tmux display-message "Failed to generate passphrase"
+            note "Failed to generate passphrase"
             exit 1
         fi
 
@@ -153,11 +164,11 @@ case "$key" in
         # ssh-keygen -p requires interactive input, so use expect-like approach
         ssh-keygen -p -f "$selected_file" -N "$new_pass" 2>/dev/null
         if [ $? -eq 0 ]; then
-            tmux display-message "Passphrase added to $selected_name and stored in pass (ssh/$selected_name)"
+            note "Passphrase added to $selected_name and stored in pass (ssh/$selected_name)"
         else
             # Clean up pass entry if key encryption failed
             pass rm -f "ssh/$selected_name" 2>/dev/null
-            tmux display-message "Failed to add passphrase to $selected_name"
+            note "Failed to add passphrase to $selected_name"
         fi
         ;;
 
@@ -167,9 +178,9 @@ case "$key" in
             export SSH_ASKPASS="$ASKPASS"
             export SSH_ASKPASS_REQUIRE="force"
             if ssh-add -t 3600 "$selected_file" 2>/dev/null; then
-                tmux display-message "Loaded: $selected_name (expires in 1h)"
+                note "Loaded: $selected_name (expires in 1h)"
             else
-                tmux display-message "Failed to load: $selected_name"
+                note "Failed to load: $selected_name"
             fi
         fi
         ;;

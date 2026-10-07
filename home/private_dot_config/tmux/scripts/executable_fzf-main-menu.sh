@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Custom tmux-fzf menu — runs entirely in a floating kitty terminal
+# Custom tmux-fzf menu — runs entirely in a floating Ghostty popup
 # Features: breadcrumbs, back navigation (Esc/[back]), native input prompts
 
 set -u
@@ -9,7 +9,7 @@ if [ -z "${TMUX_FZF_FLOAT:-}" ] && [ -n "${TMUX:-}" ]; then
     exec "$HOME/.config/tmux/scripts/fzf-float.sh" "$0" "$@"
 fi
 
-TMUX_BIN="/usr/bin/tmux"
+TMUX_BIN="tmux"
 
 # ── Helpers ───────────────────────────────────────────────────────────
 

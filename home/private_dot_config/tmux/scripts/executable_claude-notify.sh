@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # claude-notify.sh — Claude Code `Notification` hook → desktop notification
 #
-# Outside tmux, kitty turns Claude Code's terminal notifications into desktop
-# ones itself. Inside tmux those escape sequences never reach kitty, so this
+# Outside tmux, Ghostty turns Claude Code's terminal notifications into desktop
+# ones itself. Inside tmux those escape sequences never reach Ghostty, so this
 # hook calls notify-send directly, tagged with the tmux session:window.
 # Clicking the notification focuses the terminal window (Hyprland: switching
 # workspace if needed) and jumps the tmux client to the pane that raised it.
@@ -11,7 +11,7 @@
 #   "hooks": { "Notification": [ { "hooks": [ { "type": "command",
 #     "command": "~/.config/tmux/scripts/claude-notify.sh" } ] } ] }
 
-# Not in tmux → kitty already handles it; avoid duplicate notifications.
+# Not in tmux → Ghostty already handles it; avoid duplicate notifications.
 [[ -n "$TMUX" && -n "$TMUX_PANE" ]] || exit 0
 command -v notify-send &>/dev/null || exit 0
 

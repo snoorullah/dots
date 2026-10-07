@@ -1,9 +1,20 @@
 #!/usr/bin/env bash
 # Fuzzy password picker for pass (password-store)
-# Opens fzf popup in tmux, copies selected password to clipboard
+# Opens fzf popup (tmux display-popup or Herdr popup), copies selected password to clipboard
 # Auto-clears clipboard after 45 seconds
 
 set -eu
+
+# Works under tmux and Herdr: tmux status-line message when in tmux, desktop toast otherwise.
+note() {
+  if [ -n "${TMUX:-}" ]; then
+    tmux display-message "$1"
+  elif command -v notify-send >/dev/null 2>&1; then
+    notify-send --app-name="dots-mux" "$1"
+  else
+    printf '%s\n' "$1" >&2
+  fi
+}
 
 STORE_DIR="${PASSWORD_STORE_DIR:-$HOME/.password-store}"
 
@@ -11,7 +22,7 @@ STORE_DIR="${PASSWORD_STORE_DIR:-$HOME/.password-store}"
 entries=$(find "$STORE_DIR" -name '*.gpg' -printf '%P\n' 2>/dev/null | sed 's/\.gpg$//' | sort)
 
 if [ -z "$entries" ]; then
-  tmux display-message "Password store is empty"
+  note "Password store is empty"
   exit 0
 fi
 
@@ -36,23 +47,23 @@ case "$key" in
     user=$(pass show "$entry" 2>/dev/null | grep -iE '^(user|username|login):' | head -1 | sed 's/^[^:]*:[[:space:]]*//')
     if [ -n "$user" ]; then
       printf '%s' "$user" | wl-copy 2>/dev/null || printf '%s' "$user" | xclip -selection clipboard 2>/dev/null
-      tmux display-message "Copied username for $entry"
+      note "Copied username for $entry"
     else
-      tmux display-message "No username found for $entry"
+      note "No username found for $entry"
     fi
     ;;
   ctrl-o)
     # Copy OTP if pass-otp is available
     if otp=$(pass otp "$entry" 2>/dev/null); then
       printf '%s' "$otp" | wl-copy 2>/dev/null || printf '%s' "$otp" | xclip -selection clipboard 2>/dev/null
-      tmux display-message "Copied OTP for $entry (30s)"
+      note "Copied OTP for $entry (30s)"
     else
-      tmux display-message "No OTP configured for $entry"
+      note "No OTP configured for $entry"
     fi
     ;;
   *)
     # Copy password (first line) — auto-clears after 45s
     pass -c "$entry" 2>/dev/null
-    tmux display-message "Copied password for $entry (clears in 45s)"
+    note "Copied password for $entry (clears in 45s)"
     ;;
 esac

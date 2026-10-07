@@ -56,7 +56,15 @@ f all .zshrc
 f all .zshenv
 f tmux .tmux.conf
 f tmux .config/tmux/tmux.conf
+f tmux .config/tmux/tmux.remote.conf
+f tmux .config/tmux/plugins.lock
+x tmux .config/tmux/scripts/claude-notify.sh
 f herdr .config/herdr/config.toml
+x all .config/dots-mux/pass-menu.sh
+x all .config/dots-mux/ssh-menu.sh
+x all .config/dots-mux/ssh-askpass.sh
+x all .config/dots-mux/task-status.sh
+x all .config/dots-mux/git-status.sh
 x all .local/bin/adhd-block-pick.sh
 x all .local/bin/adhd-break.sh
 x all .local/bin/adhd-break-end.sh

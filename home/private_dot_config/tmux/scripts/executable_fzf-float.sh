@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Spawn a script in a floating kitty terminal window
+# Spawn a script in a floating Ghostty popup window
 # Usage: fzf-float.sh <script> [args...]
 
 set -eu
@@ -76,34 +76,11 @@ fi
 RUNNER
 chmod +x "$SHIM_DIR/runner.sh"
 
-kitty \
-    --class "tmux-fzf-popup" \
-    --title "$title" \
-    -o remember_window_size=no \
-    -o initial_window_width=80c \
-    -o initial_window_height=20c \
-    -o confirm_os_window_close=0 \
-    -o shell=/bin/bash \
-    -o window_padding_width=8 \
-    -o background=#1a1a2e \
-    -o foreground=#f8f8f2 \
-    -o cursor=#bd93f9 \
-    -o selection_background=#bd93f9 \
-    -o selection_foreground=#1a1a2e \
-    -o color0=#1a1a2e \
-    -o color1=#ff4d4d \
-    -o color2=#50fa7b \
-    -o color3=#f5d547 \
-    -o color4=#6a8cff \
-    -o color5=#bd93f9 \
-    -o color6=#6a8cff \
-    -o color7=#f8f8f2 \
-    -o color8=#585880 \
-    -o color9=#ff4d4d \
-    -o color10=#50fa7b \
-    -o color11=#f5d547 \
-    -o color12=#6a8cff \
-    -o color13=#bd93f9 \
-    -o color14=#6a8cff \
-    -o color15=#f8f8f2 \
+ghostty \
+    --class=dots.tmuxfzf \
+    --title="$title" \
+    --gtk-single-instance=false \
+    --config-file="$HOME/.config/ghostty/popup" \
+    --window-width=80 \
+    --window-height=20 \
     -e "$SHIM_DIR/runner.sh"

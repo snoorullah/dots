@@ -6,7 +6,7 @@ if [ -z "${TMUX_FZF_FLOAT:-}" ] && [ -n "${TMUX:-}" ]; then
     exec "$HOME/.config/tmux/scripts/fzf-float.sh" "$0" "$@"
 fi
 
-TMUX_BIN="/usr/bin/tmux"
+TMUX_BIN="tmux"
 current=$($TMUX_BIN display-message -p '#S')
 sessions=$($TMUX_BIN list-sessions -F '#S: #{session_windows} windows#{?session_attached, (attached),}' | grep -v "^${current}:")
 

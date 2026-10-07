@@ -4,8 +4,13 @@
 
 set -eu
 
+# Herdr status segments are plain text: drop tmux #[...] style codes outside tmux.
+emit() {
+  if [ -n "${TMUX:-}" ]; then cat; else sed -E 's/#\[[^]]*\]//g'; fi
+}
+
 RESET="#[fg=#585880,bg=default,nobold]"
-pane_path="${1:-$(tmux display-message -p '#{pane_current_path}')}"
+pane_path="${1:-$(if [ -n "${TMUX:-}" ]; then tmux display-message -p '#{pane_current_path}'; else printf %s "${HERDR_ACTIVE_PANE_CWD:-$PWD}"; fi)}"
 
 cd "$pane_path" 2>/dev/null || exit 0
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
@@ -35,4 +40,4 @@ else
   suffix=""
 fi
 
-printf " %s#[fg=#6a8cff,nobold]%s%s$RESET " "$icon" "$branch" "$suffix"
+{ printf " %s#[fg=#6a8cff,nobold]%s%s$RESET " "$icon" "$branch" "$suffix"; } | emit

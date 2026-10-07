@@ -4,6 +4,11 @@
 
 set -eu
 
+# Herdr status segments are plain text: drop tmux #[...] style codes outside tmux.
+emit() {
+  if [ -n "${TMUX:-}" ]; then cat; else sed -E 's/#\[[^]]*\]//g'; fi
+}
+
 RESET="#[fg=#585880,bg=default,nobold]"
 
 # ── Timewarrior tracking status ───────────────────────────────────────
@@ -56,4 +61,4 @@ else
   fi
 fi
 
-printf " %s%s%s%s$RESET " "$focus" "$context" "$task_text" "$timer"
+{ printf " %s%s%s%s$RESET " "$focus" "$context" "$task_text" "$timer"; } | emit

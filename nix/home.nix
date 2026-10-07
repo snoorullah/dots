@@ -45,7 +45,7 @@ in {
     grim slurp wl-clipboard playerctl brightnessctl networkmanagerapplet bluetuith libnotify papirus-icon-theme
     (lib.hiPrio taskwarrior3) timewarrior taskwarrior-tui aw-server-rust awatcher dotsAdhanPython
     zsh antidote starship zoxide fzf eza bat ripgrep jq gh neovim git chezmoi
-    tmux inputs.herdr.packages.${pkgs.system}.default
+    tmux dotsTmuxPluginFarm inputs.herdr.packages.${pkgs.system}.default
     kubectl k9s openssh
     nerd-fonts.jetbrains-mono nerd-fonts.fantasque-sans-mono victor-mono material-symbols noto-fonts noto-fonts-color-emoji
     kdePackages.breeze kdePackages.breeze-icons
