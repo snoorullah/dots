@@ -28,6 +28,11 @@ runCommand "aether-${rev}" { passthru = { inherit firefox src rev; }; meta.mainP
       -e 's|^exec firefox |exec ${firefox}/bin/firefox |' \
       ${src}/overlay/bin/aether > $out/bin/aether
   chmod +x $out/bin/aether
+  # overlay (chrome/, prefs/user.js, config/aether.toml) for the per-user profile step in chezmoi's extra-tools script
+  mkdir -p $out/share/aether
+  ln -s ${src}/overlay $out/share/aether/overlay
+  # the nix-built Firefox, for `-CreateProfile aether` (the launcher always adds -P aether, so it cannot create the profile)
+  ln -s ${firefox}/bin/firefox $out/share/aether/firefox
   sed -e "s|^Exec=aether|Exec=$out/bin/aether|" ${src}/overlay/share/aether.desktop > $out/share/applications/aether.desktop
   for s in 16 24 32 48 64 128 256 512; do
     install -Dm644 ${src}/assets/logo/png/aether-$s.png $out/share/icons/hicolor/''${s}x''${s}/apps/aether.png

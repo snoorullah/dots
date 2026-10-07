@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
 # pins: {{ include ".chezmoidata/extra-tools.yaml" | sha256sum }}
-# Installs the pinned extra tools (not in nixpkgs) into the user's home. Pins live in .chezmoidata/extra-tools.yaml.
+# Installs the pinned extra tools that Nix does not own (npm/cargo/pipx/grok) and the per-user Aether profile.
+# Pins live in .chezmoidata/extra-tools.yaml. HyprCapture, hypr-kdeconnect-fix and argonaut are Nix packages.
 # DOTS_DRY_RUN=1 prints every mutating command instead of executing it. No logins or secrets, ever.
+# Any failure OR skip exits non-zero at the end, so chezmoi re-runs this script on the next apply.
 set -uo pipefail
 
 DRY="${DOTS_DRY_RUN:-0}"
 BIN="$HOME/.local/bin"
 STATE="$HOME/.local/state/dots-extra-tools"
-SRC="$HOME/.local/share/dots-extra-tools/src"
+{{- if eq .gpu "nixos" }}
+NIXPROFILE="/etc/profiles/per-user/{{ .chezmoi.username }}"
+{{- else }}
+NIXPROFILE="$HOME/.nix-profile"
+{{- end }}
 export PATH="$BIN:$PATH"
 FAILED=(); SKIPPED=(); WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -46,99 +52,57 @@ cargo_tool() { # crate version
 # ── pipx (PIPX_BIN_DIR ~/.local/bin) ───────────────────────────────────
 pipx_tool() { # name version [python]
   export PIPX_BIN_DIR="$BIN"
-  [ -d "$HOME/.local/share/pipx" ] && pipx list --short 2>/dev/null | grep -qx "$1 $2" &&{ log "ok: $1 $2"; return 0; }
+  [ -d "$HOME/.local/share/pipx" ] && pipx list --short 2>/dev/null | grep -qx "$1 $2" && { log "ok: $1 $2"; return 0; }
   have pipx || { skip "$1" "pipx not on PATH"; return 0; }
   local py=()
   if [ -n "${3:-}" ]; then have "$3" || { skip "$1" "$3 not found"; return 0; }; py=(--python "$3"); fi
   run pipx install --force "${py[@]}" "$1==$2" || fail "$1"
 }
 
-# ── argonaut: release tarball, sha256-checked ──────────────────────────
-argonaut_tool() { # version sha256 url
-  "$BIN/argonaut" --version 2>/dev/null | grep -qF "$1" && { log "ok: argonaut $1"; return 0; }
-  local tgz="$WORK/argonaut.tgz"
-  { run curl -fsSL -o "$tgz" "$3" \
-    && { if [ "$DRY" = 1 ]; then printf '+ echo "%s  %s" | sha256sum -c -\n' "$2" "$tgz"; else echo "$2  $tgz" | sha256sum -c - >/dev/null; fi; } \
-    && run tar -xzf "$tgz" -C "$WORK" argonaut \
-    && run install -Dm755 "$WORK/argonaut" "$BIN/argonaut"; } || fail "argonaut"
-}
-
 # ── Grok CLI: vendor installer at a pinned version ─────────────────────
+# The installer script is NOT hash-pinned (the vendor publishes no checksum). Read at pin time (2026-10-07): it
+# appends a PATH block to ~/.zshrc/.bashrc/config.fish chosen from $SHELL and has no opt-out flag, so it is run with
+# SHELL=/bin/sh (no rc file is edited). It also symlinks grok/agent into ~/.local/bin when that is on PATH.
 grok_tool() { # version installer-url
   "$HOME/.grok/bin/grok" --version 2>/dev/null | grep -qF "grok $1 " && { log "ok: grok $1"; return 0; }
-  { run curl -fsSL -o "$WORK/grok-install.sh" "$2" && run bash "$WORK/grok-install.sh" "$1"; } || fail "grok"
+  log "running unverified vendor installer: $2 (version $1, SHELL=/bin/sh so no shell rc is edited)"
+  { run curl -fsSL -o "$WORK/grok-install.sh" "$2" && run env SHELL=/bin/sh bash "$WORK/grok-install.sh" "$1"; } || fail "grok"
 }
 
-# ── pinned git checkout: git_pin <url> <rev> <dir> ─────────────────────
-git_pin() {
-  if [ ! -d "$3/.git" ]; then run mkdir -p "$3" && run git -C "$3" init -q && run git -C "$3" remote add origin "$1" || return 1; fi
-  run git -C "$3" fetch -q --depth 1 origin "$2" && run git -C "$3" checkout -q --detach FETCH_HEAD
-}
-
-# ── HyprCapture: hyprpm builds the plugin and installs ~/.local/bin/hyprcapture-ui ──
-hyprcapture_tool() { # url rev
-  marker_ok hyprcapture "$2" && [ -x "$BIN/hyprcapture-ui" ] && { log "ok: hyprcapture $2"; return 0; }
-  have hyprpm || { skip hyprcapture "hyprpm not on PATH"; return 0; }
-  if [ "$DRY" != 1 ] && [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
-    skip hyprcapture "no running Hyprland session; hyprpm needs one (re-run chezmoi apply --force from a Hyprland terminal)"; return 0
-  fi
-  { run hyprpm update && run hyprpm add "$1" "$2" && run hyprpm enable hyprcapture && run hyprpm reload -n; } || { fail hyprcapture; return 0; }
-  if [ "$DRY" != 1 ] && [ ! -x "$BIN/hyprcapture-ui" ]; then fail "hyprcapture (helper hyprcapture-ui missing after hyprpm)"; return 0; fi
-  marker_set hyprcapture "$2"
-}
-
-# ── hypr-kdeconnect-fix: cmake build into ~/.local ─────────────────────
-kdeconnect_tool() { # url rev
-  marker_ok hypr-kdeconnect-fix "$2" && [ -x "$BIN/hypr-kdeconnect-portal" ] && { log "ok: hypr-kdeconnect-fix $2"; return 0; }
-  have cmake || { skip hypr-kdeconnect-fix "cmake not on PATH (needs Qt6, wayland, xkbcommon, libei dev packages)"; return 0; }
-  local d="$SRC/hypr-kdeconnect-fix"
-  { git_pin "$1" "$2" "$d" \
-    && run cmake -S "$d" -B "$d/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$HOME/.local" \
-    && run cmake --build "$d/build" -j"$(nproc)" \
-    && run ctest --test-dir "$d/build" --output-on-failure \
-    && run cmake --install "$d/build"; } || { fail hypr-kdeconnect-fix; return 0; }
-  marker_set hypr-kdeconnect-fix "$2"
-}
-
-# ── Aether per-user parts (mirrors overlay/install.sh at the pinned rev) ──
-# Never the system autoconfig step (install.sh 136-179): the Nix `aether` package already ships the loader and icons.
-aether_tool() { # url rev
-  marker_ok aether "$2" && { log "ok: aether $2"; return 0; }
-  have git || { skip aether "git not on PATH"; return 0; }
-  local d="$SRC/aether" ov="$SRC/aether/overlay" prof_name=aether moz profile_path="" cfg="${XDG_CONFIG_HOME:-$HOME/.config}/aether"
-  git_pin "$1" "$2" "$d" || { fail aether; return 0; }
-  # install.sh 34-76 + 93 (--launcher-only): desktop entry + hicolor icons, per-user
-  run bash "$ov/install.sh" --launcher-only || { fail aether; return 0; }
-  # install.sh 181-208 (step 3): resolve or create the 'aether' Firefox profile (legacy dir first, then XDG)
+# ── Aether per-user profile (mirrors overlay/install.sh at the pinned rev) ──
+# The Nix `aether` package owns the binary, desktop entry, icons and the autoconfig loader; this only does the
+# per-user parts: install.sh step 3 (profile, lines 181-208), step 4 (chrome symlink + user.js, 210-222) and
+# step 5 (seed aether.toml, 224-231). No aether.desktop and no ~/.local/bin/aether are created.
+# resolve_profile: print the path of the 'aether' Firefox profile (legacy ~/.mozilla first, then XDG), or nothing.
+resolve_profile() {
+  local moz
   for moz in "$HOME/.mozilla/firefox" "${XDG_CONFIG_HOME:-$HOME/.config}/mozilla/firefox"; do
     [ -f "$moz/profiles.ini" ] || continue
-    profile_path="$(awk -F= -v name="$prof_name" -v moz="$moz" '
+    awk -F= -v name=aether -v moz="$moz" '
       /^\[/{n=""; p=""; rel=1} $1=="Name"{n=$2} $1=="IsRelative"{rel=$2} $1=="Path"{p=$2}
-      n==name && p!="" {print (rel=="1" ? moz "/" p : p); found=1; exit} END{exit !found}' "$moz/profiles.ini")" && break
-    profile_path=""
+      n==name && p!="" {print (rel=="1" ? moz "/" p : p); found=1; exit} END{exit !found}' "$moz/profiles.ini" && return 0
   done
+  return 0
+}
+aether_tool() { # rev
+  marker_ok aether "$1" && { log "ok: aether profile $1"; return 0; }
+  local share="$NIXPROFILE/share/aether" ov profile_path cfg="${XDG_CONFIG_HOME:-$HOME/.config}/aether"
+  ov="$share/overlay"
+  if [ "$DRY" != 1 ] && [ ! -d "$ov" ]; then skip aether "Nix aether package not in $NIXPROFILE (run the nix switch first)"; return 0; fi
+  profile_path="$(resolve_profile)"
   if [ -z "$profile_path" ]; then
-    have firefox || { skip aether-profile "firefox not on PATH; profile steps not done, launcher installed"; return 0; }
-    run firefox -CreateProfile "$prof_name"
-    for moz in "$HOME/.mozilla/firefox" "${XDG_CONFIG_HOME:-$HOME/.config}/mozilla/firefox"; do
-      [ -f "$moz/profiles.ini" ] || continue
-      profile_path="$(awk -F= -v name="$prof_name" -v moz="$moz" '
-        /^\[/{n=""; p=""; rel=1} $1=="Name"{n=$2} $1=="IsRelative"{rel=$2} $1=="Path"{p=$2}
-        n==name && p!="" {print (rel=="1" ? moz "/" p : p); found=1; exit} END{exit !found}' "$moz/profiles.ini")" && break
-      profile_path=""
-    done
+    run "$share/firefox" -CreateProfile aether || { fail "aether (profile creation)"; return 0; }
+    profile_path="$(resolve_profile)"
     [ "$DRY" = 1 ] && [ -z "$profile_path" ] && profile_path="<aether-profile>"
   fi
   [ -n "$profile_path" ] || { fail "aether (could not resolve profile path)"; return 0; }
-  # install.sh 210-222 (step 4): chrome/ symlink, user.js backup + install
   if [ -e "$profile_path/chrome" ] && [ ! -L "$profile_path/chrome" ]; then fail "aether ($profile_path/chrome exists and is not a symlink)"; return 0; fi
   run ln -sfn "$ov/chrome" "$profile_path/chrome"
   if [ -f "$profile_path/user.js" ] && [ ! -f "$profile_path/user.js.pre-aether" ]; then run mv "$profile_path/user.js" "$profile_path/user.js.pre-aether"; fi
   run cp "$ov/prefs/user.js" "$profile_path/user.js"
-  # install.sh 224-231 (step 5): seed aether.toml once, never overwrite
   run mkdir -p "$cfg"
   [ -f "$cfg/aether.toml" ] || run cp "$ov/config/aether.toml" "$cfg/aether.toml"
-  marker_set aether "$2"
+  marker_set aether "$1"
 }
 
 {{ range .extraTools.npm -}}
@@ -150,13 +114,11 @@ cargo_tool "{{ .crate }}" "{{ .version }}"
 {{ range .extraTools.pipx -}}
 pipx_tool "{{ .name }}" "{{ .version }}"{{ if hasKey . "python" }} "{{ .python }}"{{ end }}
 {{ end -}}
-argonaut_tool "{{ .extraTools.argonaut.version }}" "{{ .extraTools.argonaut.sha256 }}" "{{ .extraTools.argonaut.url }}"
 grok_tool "{{ .extraTools.grok.version }}" "{{ .extraTools.grok.installerUrl }}"
-hyprcapture_tool "{{ .extraTools.git.hyprcapture.url }}" "{{ .extraTools.git.hyprcapture.rev }}"
-kdeconnect_tool "{{ .extraTools.git.kdeconnectFix.url }}" "{{ .extraTools.git.kdeconnectFix.rev }}"
-aether_tool "{{ .extraTools.git.aether.url }}" "{{ .extraTools.git.aether.rev }}"
+aether_tool "{{ .extraTools.aether.rev }}"
 
 [ ${#SKIPPED[@]} -eq 0 ] || log "skipped: ${SKIPPED[*]}"
-if [ ${#FAILED[@]} -gt 0 ]; then log "FAILED: ${FAILED[*]}"; exit 1; fi
+if [ ${#FAILED[@]} -gt 0 ]; then log "FAILED: ${FAILED[*]}"; fi
+if [ ${#FAILED[@]} -gt 0 ] || [ ${#SKIPPED[@]} -gt 0 ]; then exit 1; fi
 log "done"
 exit 0

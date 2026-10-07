@@ -57,7 +57,7 @@ in {
     (weechat.override { configure = { availablePlugins, ... }: { scripts = [ weechatScripts.wee-slack ]; }; })
     # calendar / tasks / sync
     gcalcli gnome-calendar khal tasksh python3Packages.bugwarrior taskchampion-sync-server
-    kdePackages.kdeconnect-kde
+    kdePackages.kdeconnect-kde hypr-kdeconnect-fix hyprcapture argonaut
     # containers
     buildah skopeo dive
     # CLI utilities
