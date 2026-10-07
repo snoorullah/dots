@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 # dots-ops shared library — source it, never execute. Root and user both use this file.
-: "${OPS_STATE:=${XDG_STATE_HOME:-$HOME/.local/state}/dots-ops}"
-: "${OPS_ROOT_STATE:=/var/lib/dots-ops}"
+: "${OPS_IS_ROOT:=$([ "$(id -u)" = 0 ] && echo 1 || echo 0)}"
+: "${OPS_ROOT_STATE:=/var/lib/dots-ops}"   # root job statuses + ask files (0755/0644, read by the user relay)
+if [ "$OPS_IS_ROOT" = 1 ]; then   # root has no usable HOME under systemd/sudo; its own log/locks live here
+  : "${OPS_STATE:=$OPS_ROOT_STATE/root}"
+else
+  : "${OPS_STATE:=${XDG_STATE_HOME:-$HOME/.local/state}/dots-ops}"
+fi
 : "${OPS_NOTIFY:=notify-send}"
 : "${OPS_REMIND_SECS:=86400}"
-: "${OPS_IS_ROOT:=$([ "$(id -u)" = 0 ] && echo 1 || echo 0)}"
 mkdir -p "$OPS_STATE/state" "$OPS_STATE/pending" "$OPS_STATE/queue" "$OPS_STATE/locks" 2>/dev/null || true
+if [ "$OPS_IS_ROOT" = 1 ]; then chmod 700 "$OPS_STATE/locks" 2>/dev/null || true; fi   # nobody else may hold root's locks
 
 ops_now() { date +%s; }
 
@@ -79,8 +84,16 @@ else
 fi
 : "${OPS_POWER_DIR:=/sys/class/power_supply}"
 
-ops_ask() {   # job question action — one live pending per job
+ops_ask() {   # job question action [alt_action] — one live pending per job
   local job=$1 q=$2 act=$3 now; now=$(ops_now)
+  if [ "$OPS_IS_ROOT" = 1 ]; then   # root cannot reach the desktop: leave an ask file for `dots-ops relay`
+    mkdir -p "$OPS_ROOT_STATE"
+    jq -cn --arg q "$q" --arg a "$act" --arg alt "${4:-}" --argjson t "$now" \
+      '{question:$q,action:$a,asked:$t} + (if $alt == "" then {} else {alt_action:$alt} end)' \
+      > "$OPS_ROOT_STATE/ask-$job.json.tmp" && mv "$OPS_ROOT_STATE/ask-$job.json.tmp" "$OPS_ROOT_STATE/ask-$job.json"
+    ops_log "$job" ask "$q"
+    return 0
+  fi
   ops_ask_pending "$job" && return 0
   jq -cn --arg q "$q" --arg a "$act" --argjson t "$now" --argjson e $((now + 86400)) \
     '{question:$q,action:$a,asked:$t,expires:$e,snooze_until:0}' > "$OPS_STATE/pending/$job.json"

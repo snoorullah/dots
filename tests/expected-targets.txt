@@ -101,6 +101,8 @@ f all .config/systemd/user/dots-ops@.service
 f all .config/systemd/user/dots-ops-idle.target
 f all .config/systemd/user/dots-ops-fallback.timer
 f all .config/systemd/user/dots-ops-fallback.service
+f all .config/systemd/user/dots-ops-relay.path
+f all .config/systemd/user/dots-ops-relay.service
 f all .config/systemd/user/hyprpolkitagent.service
 f all .config/systemd/user/onprem-kube-tunnel.service
 f all .config/systemd/user/ovh-k8s-tunnel.service

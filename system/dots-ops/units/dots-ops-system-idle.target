@@ -1,0 +1,4 @@
+[Unit]
+Description=dots-ops heavy root jobs (machine idle)
+# Started (restarted) by `dots-ops-run system idle-run`, stopped by `system idle-end`.
+# Heavy root jobs add themselves here, e.g. Wants=dots-ops@disk-clean-system.service

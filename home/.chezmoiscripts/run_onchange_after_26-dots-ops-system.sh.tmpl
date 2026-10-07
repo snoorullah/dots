@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# dots-ops system install hash: {{ output "sh" "-c" (printf "cd %s && find system/dots-ops home/private_dot_local/lib/dots-ops/lib.sh home/private_dot_local/private_bin/executable_dots-ops-job -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum" (quote .chezmoi.workingTree)) | trim }}
+# Installs the root side of dots-ops as root-owned copies (root never runs files from the user's tree).
+# NixOS: nix/hosts/nixos-laptop/dots-ops.nix does this instead.
+set -euo pipefail
+{{- if ne .gpu "nixos" }}
+W={{ .chezmoi.workingTree | quote }}
+me="${USER:-$(id -un)}"
+# The sudo rule trusts /usr/local/bin and /usr/local/lib: refuse if anyone but root can write there.
+for d in /usr/local /usr/local/bin /usr/local/lib; do
+  if [ -e "$d" ] && { [ "$(stat -Lc %u "$d")" != 0 ] || [ $(( 0$(stat -Lc %a "$d") & 022 )) != 0 ]; }; then
+    echo "dots-ops: $d is not root-owned/0755; not installing the root side" >&2; exit 1
+  fi
+done
+# root jobs need jq from the system (never the user's Nix profile)
+if ! PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin command -v jq >/dev/null; then
+  if command -v pacman >/dev/null; then sudo pacman -S --needed --noconfirm jq
+  elif command -v apt-get >/dev/null; then sudo DEBIAN_FRONTEND=noninteractive apt-get install -y jq
+  elif command -v dnf >/dev/null; then sudo dnf install -y jq
+  else echo "dots-ops: install jq system-wide for root jobs" >&2; fi
+fi
+L=/usr/local/lib/dots-ops
+# jobs/actions are replaced wholesale so a job or action removed from the repo stops being allow-listed
+sudo rm -rf "$L/jobs" "$L/actions"
+sudo install -d -m 755 "$L" "$L/jobs" "$L/actions" /etc/dots-ops /var/lib/dots-ops
+sudo install -m 644 "$W/home/private_dot_local/lib/dots-ops/lib.sh" "$L/lib.sh"
+sudo install -m 755 "$W/home/private_dot_local/private_bin/executable_dots-ops-job" /usr/local/bin/dots-ops-job
+sudo install -m 755 "$W/system/dots-ops/bin/dots-ops-run" /usr/local/bin/dots-ops-run
+[ -d "$W/system/dots-ops/jobs" ] && sudo cp -r --no-preserve=ownership,mode "$W/system/dots-ops/jobs/." "$L/jobs/"
+[ -d "$W/system/dots-ops/actions" ] && sudo cp -r --no-preserve=ownership,mode "$W/system/dots-ops/actions/." "$L/actions/"
+sudo chown -R root:root "$L" /var/lib/dots-ops /usr/local/bin/dots-ops-run /usr/local/bin/dots-ops-job
+sudo chmod -R go-w "$L"; sudo chmod 755 /var/lib/dots-ops
+sudo install -m 644 "$W/system/dots-ops/units/"* /etc/systemd/system/
+if [ -d "$W/system/dots-ops/udev" ]; then sudo install -m 644 "$W/system/dots-ops/udev/"* /etc/udev/rules.d/; fi
+tmp=$(mktemp); cp "$W/system/dots-ops/sudoers" "$tmp"
+if sudo visudo -cf "$tmp"; then sudo install -m 440 -o root -g root "$tmp" /etc/sudoers.d/dots-ops
+else echo "dots-ops: sudoers rule failed visudo; not installed" >&2; fi
+rm -f "$tmp"
+getent group dots-ops >/dev/null || sudo groupadd --system dots-ops
+id -nG "$me" | tr ' ' '\n' | grep -qx dots-ops || { sudo usermod -aG dots-ops "$me"; echo "dots-ops: added $me to group dots-ops (log out and back in)"; }
+sudo systemctl daemon-reload
+if [ -d "$W/system/dots-ops/udev" ]; then sudo udevadm control --reload || true; fi
+for t in "$W"/system/dots-ops/units/*.timer "$W"/system/dots-ops/units/*.path; do
+  [ -e "$t" ] && sudo systemctl enable --now "$(basename "$t")"
+done
+{{- end }}
+exit 0

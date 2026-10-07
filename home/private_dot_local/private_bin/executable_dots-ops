@@ -1,16 +1,50 @@
 #!/usr/bin/env bash
-# dots-ops CLI. Later tasks add: status, waybar (T5), relay (T4), perf-mode (T10), pins-bump (T11).
+# dots-ops CLI. Later tasks add: status, waybar (T5), perf-mode (T10), pins-bump (T11).
 set -uo pipefail
 if [ "$(id -u)" = 0 ]; then LIB=/usr/local/lib/dots-ops/lib.sh
 else LIB="${OPS_LIB:-$HOME/.local/lib/dots-ops/lib.sh}"; [ -f "$LIB" ] || LIB=/usr/local/lib/dots-ops/lib.sh; fi
 source "$LIB"
 : "${OPS_JOBS_DIR:=$HOME/.local/lib/dots-ops/jobs}"
 here=$(dirname "$(readlink -f "$0")")
-usage() { echo "usage: dots-ops run <job> [--now] | answer <job> <approve|skip|snooze> | idle-start [--fallback] | idle-end" >&2; exit 2; }
+usage() { echo "usage: dots-ops run <job> [--now] | answer <job> <approve|skip|snooze> | idle-start [--fallback] | idle-end | relay" >&2; exit 2; }
 
 sudo_runner() {   # R8: sudo -n only; returns the runner rc (callers decide if it is fatal)
   local sc; read -ra sc <<< "$OPS_SUDO"
   "${sc[@]}" "$OPS_RUNNER" "$@" || { local rc=$?; ops_log system warn "sudo runner failed (rc=$rc): $*"; return "$rc"; }
+}
+relay() {   # root → user: /var/lib/dots-ops/<job>.json → ops_state; ask-<job>.json → ops_ask (user context only)
+  [ "$OPS_IS_ROOT" != 1 ] || { echo "dots-ops relay runs as the desktop user, not root" >&2; exit 2; }
+  local f base st sum changed seen ask_sum q act alt
+  mkdir -p "$OPS_STATE/relayed"
+  for f in "$OPS_ROOT_STATE"/*.json; do
+    [ -f "$f" ] || continue
+    base=$(basename "$f" .json)
+    if [[ $base =~ ^ask-([a-z0-9][a-z0-9-]*)$ ]]; then   # pending root approval
+      job=${BASH_REMATCH[1]}
+      ask_sum=$(sha256sum < "$f" | cut -d' ' -f1)
+      [ "$(cat "$OPS_STATE/relayed/ask-$job" 2>/dev/null)" = "$ask_sum" ] && continue   # already asked
+      q=$(jq -er '.question | strings' "$f" 2>/dev/null) && act=$(jq -er '.action | strings' "$f" 2>/dev/null) \
+        || { ops_log "$job" warn "relay: unreadable ask file"; continue; }
+      alt=$(jq -r '.alt_action // "" | strings' "$f" 2>/dev/null)
+      if [[ $act != root:* ]] || { [ -n "$alt" ] && [[ $alt != root:* ]]; }; then   # root may only ask for root actions
+        ops_log "$job" warn "relay: ignored non-root action in ask file"; continue
+      fi
+      if [ -n "$alt" ]; then ops_ask "$job" "$q" "$act" "$alt"; else ops_ask "$job" "$q" "$act"; fi
+      echo "$ask_sum" > "$OPS_STATE/relayed/ask-$job"
+      continue
+    fi
+    [[ $base =~ ^[a-z0-9][a-z0-9-]*$ ]] || continue
+    st=$(jq -r '.status // ""' "$f" 2>/dev/null); sum=$(jq -r '.summary // ""' "$f" 2>/dev/null)
+    changed=$(jq -r '.changed // 0' "$f" 2>/dev/null)
+    case $st in ok|warn|fail) ;; *) continue ;; esac
+    [[ $changed =~ ^[0-9]+$ ]] || continue
+    seen=$(cat "$OPS_STATE/relayed/$base" 2>/dev/null || echo 0)
+    [[ $seen =~ ^[0-9]+$ ]] || seen=0
+    [ "$changed" -gt "$seen" ] || continue
+    ops_state "$base" "$st" "$sum"
+    echo "$changed" > "$OPS_STATE/relayed/$base"
+  done
+  return 0
 }
 job_bin() { local b="$here/dots-ops-job"; [ -e "$b" ] || b="$here/executable_dots-ops-job"; echo "$b"; }
 valid_job() { [[ ${1:-} =~ ^[a-z0-9-]+$ ]] || { echo "bad job name" >&2; exit 2; }; }
@@ -48,5 +82,6 @@ case "${1:-}" in
     rm -f "$OPS_IDLE_FLAG"
     systemctl --user stop --no-block dots-ops-idle.target || true
     sudo_runner system idle-end || true ;;   # R3
+  relay) relay ;;
   *) usage ;;
 esac

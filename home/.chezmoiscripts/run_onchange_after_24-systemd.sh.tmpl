@@ -11,6 +11,7 @@ systemctl --user enable --now adhd-prayer-times.timer adhd-salah-schedule.timer 
 # kube tunnels: always enabled; each unit's ConditionPathExists skips it until its hand-copied secret exists
 systemctl --user enable --now onprem-kube-tunnel.service ovh-k8s-tunnel.service
 systemctl --user enable --now dots-ops-fallback.timer
+systemctl --user enable --now dots-ops-relay.path dots-ops-relay.service
 {{- if .timetrack }}
 systemctl --user enable --now awatcher.service timetrack-logind.service timetrack-rollup.timer timetrack-sync.timer
 {{- end }}

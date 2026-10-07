@@ -1,0 +1,3 @@
+# dots-ops: the only privilege path. Group dots-ops may run the root-owned runner without a password;
+# the runner itself allow-lists <job>/<action> against root-owned files under /usr/local/lib/dots-ops.
+%dots-ops ALL=(root) NOPASSWD: /usr/local/bin/dots-ops-run

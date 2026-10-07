@@ -7,7 +7,7 @@
 #   cp /mnt/etc/nixos/hardware-configuration.nix hosts/laptop/
 let user = "devsupreme"; in
 {
-  imports = [ ./hardware-configuration.nix ];
+  imports = [ ./hardware-configuration.nix ./dots-ops.nix ];
 
   # ── Boot ──
   boot.loader.systemd-boot.enable = true;
@@ -105,7 +105,7 @@ let user = "devsupreme"; in
   users.users.${user} = {
     isNormalUser = true;
     description = user;
-    extraGroups = [ "wheel" "networkmanager" "video" "audio" "docker" "wireshark" ];
+    extraGroups = [ "wheel" "networkmanager" "video" "audio" "docker" "wireshark" "dots-ops" ];   # dots-ops: sudo -n runner (dots-ops.nix)
     shell = pkgs.zsh;
   };
 

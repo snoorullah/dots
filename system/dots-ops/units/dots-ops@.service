@@ -1,0 +1,11 @@
+[Unit]
+Description=dots-ops root job %i
+
+[Service]
+Type=oneshot
+Environment=OPS_IS_ROOT=1
+UMask=0022
+ExecStart=/usr/local/bin/dots-ops-job %i
+TimeoutStartSec=2h
+Nice=10
+IOSchedulingClass=idle

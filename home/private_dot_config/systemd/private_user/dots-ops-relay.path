@@ -1,0 +1,9 @@
+[Unit]
+Description=dots-ops: relay root job status and approvals to the desktop
+
+[Path]
+PathChanged=/var/lib/dots-ops
+Unit=dots-ops-relay.service
+
+[Install]
+WantedBy=default.target
