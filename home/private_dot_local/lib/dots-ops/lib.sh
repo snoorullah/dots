@@ -112,9 +112,29 @@ ops_ask() {   # job question action [alt_action [alt_label]] — one live pendin
     '{question:$q,action:$a,asked:$t,expires:$e,snooze_until:0}
      + (if $alt == "" then {} else {alt_action:$alt} + (if $al == "" then {} else {alt_label:$al} end) end)' > "$OPS_STATE/pending/$job.json"
   ops_log "$job" ask "$q"
-  # R36: a transient user unit, not a detached child (that stays in the calling unit's cgroup and dies with a oneshot relay)
-  if [ "$OPS_ASK_UI" = 1 ]; then systemd-run --user --no-block --collect "$HOME/.local/bin/dots-ops-ask" "$job" >/dev/null 2>&1 || true; fi
+  ops_ask_ui "$job"
   return 0
+}
+
+ops_ask_ui() {   # job — show the approval toast for the job's pending
+  # R36: a transient user unit, not a detached child (that stays in the calling unit's cgroup and dies with a oneshot relay)
+  if [ "$OPS_ASK_UI" = 1 ]; then systemd-run --user --no-block --collect "$HOME/.local/bin/dots-ops-ask" "$1" >/dev/null 2>&1 || true; fi
+  return 0
+}
+
+ops_pending_token() {   # job — sha256 of the pending's question+action+alt_action+asked (R54); 1 = no readable pending
+  local s
+  s=$(jq -ce '[.question, .action, (.alt_action // ""), .asked]' "$OPS_STATE/pending/$1.json" 2>/dev/null) || return 1
+  printf '%s' "$s" | sha256sum | cut -d' ' -f1
+}
+
+ops_toast_close() {   # job — close the approval toast still on screen for this job (dots-ops-ask keeps its id in <job>.nid)
+  local n="$OPS_STATE/pending/$1.nid" id
+  id=$(head -n 1 "$n" 2>/dev/null) || return 0
+  rm -f "$n"
+  [[ $id =~ ^[0-9]+$ ]] && command -v gdbus >/dev/null 2>&1 || return 0
+  gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications \
+    --method org.freedesktop.Notifications.CloseNotification "$id" >/dev/null 2>&1 || true
 }
 
 ops_ask_pending() {   # 0 = live pending (or snoozed) exists
@@ -143,9 +163,16 @@ ops_dispatch() {   # job action-string: run a user:/root: action; returns its rc
   return "$rc"
 }
 
-ops_answer() {   # job approve|alt|skip|snooze
-  local job=$1 ans=$2 f="$OPS_STATE/pending/$1.json" act altact rc=0
+ops_answer() {   # job approve|alt|skip|snooze [token]
+  # R54: a token (from the toast or the status TUI) must match the pending as it is NOW; the relay may have replaced it
+  # with another question since the toast was shown. A stale answer does nothing; the newer ask is shown again.
+  local job=$1 ans=$2 tok=${3:-} f="$OPS_STATE/pending/$1.json" act altact rc=0 saved
   [ -f "$f" ] || return 0
+  if [ -n "$tok" ] && [ "$tok" != "$(ops_pending_token "$job")" ]; then
+    ops_log "$job" warn "stale approval ignored ($ans was for content that is no longer pending)"
+    if ops_ask_pending "$job"; then ops_ask_ui "$job"; fi
+    ops_signal; return 0
+  fi
   act=$(jq -r .action "$f" 2>/dev/null)
   case $ans in
     approve|alt)
@@ -155,9 +182,15 @@ ops_answer() {   # job approve|alt|skip|snooze
         act=$altact
       fi
       if ! ops_ask_pending "$job"; then ops_log "$job" info "approval expired; not run"; ops_signal; return 0; fi
-      rm -f "$f"; ops_log "$job" "$ans" "$act"
+      saved=$(cat "$f"); rm -f "$f"; ops_log "$job" "$ans" "$act"
       ops_dispatch "$act" || rc=$?
-      [ "$rc" -eq 0 ] || ops_state "$job" warn "approved action failed (rc=$rc): $act" ;;
+      if [ "$rc" -ne 0 ]; then
+        # R60: sudo refused / runner broken: the root action never started, so keep the ask (same content, same token)
+        if [[ $act == root:* ]] && [ ! -e "$f" ]; then
+          printf '%s\n' "$saved" > "$f"; ops_log "$job" info "pending restored after the failed root dispatch"
+        fi
+        ops_state "$job" warn "approved action failed (rc=$rc): $act"
+      fi ;;
     skip)   rm -f "$f"; ops_log "$job" skip "$act" ;;
     snooze) jq --argjson s $(( $(ops_now) + 86400 )) '.snooze_until=$s' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
             ops_log "$job" snooze "$act" ;;
@@ -204,6 +237,7 @@ ops_waybar_json() {   # one JSON object for the Waybar custom/ops module
 }
 
 ops_status_lines() {   # fzf input: job ⟂ status ⟂ summary ⟂ last change, worst first; live asks listed with status "ask"
+  # plus a 5th field, the ask's token (R54), which `dots-ops status` hides (--with-nth) and passes to `answer`
   local now j q; now=$(ops_now)
   {
     ops_state_entries | jq -r --argjson now "$now" '
@@ -212,8 +246,9 @@ ops_status_lines() {   # fzf input: job ⟂ status ⟂ summary ⟂ last change, 
       | [$o, .job, .status, (.summary // "" | gsub("[\n\t]";" ")),
          (if $m < 60 then "\($m)m ago" elif $m < 1440 then "\($m / 60 | floor)h ago" else "\($m / 1440 | floor)d ago" end)]
       | @tsv' 2>/dev/null
-    ops_live_asks | while IFS=$'\t' read -r j q; do printf '1\t%s\task\t%s\tnow\n' "$j" "$q"; done
-  } | sort -s -t$'\t' -k1,1n -k2,2 | awk -F'\t' '{printf "%s ⟂ %s ⟂ %s ⟂ %s\n", $2, $3, $4, $5}'
+    ops_live_asks | while IFS=$'\t' read -r j q; do printf '1\t%s\task\t%s\tnow\t%s\n' "$j" "$q" "$(ops_pending_token "$j")"; done
+  } | sort -s -t$'\t' -k1,1n -k2,2 \
+    | awk -F'\t' '{printf "%s ⟂ %s ⟂ %s ⟂ %s", $2, $3, $4, $5; if ($6 != "") printf " ⟂ %s", $6; printf "\n"}'
 }
 
 ops_on_ac() {

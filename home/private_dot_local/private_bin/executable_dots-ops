@@ -6,7 +6,7 @@ else LIB="${OPS_LIB:-$HOME/.local/lib/dots-ops/lib.sh}"; [ -f "$LIB" ] || LIB=/u
 source "$LIB"
 : "${OPS_JOBS_DIR:=$HOME/.local/lib/dots-ops/jobs}"
 here=$(dirname "$(readlink -f "$0")")
-usage() { echo "usage: dots-ops run <job> [--now] | answer <job> <approve|alt|skip|snooze> | idle-start [--fallback] | idle-end | perf-mode [on|off|toggle] | pins-bump | relay | waybar | status" >&2; exit 2; }
+usage() { echo "usage: dots-ops run <job> [--now] | answer <job> <approve|alt|skip|snooze> [token] | idle-start [--fallback] | idle-end | perf-mode [on|off|toggle] | pins-bump | relay | waybar | status" >&2; exit 2; }
 
 sudo_runner() {   # R8: sudo -n only; returns the runner rc (callers decide if it is fatal)
   local sc; read -ra sc <<< "$OPS_SUDO"
@@ -42,6 +42,7 @@ relay() {   # root → user: /var/lib/dots-ops/<job>.json → ops_state; ask-<jo
            && [ "$(jq -r '.question // "" | strings' "$p" 2>/dev/null)" = "$q" ] \
            && [ "$(jq -r '.alt_action // "" | strings' "$p" 2>/dev/null)" = "$alt" ]; then :
       elif [ -f "$p" ] && [[ $(jq -r '.action // "" | strings' "$p" 2>/dev/null) == root:* ]]; then
+        ops_toast_close "$job"   # R54: the old toast must not stay clickable (its token is stale anyway)
         rm -f "$p"; ops_log "$job" info "relay: pending replaced by a changed root ask"
       fi
       if [ -n "$alt" ]; then ops_ask "$job" "$q" "$act" "$alt" "$altl"; else ops_ask "$job" "$q" "$act"; fi
@@ -73,6 +74,7 @@ relay() {   # root → user: /var/lib/dots-ops/<job>.json → ops_state; ask-<jo
       [ -e "$OPS_ROOT_STATE/ask-$job.json" ] && continue
       p="$OPS_STATE/pending/$job.json"
       if [ -f "$p" ] && [[ $(jq -r '.action // "" | strings' "$p" 2>/dev/null) == root:* ]]; then
+        ops_toast_close "$job"
         rm -f "$p"; ops_log "$job" info "relay: root ask withdrawn; pending removed"; gone=1
       fi
       rm -f "$f"
@@ -151,10 +153,11 @@ case "${1:-}" in
         ops_state "$job" warn "run failed (rc=$rc)"; exit "$rc"
       fi
     fi ;;
-  answer)
-    [ $# -eq 3 ] || usage
+  answer)   # optional token (R54): the pending's content hash as shown; empty = none (CLI by hand)
+    [ $# -eq 3 ] || [ $# -eq 4 ] || usage
     case $3 in approve|alt|skip|snooze) ;; *) usage ;; esac
-    valid_job "$2"; ops_answer "$2" "$3" ;;
+    [ -z "${4:-}" ] || [[ $4 =~ ^[0-9a-f]{64}$ ]] || usage
+    valid_job "$2"; ops_answer "$2" "$3" "${4:-}" ;;
   idle-start)
     if [ "${2:-}" = --fallback ]; then   # R15: only when on AC and nobody is using the machine
       if ops_on_ac && { pgrep -x hyprlock >/dev/null 2>&1 || ! loginctl list-sessions --no-legend 2>/dev/null | grep -q .; }; then
@@ -197,12 +200,13 @@ case "${1:-}" in
     self=$(readlink -f "$0")
     command -v fzf >/dev/null || { echo "dots-ops: fzf not found" >&2; exit 1; }
     reload="reload($self _lines)"
-    ops_status_lines | fzf --delimiter ' ⟂ ' --no-sort --reverse \
+    # field 5 = the ask's token (R54), hidden; an approve of an ask that changed meanwhile is ignored and re-shown
+    ops_status_lines | fzf --delimiter ' ⟂ ' --with-nth=1..4 --no-sort --reverse \
       --header 'enter: log · ctrl-a: approve · ctrl-s: snooze · ctrl-k: skip · ctrl-r: run now' \
       --bind "enter:execute($self _log {1} | ${PAGER:-less -R})" \
-      --bind "ctrl-a:execute-silent($self answer {1} approve)+$reload" \
-      --bind "ctrl-s:execute-silent($self answer {1} snooze)+$reload" \
-      --bind "ctrl-k:execute-silent($self answer {1} skip)+$reload" \
+      --bind "ctrl-a:execute-silent($self answer {1} approve {5})+$reload" \
+      --bind "ctrl-s:execute-silent($self answer {1} snooze {5})+$reload" \
+      --bind "ctrl-k:execute-silent($self answer {1} skip {5})+$reload" \
       --bind "ctrl-r:execute-silent($self run {1} --now)+$reload" || true ;;
   _lines) ops_status_lines ;;   # internal: fzf reload source
   _log) valid_job "${2:-}"   # internal: last 50 log lines of one job

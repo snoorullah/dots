@@ -328,14 +328,18 @@ without_cmd() {   # without_cmd <cmd>: hermetic PATH = stubs (minus <cmd>) + the
 @test "R5 dots-ops-ask adds the alt button only when the pending has alt_action, and routes the answer" {
   export OPS_ASK_UI=0 OPS_LIB="$LIB"
   mkdir -p "$HOME/.local/bin"
-  printf '#!/bin/sh\necho "$@" >> %s/ns.args\necho "${STUB_NS_CHOICE:-}"\n' "$BATS_TEST_TMPDIR" > "$BATS_TEST_TMPDIR/notify-send"; chmod +x "$BATS_TEST_TMPDIR/notify-send"
+  # notify-send -p prints the id first (R54: kept in pending/<job>.nid while the toast is up), then the chosen action
+  printf '#!/bin/sh\necho "$@" >> %s/ns.args\ncase " $* " in *" -p "*) echo 4711; sleep 0.5; cat "$OPS_STATE"/pending/*.nid > %s/nid.seen 2>/dev/null ;; esac\necho "${STUB_NS_CHOICE:-}"\n' "$BATS_TEST_TMPDIR" "$BATS_TEST_TMPDIR" > "$BATS_TEST_TMPDIR/notify-send"; chmod +x "$BATS_TEST_TMPDIR/notify-send"
   printf '#!/bin/sh\necho "answer $*" >> %s/ans.log\n' "$BATS_TEST_TMPDIR" > "$HOME/.local/bin/dots-ops"; chmod +x "$HOME/.local/bin/dots-ops"
   export PATH="$BATS_TEST_TMPDIR:$PATH"
   ASK="$R/home/private_dot_local/private_bin/executable_dots-ops-ask"
   ops_ask reboot-needed "Reboot?" "root:reboot now" "root:reboot tonight" "Tonight 03:00"
+  tok=$(ops_pending_token reboot-needed)
   STUB_NS_CHOICE=alt run bash "$ASK" reboot-needed; [ "$status" -eq 0 ]
   grep -q -- '-A alt=Tonight 03:00' "$BATS_TEST_TMPDIR/ns.args"
-  [ "$(cat "$BATS_TEST_TMPDIR/ans.log")" = "answer answer reboot-needed alt" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/ans.log")" = "answer answer reboot-needed alt $tok" ]   # R54: the token of the content shown
+  [ "$(cat "$BATS_TEST_TMPDIR/nid.seen")" = 4711 ]                                     # id kept while the toast was up
+  [ ! -e "$OPS_STATE/pending/reboot-needed.nid" ]                                     # and dropped once it is gone
   : > "$BATS_TEST_TMPDIR/ns.args"
   ops_ask j "q" "user:true"
   STUB_NS_CHOICE=skip run bash "$ASK" j

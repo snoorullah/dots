@@ -98,3 +98,61 @@ setup() { setup_ops; export OPS_ASK_UI=0; }
   [ ! -e "$BATS_TEST_TMPDIR/ran" ] && [ ! -e "$OPS_STATE/pending/j.json" ]
   grep -q "approval expired" "$OPS_STATE/log.jsonl"
 }
+
+# ---- R54: approvals carry a token (sha of question+action+alt_action+asked) ----
+uistub() {   # systemd-run stub on PATH that records the UI relaunch
+  mkdir -p "$BATS_TEST_TMPDIR/fb"; printf '#!/bin/sh\necho "systemd-run $*" >> %s/ui.log\n' "$BATS_TEST_TMPDIR" > "$BATS_TEST_TMPDIR/fb/systemd-run"
+  chmod +x "$BATS_TEST_TMPDIR/fb/systemd-run"; export PATH="$BATS_TEST_TMPDIR/fb:$PATH"; : > "$BATS_TEST_TMPDIR/ui.log"
+}
+@test "R54 token: 64 hex chars, changes with question, action, alt_action and asked; not with snooze" {
+  ops_ask j "q1" "user:true"; t1=$(ops_pending_token j)
+  [[ $t1 =~ ^[0-9a-f]{64}$ ]]
+  f="$OPS_STATE/pending/j.json"; cp "$f" "$BATS_TEST_TMPDIR/orig"
+  for edit in '.question="q2"' '.action="user:false"' '.alt_action="user:x"' '.asked=1'; do
+    jq "$edit" "$BATS_TEST_TMPDIR/orig" > "$f"
+    [ "$(ops_pending_token j)" != "$t1" ]
+  done
+  jq '.snooze_until=5' "$BATS_TEST_TMPDIR/orig" > "$f"; [ "$(ops_pending_token j)" = "$t1" ]
+  run ops_pending_token nope; [ "$status" -ne 0 ]
+}
+@test "R54 stale token: nothing dispatched, the newer pending is kept and shown again" {
+  uistub; export OPS_ASK_UI=1
+  ops_ask j "Apply A?" "user:touch $BATS_TEST_TMPDIR/ran-a"; old=$(ops_pending_token j)
+  rm -f "$OPS_STATE/pending/j.json"; ops_ask j "Apply B?" "user:touch $BATS_TEST_TMPDIR/ran-b"; : > "$BATS_TEST_TMPDIR/ui.log"
+  run ops_answer j approve "$old"; [ "$status" -eq 0 ]
+  [ ! -e "$BATS_TEST_TMPDIR/ran-a" ] && [ ! -e "$BATS_TEST_TMPDIR/ran-b" ]
+  [ "$(jq -r .question "$OPS_STATE/pending/j.json")" = "Apply B?" ]
+  grep -q 'stale approval ignored' "$OPS_STATE/log.jsonl"
+  grep -q 'dots-ops-ask j' "$BATS_TEST_TMPDIR/ui.log"
+  run ops_answer j skip "$old"; [ -e "$OPS_STATE/pending/j.json" ]   # a stale skip does not drop the newer ask either
+}
+@test "R54 matching token dispatches; no token (CLI) still dispatches" {
+  ops_ask j "q" "user:touch $BATS_TEST_TMPDIR/ran1"; ops_answer j approve "$(ops_pending_token j)"
+  [ -e "$BATS_TEST_TMPDIR/ran1" ] && [ ! -e "$OPS_STATE/pending/j.json" ]
+  ops_ask j "q" "user:touch $BATS_TEST_TMPDIR/ran2"; ops_answer j approve
+  [ -e "$BATS_TEST_TMPDIR/ran2" ]
+}
+@test "R54 CLI answer passes a token; a malformed token is a usage error" {
+  CLI="$BATS_TEST_DIRNAME/../../home/private_dot_local/private_bin/executable_dots-ops"
+  export OPS_LIB="$BATS_TEST_DIRNAME/../../home/private_dot_local/lib/dots-ops/lib.sh"
+  ops_ask j "q" "user:touch $BATS_TEST_TMPDIR/ran"
+  run bash "$CLI" answer j approve nothex; [ "$status" -eq 2 ]; [ ! -e "$BATS_TEST_TMPDIR/ran" ]
+  run bash "$CLI" answer j approve "$(printf '0%.0s' {1..64})"; [ "$status" -eq 0 ]; [ ! -e "$BATS_TEST_TMPDIR/ran" ]
+  run bash "$CLI" answer j approve ""; [ "$status" -eq 0 ]; [ -e "$BATS_TEST_TMPDIR/ran" ]   # empty = no token (status TUI on a state row)
+  ops_ask k "q" "user:touch $BATS_TEST_TMPDIR/ran-k"
+  run bash "$CLI" answer k approve "$(ops_pending_token k)"; [ "$status" -eq 0 ]; [ -e "$BATS_TEST_TMPDIR/ran-k" ]
+}
+@test "R60 a failed root dispatch restores the pending (the ask is not lost); user actions are not restored" {
+  export OPS_SUDO="$BATS_TEST_TMPDIR/sudo"; printf '#!/bin/sh\nexit 1\n' > "$OPS_SUDO"; chmod +x "$OPS_SUDO"
+  ops_ask j "Apply?" "root:j apply"; before=$(cat "$OPS_STATE/pending/j.json")
+  run ops_answer j approve; [ "$status" -ne 0 ]
+  [ "$(cat "$OPS_STATE/pending/j.json")" = "$before" ]
+  grep -q 'pending restored' "$OPS_STATE/log.jsonl"
+  ops_ask u "q" "user:false"; run ops_answer u approve; [ ! -e "$OPS_STATE/pending/u.json" ]
+}
+@test "R54 status list carries the token of each ask as a hidden 5th field" {
+  ops_ask j "Apply?" "user:true"; ops_state s warn w
+  run ops_status_lines
+  [[ $output == *"j ⟂ ask ⟂ Apply? ⟂ now ⟂ $(ops_pending_token j)"* ]]
+  srow=$(grep '^s ' <<< "$output"); [[ $srow == "s ⟂ warn ⟂ w ⟂ "* ]]; [ "$(grep -o ' ⟂ ' <<< "$srow" | wc -l)" -eq 3 ]
+}

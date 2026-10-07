@@ -260,13 +260,14 @@ ATA_OK='{"smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"name"
 @test "containers-prune volumes: survives set -euo pipefail when docker prints no reclaimed line" {
   run env STUB_DOCKER_OUT='nothing to do\n' bash -c "set -euo pipefail; source $R/home/private_dot_local/lib/dots-ops/lib.sh; source $R/system/dots-ops/actions/containers-prune/volumes.sh; echo reached"
   [ "$status" -eq 0 ]; [[ $output == *reached* ]]
-  [ "$(jq -r .summary "$OPS_STATE/state/containers-prune.json")" = "volumes pruned" ]
+  [ "$(jq -r .summary "$OPS_STATE/state/containers-prune-volumes.json")" = "volumes pruned" ]   # R55: <job>-<action>
 }
 @test "containers-prune volumes: prunes with --volumes and records the reclaimed line" {
   source "$R/system/dots-ops/actions/containers-prune/volumes.sh"
   grep -q 'docker system prune --volumes -f' "$STUB_LOG"
-  [ "$(ustate containers-prune status)" = ok ]
-  [[ $(ustate containers-prune summary) == *"Total reclaimed space: 1.5GB"* ]]
+  [ "$(ustate containers-prune-volumes status)" = ok ]
+  [[ $(ustate containers-prune-volumes summary) == *"Total reclaimed space: 1.5GB"* ]]
+  [ ! -e "$OPS_STATE/state/containers-prune.json" ]
 }
 @test "containers-prune volumes: dry-run does not call docker" {
   export DOTS_OPS_DRY_RUN=1

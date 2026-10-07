@@ -234,6 +234,41 @@ rootstate() { jq -cn --arg j "$1" --arg s "$2" --arg m "$3" --argjson t "$4" '{j
   echo x > "$OPS_STATE/relayed/ask-backup"; OPS_IS_ROOT=0 OPS_ASK_UI=0 ops_ask backup "Prune?" "user:true"
   run bash "$CLI" relay; [ -e "$OPS_STATE/pending/backup.json" ]
 }
+@test "R54 relay: replacing or withdrawing a root ask closes the superseded toast (gdbus CloseNotification <id>)" {
+  relay_setup; t=$(date +%s); mkdir -p "$BATS_TEST_TMPDIR/gb"
+  printf '#!/bin/sh\necho "gdbus $*" >> %s/gdbus.log\n' "$BATS_TEST_TMPDIR" > "$BATS_TEST_TMPDIR/gb/gdbus"; chmod +x "$BATS_TEST_TMPDIR/gb/gdbus"
+  export PATH="$BATS_TEST_TMPDIR/gb:$PATH"
+  jq -cn --argjson t "$t" '{question:"Apply A?",action:"root:firewall apply",asked:$t}' > "$OPS_ROOT_STATE/ask-firewall.json"
+  run bash "$CLI" relay; echo 4711 > "$OPS_STATE/pending/firewall.nid"   # the toast for A is up (dots-ops-ask wrote its id)
+  jq -cn --argjson t "$((t + 1))" '{question:"Apply B?",action:"root:firewall apply",asked:$t}' > "$OPS_ROOT_STATE/ask-firewall.json"
+  run bash "$CLI" relay; [ "$status" -eq 0 ]
+  grep -q 'gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.CloseNotification 4711' "$BATS_TEST_TMPDIR/gdbus.log"
+  [ ! -e "$OPS_STATE/pending/firewall.nid" ]
+  echo 4712 > "$OPS_STATE/pending/firewall.nid"; rm "$OPS_ROOT_STATE/ask-firewall.json"
+  run bash "$CLI" relay; grep -q 'CloseNotification 4712' "$BATS_TEST_TMPDIR/gdbus.log"
+}
+@test "R55 end to end: approved containers-prune volumes (fake root) -> relay shows containers-prune-volumes, never skipped" {
+  relay_setup; cp "$R/home/private_dot_local/lib/dots-ops/jobs/"*.sh "$OPS_JOBS_DIR/"   # the real user job names
+  mkdir -p "$BATS_TEST_TMPDIR/dk"; export PATH="$BATS_TEST_TMPDIR/dk:$PATH"
+  printf '#!/bin/sh\n[ -z "$DK_FAIL" ] || { echo "Error: daemon down"; exit 1; }\necho "Total reclaimed space: 12GB"\n' > "$BATS_TEST_TMPDIR/dk/docker"; chmod +x "$BATS_TEST_TMPDIR/dk/docker"
+  asroot() { env OPS_IS_ROOT=1 OPS_STATE="$BATS_TEST_TMPDIR/rootlog" "$@" bash -c 'set -euo pipefail; source "$1"; source "$2"' _ "$OPS_LIB" "$R/system/dots-ops/actions/containers-prune/volumes.sh"; }
+  run asroot DK_FAIL=1; [ "$status" -eq 0 ]
+  [ -f "$OPS_ROOT_STATE/containers-prune-volumes.json" ]; [ ! -e "$OPS_ROOT_STATE/containers-prune.json" ]
+  run bash "$CLI" relay; [ "$status" -eq 0 ]
+  [ "$(jq -r .status "$OPS_STATE/state/containers-prune-volumes.json")" = warn ]
+  grep -q 'dots-ops: containers-prune-volumes' "$NOTIFY_LOG"
+  run ! grep -q 'collides with user job' "$OPS_STATE/log.jsonl"
+  sleep 1; run asroot; [ "$status" -eq 0 ]
+  run bash "$CLI" relay
+  [ "$(jq -r .status "$OPS_STATE/state/containers-prune-volumes.json")" = ok ]
+  [[ $(jq -r .summary "$OPS_STATE/state/containers-prune-volumes.json") == *"12GB"* ]]
+  grep -q 'containers-prune-volumes recovered' "$NOTIFY_LOG"
+}
+@test "R55 no root job or action reports a state under a user job's name (the relay would skip it)" {
+  names=$(grep -rhoE 'ops_state [a-z0-9-]+' "$R/system/dots-ops" | awk '{print $2}' | sort -u)
+  [ -n "$names" ]
+  for n in $names; do [ ! -e "$R/home/private_dot_local/lib/dots-ops/jobs/$n.sh" ] || { echo "root state name $n collides with a user job"; return 1; }; done
+}
 @test "relay ignores non-root actions, bad names and bad statuses" {
   relay_setup
   jq -cn '{question:"x",action:"user:touch /tmp/pwn",asked:$t}' --argjson t "$(date +%s)" > "$OPS_ROOT_STATE/ask-evil.json"

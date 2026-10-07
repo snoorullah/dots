@@ -58,6 +58,10 @@ newline'
   run bash "$CLI" status; [ "$status" -eq 0 ]
   grep -q 'enter: log · ctrl-a: approve · ctrl-s: snooze · ctrl-k: skip · ctrl-r: run now' "$BATS_TEST_TMPDIR/fzf.args"
   grep -q 'ctrl-r:execute' "$BATS_TEST_TMPDIR/fzf.args"; grep -q 'reload' "$BATS_TEST_TMPDIR/fzf.args"
+  # R54: the answer keys pass the hidden token field of the row shown; only fields 1-4 are displayed
+  grep -qx -- '--with-nth=1..4' "$BATS_TEST_TMPDIR/fzf.args"
+  grep -q 'answer {1} approve {5})' "$BATS_TEST_TMPDIR/fzf.args"; grep -q 'answer {1} snooze {5})' "$BATS_TEST_TMPDIR/fzf.args"
+  grep -q 'answer {1} skip {5})' "$BATS_TEST_TMPDIR/fzf.args"
 }
 @test "garbage state file next to a fail file: class fail, counted, tooltip names it" {
   ops_state a fail "x"; echo '{not json' > "$OPS_STATE/state/junk.json"

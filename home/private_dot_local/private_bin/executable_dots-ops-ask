@@ -1,13 +1,30 @@
 #!/usr/bin/env bash
 set -u
-# Approval UI for one pending job: SwayNC buttons; result → dots-ops answer.
+# Approval UI for one pending job: SwayNC buttons; result → dots-ops answer <job> <choice> <token>.
+# R54: the token is the hash of the content shown here. If the relay replaced the pending while the toast was up,
+# `dots-ops answer` sees another token, ignores the click and shows the newer ask. The toast id (notify-send -p) is kept
+# in pending/<job>.nid while the toast is up, so the relay can close a superseded toast.
 source "${OPS_LIB:-$HOME/.local/lib/dots-ops/lib.sh}"
 job=${1:?usage: dots-ops-ask <job>}; [[ $job =~ ^[a-z0-9-]+$ ]] || exit 2
 f="$OPS_STATE/pending/$job.json"; [ -f "$f" ] || exit 0
+tok=$(ops_pending_token "$job") || exit 0
+q=$(jq -r .question "$f")
 btns=(-A approve=Approve)
 alt=$(jq -r '.alt_action // empty' "$f" 2>/dev/null)
 [ -z "$alt" ] || btns+=(-A "alt=$(jq -r '.alt_label // "Alternative"' "$f")")   # R5: second action button
 btns+=(-A skip=Skip -A snooze="Snooze 1d")
-choice=$(notify-send -a dots-ops -u normal --wait -t 0 "${btns[@]}" \
-  "dots-ops: $job" "$(jq -r .question "$f")") || exit 0
-case $choice in approve|alt|skip|snooze) exec "$HOME/.local/bin/dots-ops" answer "$job" "$choice" ;; esac
+nid="$OPS_STATE/pending/$job.nid"; id=""; choice=""
+# -p prints the id at once, the chosen action when the toast closes: read them as they come
+exec {ns}< <(notify-send -a dots-ops -u normal -p --wait -t 0 "${btns[@]}" "dots-ops: $job" "$q" 2>/dev/null)
+if IFS= read -r line <&"$ns"; then
+  if [[ $line =~ ^[0-9]+$ ]]; then
+    id=$line; printf '%s\n' "$id" > "$nid"
+    IFS= read -r choice <&"$ns" || choice=""
+  else
+    choice=$line   # a notify-send without -p support prints only the action
+  fi
+fi
+exec {ns}<&-
+if [ -n "$id" ] && [ "$(head -n 1 "$nid" 2>/dev/null)" = "$id" ]; then rm -f "$nid"; fi
+case $choice in approve|alt|skip|snooze) exec "$HOME/.local/bin/dots-ops" answer "$job" "$choice" "$tok" ;; esac
+exit 0
