@@ -33,8 +33,10 @@ let
       if [ -d system/dots-ops/udev ]; then install -Dm 644 -t $out/lib/udev/rules.d system/dots-ops/udev/*; fi
       substituteInPlace $out/bin/dots-ops-run \
         --replace-fail /usr/local/lib/dots-ops $L \
-        --replace-fail /usr/local/bin/dots-ops-job $out/bin/dots-ops-job
+        --replace-fail /usr/local/bin/dots-ops-job $out/bin/dots-ops-job \
+        --replace-fail /usr/local/bin/dots-ops-run $out/bin/dots-ops-run
       substituteInPlace $out/bin/dots-ops-job --replace-fail /usr/local/lib/dots-ops $L
+      substituteInPlace $L/lib.sh --replace-fail /usr/local/bin/dots-ops-run $out/bin/dots-ops-run
       for u in $out/lib/systemd/system/*; do
         substituteInPlace "$u" --replace-quiet /usr/local/bin/dots-ops-job $out/bin/dots-ops-job
       done

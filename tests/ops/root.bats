@@ -28,7 +28,7 @@ trun() { run env OPS_TEST=1 OPS_ROOT_PREFIX="$P" OPS_STATE="$BATS_TEST_TMPDIR/st
 @test "R34: an action starts a transient unit (systemd-run argv), nothing is sourced in the caller's tree" {
   printf 'touch %s/applied\n' "$BATS_TEST_TMPDIR" > "$P/actions/updates-full/apply.sh"
   trun updates-full apply; [ "$status" -eq 0 ]
-  [ "$output" = "systemd-run --no-block --collect --unit=dots-ops-act-updates-full-apply -p TimeoutStartSec=2h $RUN updates-full apply inline" ]
+  [ "$output" = "systemd-run --no-block --collect --unit=dots-ops-act-updates-full-apply $RUN updates-full apply inline" ]
   [ ! -e "$BATS_TEST_TMPDIR/applied" ]
 }
 @test "R34: inline without INVOCATION_ID is rejected; a bogus third argument is rejected" {
@@ -269,4 +269,12 @@ render_installer() {   # data-file → rendered script path
 @test "installer is a no-op on NixOS (the Nix module installs it there)" {
   s=$(render_installer data-nixos-tmux.toml); bash -n "$s"
   run ! grep -q sudo "$s"
+}
+
+@test "R38 every /usr/local dots-ops path in the runner, job runner and lib is rewritten by the NixOS module" {
+  nix="$R/nix/hosts/nixos-laptop/dots-ops.nix"
+  toks=$(grep -ohE '/usr/local/(bin/dots-ops[a-z-]*|lib/dots-ops)' "$R/system/dots-ops/bin/dots-ops-run" \
+    "$R/home/private_dot_local/private_bin/executable_dots-ops-job" "$R/home/private_dot_local/lib/dots-ops/lib.sh" | sort -u)
+  [[ $toks == *"/usr/local/bin/dots-ops-run"* && $toks == *"/usr/local/bin/dots-ops-job"* && $toks == *"/usr/local/lib/dots-ops"* ]]
+  for t in $toks; do grep -qE -- "--replace-(fail|quiet) $t( |$)" "$nix" || { echo "not substituted in dots-ops.nix: $t"; return 1; }; done
 }

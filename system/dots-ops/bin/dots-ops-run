@@ -72,7 +72,7 @@ f="$P/actions/$job/$act.sh"
 [ -f "$f" ] || die "unknown action"
 root_owned "$P/.." "$P" "$P/lib.sh" "$P/actions" "$P/actions/$job" "$f"
 if [ "$inline" = 0 ]; then   # R34: run in a transient unit, not in the approver's process tree (logout/cgroup cleanup must not kill pacman/dpkg mid-transaction)
-  exec "${SYSRUN[@]}" --no-block --collect --unit="dots-ops-act-$job-$act" -p TimeoutStartSec=2h "$SELF" "$job" "$act" inline
+  exec "${SYSRUN[@]}" --no-block --collect --unit="dots-ops-act-$job-$act" "$SELF" "$job" "$act" inline
 fi
 export OPS_IS_ROOT=1
 source "$P/lib.sh"
