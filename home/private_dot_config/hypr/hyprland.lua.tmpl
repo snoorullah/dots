@@ -135,7 +135,7 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("ghostty")
   hl.exec_cmd("zen-browser")
   hl.exec_cmd("code")
-  hl.exec_cmd("thunderbird")  -- nix TB (full path: NOT a system snap); window rule above pins it to ws5
+  hl.exec_cmd("thunderbird")  -- nix TB (resolved via PATH from the env block: NOT a system snap); window rule above pins it to ws5
   hl.exec_cmd("[workspace special:tasks silent] ghostty --class=dots.tasktui --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup-tasktui -e ~/.local/bin/tw-tui")  -- open the daily driver at login (clock-in / resume)
 end)
 
@@ -154,8 +154,15 @@ hl.bind(mod .. " + SHIFT + F", hl.dsp.exec_cmd("ghostty --class=dots.yazi --gtk-
 hl.bind(mod .. " + C",         hl.dsp.exec_cmd("ghostty --class=dots.clipse --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e {{ .chezmoi.homeDir }}/.local/bin/clipse"))  -- clipse clipboard history (was legacy-menu-clipboard.sh)
 hl.bind(mod .. " + SHIFT + B", hl.dsp.exec_cmd("ghostty --class=dots.bluetuith --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup-bluetuith -e bluetuith"))  -- bluetuith panel (was legacy-menu-bluetooth.sh)
 hl.bind(mod .. " + SHIFT + W", hl.dsp.exec_cmd("ghostty --class=dots.wallpaper --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e ~/.local/bin/wallpaper"))  -- wallpaper picker (otter-styled fzf + swww, no caelestia)
-hl.bind("Print",               hl.dsp.exec_cmd("~/.local/bin/screenshot.sh region"))
-hl.bind(mod .. " + Print",     hl.dsp.exec_cmd("~/.local/bin/screenshot.sh full"))
+-- HyprCapture plugin when loaded (modes: region|fullscreen|window), else grim/slurp script
+hl.bind("Print", function()
+  if hl.plugin and hl.plugin.hyprcapture then hl.plugin.hyprcapture.open("region")
+  else hl.exec_cmd("~/.local/bin/screenshot.sh region") end
+end)
+hl.bind(mod .. " + Print", function()
+  if hl.plugin and hl.plugin.hyprcapture then hl.plugin.hyprcapture.open("fullscreen")
+  else hl.exec_cmd("~/.local/bin/screenshot.sh full") end
+end)
 hl.bind(mod .. " + CTRL + S",  hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e otter-launcher sys"))
 hl.bind(mod .. " + slash",     hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e otter-launcher ws"))
 hl.bind(mod .. " + P",         hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e otter-launcher pj"))
