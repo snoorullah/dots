@@ -127,7 +127,6 @@ hl.window_rule({ match = { title = "^(focus-panel)$" }, opaque = true })        
 
 -- (removed stale title="wallpaper-picker" rules — the live rules are class="wallpaper", below;
 --  those old ones never matched and one carried a stay_focused that would block screenshots)
-hl.layer_rule({ match = { namespace = "rofi" },       blur = true, ignore_alpha = 0.2 })
 
 -- ── Autostart ──────────────────────────────────────────────────────────
 hl.on("hyprland.start", function()
@@ -155,13 +154,13 @@ hl.bind(mod .. " + Return",    hl.dsp.exec_cmd("ghostty"))
 hl.bind(mod .. " + SHIFT + Q", hl.dsp.window.close())
 hl.bind("ALT + F4",            hl.dsp.window.close())
 
--- Rofi menus (run under XWayland)
+-- Launcher menus (otter-launcher popups)
 hl.bind(mod .. " + SPACE",     hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e otter-launcher app"))
 hl.bind(mod .. " + Tab",       hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e otter-launcher win"))
 hl.bind(mod .. " + SHIFT + S", hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e otter-launcher run"))
 hl.bind(mod .. " + SHIFT + F", hl.dsp.exec_cmd("ghostty --class=dots.yazi --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e ~/.local/bin/yazi-launch.sh"))  -- file manager (yazi)
-hl.bind(mod .. " + C",         hl.dsp.exec_cmd("ghostty --class=dots.clipse --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e {{ .chezmoi.homeDir }}/.local/bin/clipse"))  -- clipse clipboard history (was rofi-clipboard.sh)
-hl.bind(mod .. " + SHIFT + B", hl.dsp.exec_cmd("ghostty --class=dots.bluetuith --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup-bluetuith -e bluetuith"))  -- bluetuith panel (was rofi-bluetooth.sh)
+hl.bind(mod .. " + C",         hl.dsp.exec_cmd("ghostty --class=dots.clipse --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e {{ .chezmoi.homeDir }}/.local/bin/clipse"))  -- clipse clipboard history (was legacy-menu-clipboard.sh)
+hl.bind(mod .. " + SHIFT + B", hl.dsp.exec_cmd("ghostty --class=dots.bluetuith --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup-bluetuith -e bluetuith"))  -- bluetuith panel (was legacy-menu-bluetooth.sh)
 hl.bind(mod .. " + SHIFT + W", hl.dsp.exec_cmd("ghostty --class=dots.wallpaper --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e ~/.local/bin/wallpaper"))  -- wallpaper picker (otter-styled fzf + swww, no caelestia)
 hl.bind("Print",               hl.dsp.exec_cmd("~/.local/bin/screenshot.sh region"))
 hl.bind(mod .. " + Print",     hl.dsp.exec_cmd("~/.local/bin/screenshot.sh full"))
@@ -180,7 +179,7 @@ hl.bind(mod .. " + SHIFT + slash", hl.dsp.exec_cmd("ghostty --class=dots.keyhelp
 
 -- ── ADHD engine (Phase 1) ──────────────────────────────────────────────
 hl.bind(mod .. " + A",              hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e ~/.local/bin/adhd-block-pick.sh"))  -- focus block picker (fzf: pick/add task → adhd-focus start)
-hl.bind(mod .. " + SHIFT + A",      hl.dsp.exec_cmd("~/.local/bin/adhd-capture.sh"))
+hl.bind(mod .. " + SHIFT + A",      hl.dsp.exec_cmd("ghostty --class=dots.capture --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e ~/.local/bin/adhd-capture.sh"))
 hl.bind(mod .. " + SHIFT + X",      hl.dsp.exec_cmd("~/.local/bin/adhd-focus.sh status"))
 hl.bind(mod .. " + SHIFT + Return", hl.dsp.exec_cmd("ghostty --class=dots.tasktui --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup-tasktui -e ~/.local/bin/tw-tui"))  -- taskwarrior-tui daily driver (was caelestia focus panel)
 hl.bind(mod .. " + SHIFT + P", hl.dsp.exec_cmd("~/.local/bin/adhd-break.sh"))  -- pause + monitor-off + lock (break)
@@ -205,6 +204,9 @@ hl.window_rule({ match = { class = "^(dots[.]bluetuith)$" }, size = "720 520" })
 hl.window_rule({ match = { class = "^(dots[.]bluetuith)$" }, rounding = 5 })
 
 -- clipse: floating Dracula clipboard TUI (otter `cl` / Super+C)
+hl.window_rule({ match = { class = "^(dots[.]capture)$" }, float = true })
+hl.window_rule({ match = { class = "^(dots[.]capture)$" }, center = true })
+hl.window_rule({ match = { class = "^(dots[.]capture)$" }, size = "700 120" })
 hl.window_rule({ match = { class = "^(dots[.]clipse)$" }, float = true })
 hl.window_rule({ match = { class = "^(dots[.]clipse)$" }, center = true })
 hl.window_rule({ match = { class = "^(dots[.]clipse)$" }, size = "720 520" })

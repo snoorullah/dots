@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # otter-bookmarks.sh — Zen Browser bookmarks (fzf-based otter-launcher module)
 #
-# Ported from rofi-bookmarks.sh: reads bookmarks straight from Zen
+# Ported from legacy-menu-bookmarks.sh: reads bookmarks straight from Zen
 # Browser's places.sqlite and opens the selected one in a new tab via
 # zen_open_url (does not touch the running browser's own state).
 set -uo pipefail
@@ -9,7 +9,7 @@ source "$HOME/.config/otter-launcher/scripts/_otter-fzf.sh"
 # shellcheck source=zen-utils.sh
 source "$HOME/.config/otter-launcher/scripts/zen-utils.sh"
 
-# Same query as rofi-bookmarks.sh: type=1 filters real bookmarks (not
+# Same query as legacy-menu-bookmarks.sh: type=1 filters real bookmarks (not
 # folders/separators), excludes NULL/empty titles and internal 'place:'
 # smart-bookmark URLs, newest first. zen_query_db returns tab-separated
 # columns, which we feed straight to fzf as "title<TAB>url".

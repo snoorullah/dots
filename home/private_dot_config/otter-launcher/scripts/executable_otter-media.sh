@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # otter-media.sh — media playback controls via playerctl (fzf-based otter-launcher module)
 #
-# Same playerctl calls as rofi-media.sh, ported to fzf. The header shows
+# Same playerctl calls as legacy-menu-media.sh, ported to fzf. The header shows
 # the currently-playing artist/title (or a fallback if nothing is playing)
 # so there's still "now playing" feedback without a full player window.
 set -uo pipefail
@@ -16,7 +16,7 @@ get_track_info() {
     echo "${artist:-Unknown} - ${title:-No Track}"
 }
 
-# Icons match rofi-media.sh exactly (same codepoints as the reference script).
+# Icons match legacy-menu-media.sh exactly (same codepoints as the reference script).
 prev=$'󰒮  previous'
 play_pause=$'󰐎  play/pause'
 next=$'󰒭  next'

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # otter-systemd.sh — systemd service manager (fzf-based otter-launcher module)
 #
-# Ported from rofi-systemd.sh: lists loaded service units with a
+# Ported from legacy-menu-systemd.sh: lists loaded service units with a
 # color-coded status dot (Pango markup -> ANSI truecolor escapes), then
 # offers a start/stop/restart/logs sub-menu for the selected service.
 set -uo pipefail
@@ -15,7 +15,7 @@ COLOR_DIM="${e}[38;2;98;114;164m"       # #6272a4 comment -- dimmed [sub]
 RESET="${e}[0m"
 
 # list_services -- "<colored dot> <name> <dim>[sub]<reset>" per loaded
-# service unit, same fields/order as rofi-systemd.sh's Pango version.
+# service unit, same fields/order as legacy-menu-systemd.sh's Pango version.
 list_services() {
     systemctl list-units --type=service --no-pager --no-legend --plain | \
     while read -r unit load active sub _; do

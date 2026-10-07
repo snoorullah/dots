@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # otter-obsidian.sh — Obsidian hub via fzf (Dracula/otter). Ported from
-# rofi-obsidian{,-search,-create}.sh. Vault: ~/powerhouse.
+# legacy-menu-obsidian{,-search,-create}.sh. Vault: ~/powerhouse.
 # Actions: daily note, open vault, search notes, new note (2-step wizard).
 set -uo pipefail
 source "$HOME/.config/otter-launcher/scripts/_otter-fzf.sh"

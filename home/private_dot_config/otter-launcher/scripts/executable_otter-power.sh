@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # otter-power.sh — power menu (fzf-based otter-launcher module)
 #
-# Same actions/commands as rofi-power.sh, ported to fzf: lock and suspend
+# Same actions/commands as legacy-menu-power.sh, ported to fzf: lock and suspend
 # fire immediately, reboot/shutdown/logout go through a Yes/No confirm
 # first so a stray Enter can't take down the session.
 set -uo pipefail
 source "$HOME/.config/otter-launcher/scripts/_otter-fzf.sh"
 
-# Icons match rofi-power.sh exactly (same codepoints, same glyphs).
+# Icons match legacy-menu-power.sh exactly (same codepoints, same glyphs).
 lock=$'  lock'
 suspend=$'⏾  suspend'
 logout=$'\U000f0343  logout'

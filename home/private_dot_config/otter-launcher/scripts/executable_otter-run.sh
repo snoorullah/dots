@@ -3,7 +3,7 @@
 #
 # fzf over every executable name on $PATH, with --print-query so a command
 # that isn't in the list (custom args, pipes, etc.) can still be typed and
-# run verbatim. Reference: rofilaunch.sh mode 'r' (rofi -show run).
+# run verbatim. Reference: rofilaunch.sh mode 'r' (legacy-menu -show run).
 set -uo pipefail
 source "$HOME/.config/otter-launcher/scripts/_otter-fzf.sh"
 

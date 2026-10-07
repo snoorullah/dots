@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # otter-files.sh — fzf directory navigator (fzf-based otter-launcher module)
 #
-# rofi's built-in filebrowser modi has no CLI equivalent, and no
+# legacy-menu's built-in filebrowser modi has no CLI equivalent, and no
 # yazi/lf/ranger is installed on this box, so this is a small bespoke
 # navigator: browse into directories, "../" to go up, open files via
 # xdg-open. Starts at $HOME.

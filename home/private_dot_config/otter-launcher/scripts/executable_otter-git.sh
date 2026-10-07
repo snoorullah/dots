@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # otter-git.sh — git identity switcher (fzf-based otter-launcher module)
 #
-# Ported from rofi-git-profile.sh: reads pipe-delimited git profiles and
+# Ported from legacy-menu-git-profile.sh: reads pipe-delimited git profiles and
 # switches the global git user.name/user.email to the selected identity.
 set -uo pipefail
 source "$HOME/.config/otter-launcher/scripts/_otter-fzf.sh"
@@ -15,7 +15,7 @@ if [[ ! -f "$PROFILES_FILE" ]]; then
 fi
 
 # build_options -- "label (user <email>)" per non-blank, non-comment line,
-# same format as rofi-git-profile.sh (used both for display and for
+# same format as legacy-menu-git-profile.sh (used both for display and for
 # matching the selection back to its profile below).
 build_options() {
     local name user email

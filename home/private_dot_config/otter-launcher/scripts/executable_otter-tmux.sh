@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # otter-tmux.sh — tmux session manager (fzf-based otter-launcher module)
 #
-# Ported from rofi-tmux.sh: list/attach existing sessions, create a new
+# Ported from legacy-menu-tmux.sh: list/attach existing sessions, create a new
 # named session, or kill a session. Preserves the original's inside-tmux
 # vs outside-tmux detection (switch-client vs attach; spawn a terminal only
 # when invoked from outside tmux).
@@ -13,7 +13,7 @@ kill_entry=$'  Kill Session'
 
 # get_sessions -- one line per running tmux session, formatted as
 # "<name> (<N> windows) [attached]" (the "[attached]" tag only appears if
-# someone is already attached), same as rofi-tmux.sh, followed by the two
+# someone is already attached), same as legacy-menu-tmux.sh, followed by the two
 # fixed action entries.
 get_sessions() {
     local sessions
@@ -30,7 +30,7 @@ chosen="$(get_sessions | fzf --header=$' tmux')"
 
 if [[ "$chosen" == "$new_entry" ]]; then
     # --- Create a new session ---
-    # fzf has no pure "text input" mode like `rofi -lines 0`; emulate one
+    # fzf has no pure "text input" mode like `legacy-menu -lines 0`; emulate one
     # with --print-query over an empty candidate list so Enter yields
     # whatever the user typed.
     session_name="$(printf '' | fzf --print-query --header='session name' --prompt='name> ' | sed -n '1p')"
@@ -62,7 +62,7 @@ elif [[ "$chosen" == "$kill_entry" ]]; then
 else
     # --- Attach to an existing session ---
     # The chosen line starts with the session name, followed by metadata
-    # in parentheses -- same first-word extraction as rofi-tmux.sh (note:
+    # in parentheses -- same first-word extraction as legacy-menu-tmux.sh (note:
     # this means session names containing spaces are not fully supported,
     # a limitation carried over unchanged from the reference script).
     session_name="$(awk '{print $1}' <<<"$chosen")"

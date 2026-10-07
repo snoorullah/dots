@@ -1,4 +1,0 @@
-. "$HOME/.cargo/env"
-
-# default kube cluster (also set in environment.d + hyprland.lua)
-export KUBECONFIG="$HOME/.kube/onprem-s2a.yaml"

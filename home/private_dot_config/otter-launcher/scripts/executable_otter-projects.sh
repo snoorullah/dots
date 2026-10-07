@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # otter-projects.sh — project launcher (fzf-based otter-launcher module)
 #
-# Ported from rofi-projects.sh: lists directories under ~/work/, tagging
+# Ported from legacy-menu-projects.sh: lists directories under ~/work/, tagging
 # each with an icon for its detected project type (same marker-file
 # detection, same order), then offers a second menu to open the chosen
 # project in VS Code / a terminal / the file manager (same open commands).
@@ -11,7 +11,7 @@ source "$HOME/.config/otter-launcher/scripts/_otter-fzf.sh"
 PROJECTS_DIR="$HOME/work"
 mkdir -p "$PROJECTS_DIR"
 
-# get_project_icon -- same detection order as rofi-projects.sh (most
+# get_project_icon -- same detection order as legacy-menu-projects.sh (most
 # specific marker files first, generic git/folder fallbacks last).
 # NOTE: the reference script left Rust/Node/Python/Java/Ruby/generic-git
 # icons as empty strings (an apparent oversight -- confirmed by inspecting
@@ -54,7 +54,7 @@ chosen="$(echo "$projects" | fzf --header=$'󰉋 projects')"
 [[ -z "$chosen" ]] && exit 0
 
 # Strip the leading icon token (and the spaces after it) to recover the
-# bare project name -- same extraction approach as rofi-projects.sh.
+# bare project name -- same extraction approach as legacy-menu-projects.sh.
 project_name="$(sed 's/^[^ ]* *//' <<<"$chosen")"
 project_path="$PROJECTS_DIR/$project_name"
 
@@ -65,7 +65,7 @@ project_path="$PROJECTS_DIR/$project_name"
 mkdir -p "$HOME/.cache/adhd"; printf '%s' "$project_name" > "$HOME/.cache/adhd/active-project"
 
 # Sub-menu: choose which application to open the project with. Same
-# three actions + open commands as rofi-projects.sh (VS Code / ghostty /
+# three actions + open commands as legacy-menu-projects.sh (VS Code / ghostty /
 # xdg-open); GUI launches are detached with setsid -f per the otter
 # convention so this script (running in an otter-spawned terminal) can exit
 # immediately without lingering.

@@ -1,0 +1,6 @@
+# PATH contract (spec): local scripts, then pinned Nix tools, then the distro.
+typeset -U path PATH
+path=($HOME/.local/bin(N-/) $HOME/.nix-profile/bin(N-/) $path)
+[ -r "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+export KUBECONFIG="$HOME/.kube/onprem-s2a.yaml"
+export EDITOR=nvim VISUAL=nvim
