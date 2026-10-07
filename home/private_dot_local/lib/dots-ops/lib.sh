@@ -53,6 +53,10 @@ ops_flush_queue() {
   done
 }
 
+ops_signal() {   # refresh the Waybar custom/ops module (user context only; signal 9 = RTMIN+9)
+  [ "$OPS_IS_ROOT" = 1 ] || pkill -RTMIN+9 -x waybar 2>/dev/null || true
+}
+
 ops_state() {   # job status summary — notifies on change (user context only)
   local job=$1 st=$2 sum=$3 dir prev notified now
   now=$(ops_now)
@@ -72,6 +76,7 @@ ops_state() {   # job status summary — notifies on change (user context only)
   jq -cn --arg j "$job" --arg s "$st" --arg m "$sum" --argjson t "$now" --argjson n "$notified" \
     '{job:$j,status:$s,summary:$m,changed:$t,notified:$n}' > "$dir/$job.json.tmp" && mv "$dir/$job.json.tmp" "$dir/$job.json"
   ops_log "$job" "$st" "$sum"
+  ops_signal
 }
 
 ops_lock() {   # job — exits 0 if another instance holds the lock
@@ -129,7 +134,7 @@ ops_answer() {   # job approve|skip|snooze
   act=$(jq -r .action "$f" 2>/dev/null)
   case $ans in
     approve)
-      if ! ops_ask_pending "$job"; then ops_log "$job" info "approval expired; not run"; return 0; fi
+      if ! ops_ask_pending "$job"; then ops_log "$job" info "approval expired; not run"; ops_signal; return 0; fi
       rm -f "$f"; ops_log "$job" approve "$act"
       case $act in
         user:*) bash -c "${act#user:}" || rc=$? ;;
@@ -144,7 +149,49 @@ ops_answer() {   # job approve|skip|snooze
     snooze) jq --argjson s $(( $(ops_now) + 86400 )) '.snooze_until=$s' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
             ops_log "$job" snooze "$act" ;;
   esac
+  ops_signal
   return "$rc"
+}
+
+ops_live_asks() {   # prints "job<TAB>question" per live, un-snoozed pending (user context)
+  local f job now; now=$(ops_now)
+  for f in "$OPS_STATE"/pending/*.json; do
+    [ -f "$f" ] || continue
+    job=$(basename "$f" .json)
+    ops_ask_pending "$job" || continue
+    [ "$(jq -r '.snooze_until // 0' "$f" 2>/dev/null)" -gt "$now" ] 2>/dev/null && continue   # snoozed: hidden until it wakes
+    printf '%s\t%s\n' "$job" "$(jq -r '.question // "" | gsub("[\n\t]";" ")' "$f" 2>/dev/null)"
+  done
+}
+
+ops_waybar_json() {   # one JSON object for the Waybar custom/ops module
+  local states asks
+  states=$(cat "$OPS_STATE"/state/*.json 2>/dev/null | jq -cs '[.[] | select(type=="object" and (.status|type)=="string")]' 2>/dev/null)
+  asks=$(ops_live_asks | jq -Rsc 'split("\n") | map(select(length>0) | split("\t") | {job:.[0], q:(.[1:]|join(" "))})' 2>/dev/null)
+  jq -nc --argjson s "${states:-[]}" --argjson a "${asks:-[]}" '
+    ([$s[] | select(.status=="fail")] | length) as $f
+    | ([$s[] | select(.status=="warn")] | length) as $w
+    | ($a | length) as $k
+    | (if $f > 0 then "fail" elif ($w > 0 or $k > 0) then "warn" else "ok" end) as $cls
+    | ((if $f > 0 then "✗ \($f)" elif $w > 0 then "! \($w)" else "✓" end)
+       + (if $k > 0 then " · \($k) ask" else "" end)) as $text
+    | ([$s[] | select(.status != "ok") | "\(.job): \(.summary)"]
+       + [$a[] | "ask \(.job): \(.q)"]) as $tip
+    | {text:$text, class:$cls, tooltip:(if ($tip|length)==0 then "dots-ops: all ok" else ($tip|join("\n")) end)}'
+}
+
+ops_status_lines() {   # fzf input: job ⟂ status ⟂ summary ⟂ last change, worst first; live asks listed with status "ask"
+  local now j q; now=$(ops_now)
+  {
+    cat "$OPS_STATE"/state/*.json 2>/dev/null | jq -r --argjson now "$now" '
+      select(type=="object" and (.status|type)=="string")
+      | (if .status=="fail" then 0 elif .status=="warn" then 2 else 3 end) as $o
+      | (((($now - (.changed // $now)) / 60) | floor)) as $m
+      | [$o, .job, .status, (.summary // "" | gsub("[\n\t]";" ")),
+         (if $m < 60 then "\($m)m ago" elif $m < 1440 then "\($m / 60 | floor)h ago" else "\($m / 1440 | floor)d ago" end)]
+      | @tsv' 2>/dev/null
+    ops_live_asks | while IFS=$'\t' read -r j q; do printf '1\t%s\task\t%s\tnow\n' "$j" "$q"; done
+  } | sort -s -t$'\t' -k1,1n -k2,2 | awk -F'\t' '{printf "%s ⟂ %s ⟂ %s ⟂ %s\n", $2, $3, $4, $5}'
 }
 
 ops_on_ac() {

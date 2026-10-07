@@ -6,7 +6,7 @@ else LIB="${OPS_LIB:-$HOME/.local/lib/dots-ops/lib.sh}"; [ -f "$LIB" ] || LIB=/u
 source "$LIB"
 : "${OPS_JOBS_DIR:=$HOME/.local/lib/dots-ops/jobs}"
 here=$(dirname "$(readlink -f "$0")")
-usage() { echo "usage: dots-ops run <job> [--now] | answer <job> <approve|skip|snooze> | idle-start [--fallback] | idle-end | relay" >&2; exit 2; }
+usage() { echo "usage: dots-ops run <job> [--now] | answer <job> <approve|skip|snooze> | idle-start [--fallback] | idle-end | relay | waybar | status" >&2; exit 2; }
 
 sudo_runner() {   # R8: sudo -n only; returns the runner rc (callers decide if it is fatal)
   local sc; read -ra sc <<< "$OPS_SUDO"
@@ -92,5 +92,20 @@ case "${1:-}" in
     systemctl --user stop --no-block dots-ops-idle.target || true
     sudo_runner system idle-end || true ;;   # R3
   relay) relay ;;
+  waybar) ops_waybar_json ;;
+  status)
+    self=$(readlink -f "$0")
+    command -v fzf >/dev/null || { echo "dots-ops: fzf not found" >&2; exit 1; }
+    reload="reload($self _lines)"
+    ops_status_lines | fzf --delimiter ' ⟂ ' --no-sort --reverse \
+      --header 'enter: log · ctrl-a: approve · ctrl-s: snooze · ctrl-k: skip · ctrl-r: run now' \
+      --bind "enter:execute($self _log {1} | ${PAGER:-less -R})" \
+      --bind "ctrl-a:execute-silent($self answer {1} approve)+$reload" \
+      --bind "ctrl-s:execute-silent($self answer {1} snooze)+$reload" \
+      --bind "ctrl-k:execute-silent($self answer {1} skip)+$reload" \
+      --bind "ctrl-r:execute-silent($self run {1} --now)+$reload" || true ;;
+  _lines) ops_status_lines ;;   # internal: fzf reload source
+  _log) valid_job "${2:-}"   # internal: last 50 log lines of one job
+    tail -n 5000 "$OPS_STATE/log.jsonl" 2>/dev/null | jq -r --arg j "$2" 'select(.job==$j) | "\(.t) \(.level) \(.msg)"' | tail -n 50 ;;
   *) usage ;;
 esac
