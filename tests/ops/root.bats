@@ -3,8 +3,8 @@ bats_require_minimum_version 1.5.0
 # Root side: dots-ops-run (the only privilege path), system units, sudoers, relay, installer.
 # Everything runs unprivileged: dots-ops-run honours OPS_ROOT_PREFIX only with OPS_TEST=1 and prints systemctl calls.
 R="$BATS_TEST_DIRNAME/../.."
-setup() { P="$BATS_TEST_TMPDIR/p"; RUN="$BATS_TEST_DIRNAME/../../system/dots-ops/bin/dots-ops-run"; mkdir -p "$P/jobs" "$P/actions/updates-full"; cp "$BATS_TEST_DIRNAME/../../home/private_dot_local/lib/dots-ops/lib.sh" "$P/lib.sh"; }
-trun() { run env OPS_TEST=1 OPS_ROOT_PREFIX="$P" OPS_STATE="$BATS_TEST_TMPDIR/st" OPS_ROOT_STATE="$BATS_TEST_TMPDIR/rs" bash "$RUN" "$@"; }
+setup() { unset INVOCATION_ID; P="$BATS_TEST_TMPDIR/p"; RUN="$BATS_TEST_DIRNAME/../../system/dots-ops/bin/dots-ops-run"; mkdir -p "$P/jobs" "$P/actions/updates-full"; cp "$BATS_TEST_DIRNAME/../../home/private_dot_local/lib/dots-ops/lib.sh" "$P/lib.sh"; }
+trun() { run env -u INVOCATION_ID OPS_TEST=1 OPS_ROOT_PREFIX="$P" OPS_STATE="$BATS_TEST_TMPDIR/st" OPS_ROOT_STATE="$BATS_TEST_TMPDIR/rs" bash "$RUN" "$@"; }
 
 # ---- dots-ops-run: allow-list (Review Focus 1) ----
 @test "rejects path traversal and unknown names" {

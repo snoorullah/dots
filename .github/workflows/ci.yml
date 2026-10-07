@@ -52,12 +52,19 @@ jobs:
       - run: sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin
       - run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - run: command -v bats jq yq flock systemd-analyze visudo chezmoi perl git
-      - name: root.bats static checks (units, sudoers, installer)
-        run: bats tests/ops/root.bats
+      # root.bats (units, sudoers, installer static checks) is part of this run; no separate step
       - name: bats tests/ops
         run: |
-          bats --tap tests/ops | tee /tmp/ops.tap
-          if grep -E '^(ok|not ok) .*# skip' /tmp/ops.tap; then echo "::error::skipped ops tests: install the missing tool"; exit 1; fi
+          rc=0
+          bats --tap tests/ops > /tmp/ops.tap || rc=$?
+          cat /tmp/ops.tap
+          # R53: the only allowed skip is the /nix one (no /nix on a runner); any other skip fails the job
+          skips=$(grep -E '^(ok|not ok) .*# skip' /tmp/ops.tap || true)
+          allowed='disk-clean-system: /nix present -> nix-collect-garbage # skip no /nix on this host'
+          echo "allowed skip: $allowed"
+          other=$(printf '%s\n' "$skips" | grep -v '^$' | grep -vF -- "$allowed" || true)
+          if [ -n "$other" ]; then echo "::error::unexpected skipped ops tests (install the missing tool):"; echo "$other"; exit 1; fi
+          exit "$rc"
   distro:
     runs-on: ubuntu-latest
     strategy:

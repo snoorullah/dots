@@ -7,3 +7,6 @@ setup_ops() {
   source "$BATS_TEST_DIRNAME/../../home/private_dot_local/lib/dots-ops/lib.sh"
 }
 notified() { wc -l < "$NOTIFY_LOG" | tr -d ' '; }
+
+# hermetic: a runner under systemd exports INVOCATION_ID; code under test reads it (dots-ops-run inline guard)
+unset INVOCATION_ID

@@ -149,7 +149,7 @@ Quick log of one job: `jq -r 'select(.job=="backup")' ~/.local/state/dots-ops/lo
 
 ## Config
 
-User config: `~/.config/dots-ops/config.toml` (chezmoi). Defaults are used for any missing key. (`config.toml` also has an `[idle] minutes` entry, but no code reads it. The idle threshold is the hypridle timeout.)
+User config: `~/.config/dots-ops/config.toml` (chezmoi). Defaults are used for any missing key. The idle threshold is not a config key: it is `timeout = 900` in `~/.config/hypr/hypridle.conf`.
 
 | Key | Default | Used by |
 |---|---|---|
