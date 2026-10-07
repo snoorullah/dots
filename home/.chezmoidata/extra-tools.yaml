@@ -1,0 +1,58 @@
+# Pinned extra tools that are not in nixpkgs (rulings R9, R12, R14, R21).
+# Read by home/.chezmoiscripts/run_onchange_after_25-extra-tools.sh.tmpl.
+# Versions are the owner's live versions as of 2026-10-07 unless "source" says otherwise.
+# `unpinned: true` marks a tool whose origin or version cannot be pinned; `reason` says why.
+extraTools:
+  npm:   # npm install -g --prefix ~/.local
+    - { name: agent-browser, version: 0.27.1, source: "npm ls -g",
+        readme: "https://github.com/vercel-labs/agent-browser (npm install -g agent-browser)" }
+    - { name: dev-browser, version: 0.2.4, source: "npm ls -g",
+        readme: "https://github.com/SawyerHood/dev-browser (npm install -g dev-browser)" }
+    - { name: "@earendil-works/pi-coding-agent", version: 0.85.1, ignoreScripts: true, source: "npm ls -g",
+        readme: "https://github.com/badlogic/pi-mono (npm install -g --ignore-scripts @earendil-works/pi-coding-agent)" }
+    - { name: "@mariozechner/pi-mom", version: 0.66.1, source: "npm ls -g",
+        readme: "https://github.com/badlogic/pi-mono (packages/mom has no install line; plain npm global)" }
+    - { name: "@tmustier/pi-usage-extension", version: 0.9.4, source: "npm ls -g",
+        readme: "https://github.com/tmustier/pi-extensions (README offers `pi install git:...`; owner has the npm package, so npm is used)" }
+  cargo:   # cargo install --locked --root ~/.local --version X
+    - { crate: linear-cli, version: 0.3.28, source: "~/.cargo/.crates.toml",
+        readme: "https://github.com/nesszer/linear-cli (cargo install linear-cli)" }
+    - { crate: tttui, version: 0.1.0, source: "~/.cargo/.crates.toml",
+        readme: "https://github.com/ReidoBoss/tttui (cargo install tttui)" }
+  pipx:   # PIPX_BIN_DIR=~/.local/bin pipx install name==version
+    - { name: ytm-player, version: 2.0.0, source: "pipx list --json",
+        readme: "https://github.com/peternaame-boop/ytm-player (pip install ytm-player; pipx used for isolation)" }
+    - { name: syncall, version: 1.8.8, python: python3.12, source: "PyPI JSON API latest (not installed on this machine)",
+        readme: "https://github.com/bergercookie/syncall (pip install syncall; requires python <=3.12.5, so python3.12)" }
+  argonaut:   # release tarball + sha256 -> ~/.local/bin
+    version: 2.10.0
+    sha256: 1f3a863767bf5414e1dee7ae84b149cd1fb5eb3dd5b5766ec2387cd94bee14d8
+    url: https://github.com/darksworm/argonaut/releases/download/v2.10.0/argonaut-2.10.0-linux-amd64.tar.gz
+    source: "/usr/local/bin/argonaut --version = 2.10.0; sha256 from the release checksums.txt"
+    readme: "https://github.com/darksworm/argonaut ('Download a binary' from the release page)"
+    # origin inferred from the binary name + identical version; /usr/local/bin/argonaut is root-owned with no provenance record
+    originInferred: true
+  grok:   # vendor installer (~/.grok/docs/user-guide/01-getting-started.md; https://docs.x.ai/build/overview.md)
+    version: 1.0.41
+    installerUrl: https://x.ai/cli/install.sh
+    source: "~/.grok/bin/grok --version = grok 1.0.41"
+    readme: "curl -fsSL https://x.ai/cli/install.sh | bash -s <version>"
+    # version is pinned, but the installer script itself is not hash-pinned (vendor publishes no checksum for it)
+    unpinned: false
+    installerUnverified: true
+  git:   # pinned revisions
+    hyprcapture:
+      url: https://github.com/gfhdhytghd/HyprCapture
+      rev: 73a519e9643338e580a594f543dc738782bdbf19
+      source: "ls-remote HEAD on 2026-10-07 (not installed on this machine)"
+      readme: "hyprpm add <url> [rev]; hyprpm enable hyprcapture; hyprpm reload (README 'Install with hyprpm'); the hyprpm manifest installs ~/.local/bin/hyprcapture-ui"
+    kdeconnectFix:
+      url: https://github.com/gfhdhytghd/hypr-kdeconnect-fix
+      rev: 5fc959475177197f0aa953fcc42a3742e6648671
+      source: "ls-remote HEAD on 2026-10-07"
+      readme: "cmake -S . -B build -DCMAKE_INSTALL_PREFIX=$HOME/.local; build; ctest; cmake --install (README 'Build')"
+    aether:
+      url: https://github.com/shaiknoorullah/Aether
+      rev: 5e085656802eec3e26ecf0e4c55c2a771036cf36   # same rev as the Nix package
+      source: "brief; overlay/install.sh at this rev"
+      readme: "overlay/install.sh --launcher-only, plus steps 3-5 of install.sh mirrored (profile, chrome symlink, user.js, aether.toml)"

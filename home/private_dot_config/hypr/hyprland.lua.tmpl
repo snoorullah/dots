@@ -128,7 +128,8 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("~/.local/bin/wallpaper --restore")
   hl.exec_cmd("{{ .chezmoi.homeDir }}/.local/bin/clipse -listen")   -- clipboard-history daemon for the clipse TUI
   hl.exec_cmd("systemctl --user start awatcher.service")     -- ActivityWatch window+AFK watcher (needs Wayland env)
-  hl.exec_cmd("hypridle")                                     -- idle → lock/screen-off
+  hl.exec_cmd("sh -c 'command -v hyprpm >/dev/null && hyprpm reload -n'")  -- load hyprpm-managed plugins (HyprCapture); no-op without hyprpm
+  hl.exec_cmd("hypridle")                                   -- idle → lock/screen-off
   hl.exec_cmd("nm-applet --indicator")
   hl.exec_cmd("systemctl --user start hyprpolkitagent.service")
   -- pinned apps (rules above place them on their workspaces)
