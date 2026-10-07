@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "docker $*" >> "${STUB_LOG:-/dev/null}"
+printf 'Deleted Volumes:\nabc\n\nTotal reclaimed space: 1.5GB\n'

@@ -223,3 +223,22 @@ ops_idle_ok() {
   [ "${OPS_FALLBACK:-0}" = 1 ] && ! loginctl list-sessions --no-legend 2>/dev/null | grep -q . && return 0
   return 1
 }
+
+ops_family() {   # prints arch|debian|fedora|nixos|unknown from os-release ID / ID_LIKE (OPS_OS_RELEASE overrides the file for tests)
+  local f="${OPS_OS_RELEASE:-/etc/os-release}" id="" like="" k v w
+  if [ -r "$f" ]; then
+    while IFS='=' read -r k v; do
+      v=${v%\"}; v=${v#\"}; v=${v%\'}; v=${v#\'}
+      case $k in ID) id=$v ;; ID_LIKE) like=$v ;; esac
+    done < "$f"
+  fi
+  for w in $id $like; do
+    case $w in
+      nixos) echo nixos; return 0 ;;
+      arch) echo arch; return 0 ;;
+      debian|ubuntu) echo debian; return 0 ;;
+      fedora|rhel|centos) echo fedora; return 0 ;;
+    esac
+  done
+  echo unknown
+}

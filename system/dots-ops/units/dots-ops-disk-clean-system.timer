@@ -1,0 +1,10 @@
+[Unit]
+Description=dots-ops system disk cleanup (daily; heavy, gated on idle/AC)
+
+[Timer]
+OnCalendar=*-*-* 03:40:00
+Persistent=true
+Unit=dots-ops@disk-clean-system.service
+
+[Install]
+WantedBy=timers.target

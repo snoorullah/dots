@@ -1,0 +1,10 @@
+[Unit]
+Description=dots-ops disk usage watch (hourly)
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+Unit=dots-ops@disk-watch.service
+
+[Install]
+WantedBy=timers.target

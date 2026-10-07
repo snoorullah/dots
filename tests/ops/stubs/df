@@ -1,0 +1,5 @@
+#!/bin/sh
+# stub df: prints $STUB_DF (default: one healthy mount); records the call
+echo "df $*" >> "${STUB_LOG:-/dev/null}"
+printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\n'
+printf '%b' "${STUB_DF:-/dev/sda1 1000 100 900 10% /\n}"

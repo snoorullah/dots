@@ -1,0 +1,10 @@
+#!/bin/sh
+# stub smartctl: -i -> capable unless STUB_SMART_NOCAP lists the dev; -H -A -j -> $STUB_SMART_DIR/<disk>.json
+echo "smartctl $*" >> "${STUB_LOG:-/dev/null}"
+for a; do dev=$a; done
+name=${dev##*/}
+case " $* " in
+  *" -i "*) case " ${STUB_SMART_NOCAP:-} " in *" $name "*) echo "Smartctl open device: $dev failed: unsupported"; exit 2 ;; esac
+            echo "SMART support is: Enabled"; exit 0 ;;
+  *) cat "$STUB_SMART_DIR/$name.json"; exit "${STUB_SMART_RC:-0}" ;;
+esac
