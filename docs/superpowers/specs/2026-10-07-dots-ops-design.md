@@ -18,7 +18,7 @@ risky actions waiting for the owner's click.
 | O2 | Notifications | **Desktop only**: SwayNC notifications with action buttons + a Waybar health module + `dots-ops status` TUI. Nothing leaves the machine. |
 | O3 | Heavy-job window | **When idle**: locked/idle ≥ 15 min **and** on AC; nightly fallback for days that never idle; never on battery or during active work. |
 | O4 | Extra scope | Backups (restic), Kubernetes clusters, firmware, firewall + SSH hardening — all in. |
-| O5 | Engine | **A**: systemd units + small shared bash library + topgrade for upgrades. No new daemon. |
+| O5 | Engine | **A**: systemd units + small shared bash library. No new daemon. **topgrade dropped** (owner, 2026-10-07): it refuses to run as root and would upgrade pinned tools; system upgrades use each family's native command, pinned tools move only through `pins-check` bump PRs. |
 | O6 | Backup destination | Configurable: `RESTIC_REPOSITORY` + password from chezmoi-encrypted secrets (local disk, NAS or S3/MinIO decided by the owner later). |
 
 Constraints inherited from the consolidation design: identical on every distro (Arch, Ubuntu,
@@ -58,9 +58,9 @@ missed); if no notification daemon is running, notifications queue in `pending/`
 
 | Domain | Job | Trigger | Auto | Approve |
 |---|---|---|---|---|
-| Updates | `updates-check` | daily + network-online | refresh indexes, count pending (topgrade dry run) | — |
+| Updates | `updates-check` | daily + network-online | refresh indexes, count pending (native: apt-get -s / dnf check-update / checkupdates) | — |
 | | `updates-security` | daily, idle | distro security-only updates (unattended-upgrades on Ubuntu/Debian; `dnf upgrade --security` on Fedora/RHEL); Arch has no security channel → Approve | — |
-| | `updates-full` | idle, after updates-check finds updates | — | full `topgrade` (distro + nix flake update + home-manager + docker images + tools); prompt shows counts and whether kernel/GPU driver changes |
+| | `updates-full` | idle, after updates-check finds updates | — | native full upgrade (apt dist-upgrade / dnf upgrade / pacman -Syu); Nix and pinned tools move via `dots-update` and `pins-check`; prompt shows counts and whether kernel/GPU driver changes |
 | | `reboot-needed` | path unit on reboot-required markers | notify | reboot now / at 03:00 |
 | Firmware | `firmware` | weekly | `fwupdmgr refresh` + list | every firmware update |
 | Security | `audit` | weekly, idle | `lynis audit system`, arch-audit / OS CVE check; report score diff | — |
@@ -92,7 +92,7 @@ missed); if no notification daemon is running, notifications queue in `pending/`
   Waybar module entry, hypridle `on-timeout` hook.
 - root layer (chezmoi `run_once_before_00-system` / NixOS module): system units, `/etc/sudoers.d/dots-ops`,
   firewall/sshd/tuned/power-profiles/fwupd/smartd per distro family.
-- Nix packages: topgrade, smartmontools, restic, lynis, bats (tests).
+- Nix packages: smartmontools, restic, lynis, bats (tests).
 
 ## Testing
 - **bats unit tests** for lib.sh: state transitions + notify-once, ask approve/skip/snooze/expiry,
