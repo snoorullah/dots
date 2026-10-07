@@ -1,33 +1,25 @@
 -- ───────────────────────────────────────────────────────────────────────
---  Hyprland 0.55 (Lua config) — ported from i3 (84 keybinds), Dracula,
+--  Hyprland 0.56 (Lua config) — ported from i3 (84 keybinds), Dracula,
 --  JetBrainsMono. Colors templated from .chezmoidata.yaml via chezmoi.
---  hyprlang .conf was dropped in 0.55 — this is the live config.
+--  hyprlang .conf was dropped in 0.55 (verified on 0.56.2) — this is the live config.
 --  https://wiki.hypr.land/Configuring/
 -- ───────────────────────────────────────────────────────────────────────
 
 local mod  = "SUPER"
 
--- ── Environment (nvidia) ───────────────────────────────────────────────
+-- ── Environment (PATH/XDG from $HOME; GPU block templated) ────────────
+-- hl.env does not go through a shell, so $HOME is read via os.getenv.
+-- Nix profile first so its entries win; this PATH is inherited by every exec_cmd.
+local HOME = os.getenv("HOME")
+hl.env("PATH", HOME .. "/.local/bin:" .. HOME .. "/.nix-profile/bin:/usr/local/bin:/usr/bin:/bin")
+hl.env("XDG_DATA_DIRS", HOME .. "/.nix-profile/share:/usr/local/share:/usr/share")
+hl.env("KUBECONFIG", HOME .. "/.kube/onprem-s2a.yaml")   -- default kube cluster (waybar kube module + GUI-launched shells)
+hl.env("ELECTRON_OZONE_PLATFORM_HINT", "auto")
+{{- if eq .gpu "nvidia" }}
 hl.env("LIBVA_DRIVER_NAME", "nvidia")
 hl.env("__GLX_VENDOR_LIBRARY_NAME", "nvidia")
 hl.env("NVD_BACKEND", "direct")
-hl.env("ELECTRON_OZONE_PLATFORM_HINT", "auto")
-hl.env("KUBECONFIG", "{{ .chezmoi.homeDir }}/.kube/onprem-s2a.yaml")                -- default kube cluster (waybar kube module + GUI-launched shells)
-
--- ── XDG_DATA_DIRS: make home-manager apps visible to the launcher ──────
--- The session inherits XDG_DATA_DIRS from the display manager, which knows
--- nothing about Nix: it was only "/usr/local/share/:/usr/share/:/var/lib/snapd/desktop".
--- So otter-launcher (SUPER+SPACE -> otter-app.sh, which scans XDG_DATA_HOME +
--- XDG_DATA_DIRS) could not see ANY ~/.nix-profile app. Slack appeared only while
--- it was a snap, because snaps write to /var/lib/snapd/desktop; removing the snap
--- made it vanish entirely (2026-09-04).
---
--- This is also why waybar/swaync/swayosd/thunderbird above are exec'd by ABSOLUTE
--- path -- same gap, worked around app by app.
---
--- Literal path, not $HOME: hl.env does not go through a shell (unlike exec_cmd),
--- so it would not expand. Nix profile first so its entries win precedence.
-hl.env("XDG_DATA_DIRS", "{{ .chezmoi.homeDir }}/.nix-profile/share:/usr/local/share:/usr/share:/var/lib/snapd/desktop")
+{{- end }}
 
 -- ── Monitors (catch-all: preferred mode, auto position) ────────────────
 hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
@@ -130,9 +122,9 @@ hl.window_rule({ match = { title = "^(focus-panel)$" }, opaque = true })        
 
 -- ── Autostart ──────────────────────────────────────────────────────────
 hl.on("hyprland.start", function()
-  hl.exec_cmd("$HOME/.nix-profile/bin/waybar")
-  hl.exec_cmd("$HOME/.nix-profile/bin/swaync")
-  hl.exec_cmd("$HOME/.nix-profile/bin/swayosd-server")
+  hl.exec_cmd("waybar")
+  hl.exec_cmd("swaync")
+  hl.exec_cmd("swayosd-server")
   hl.exec_cmd("~/.local/bin/wallpaper --restore")
   hl.exec_cmd("{{ .chezmoi.homeDir }}/.local/bin/clipse -listen")   -- clipboard-history daemon for the clipse TUI
   hl.exec_cmd("systemctl --user start awatcher.service")     -- ActivityWatch window+AFK watcher (needs Wayland env)
@@ -143,7 +135,7 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("ghostty")
   hl.exec_cmd("zen-browser")
   hl.exec_cmd("code")
-  hl.exec_cmd("$HOME/.nix-profile/bin/thunderbird")  -- nix TB (full path: NOT a system snap); window rule above pins it to ws5
+  hl.exec_cmd("thunderbird")  -- nix TB (full path: NOT a system snap); window rule above pins it to ws5
   hl.exec_cmd("[workspace special:tasks silent] ghostty --class=dots.tasktui --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup-tasktui -e ~/.local/bin/tw-tui")  -- open the daily driver at login (clock-in / resume)
 end)
 
