@@ -8,6 +8,7 @@
 let user = "devsupreme"; in
 {
   imports = [ ./hardware-configuration.nix ./dots-ops.nix ];
+  dots-ops.owner = user;   # /etc/dots-ops/owner + the sshd hardening keys guard (dots-ops.nix)
 
   # ── Boot ──
   boot.loader.systemd-boot.enable = true;

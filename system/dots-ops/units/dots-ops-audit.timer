@@ -1,0 +1,10 @@
+[Unit]
+Description=dots-ops security audit: lynis (+ arch-audit) (weekly; heavy, gated on idle/AC)
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+Unit=dots-ops@audit.service
+
+[Install]
+WantedBy=timers.target

@@ -25,13 +25,18 @@ if [ -n "$(find "$W/system/dots-ops" -type l)" ]; then
 fi
 L=/usr/local/lib/dots-ops
 # jobs/actions are replaced wholesale so a job or action removed from the repo stops being allow-listed
-sudo rm -rf "$L/jobs" "$L/actions"
-sudo install -d -m 755 "$L" "$L/jobs" "$L/actions" /etc/dots-ops /var/lib/dots-ops
+sudo rm -rf "$L/jobs" "$L/actions" "$L/sshd"
+sudo install -d -m 755 "$L" "$L/jobs" "$L/actions" "$L/sshd" /etc/dots-ops /var/lib/dots-ops
 sudo install -m 644 "$W/home/private_dot_local/lib/dots-ops/lib.sh" "$L/lib.sh"
 sudo install -m 755 "$W/home/private_dot_local/private_bin/executable_dots-ops-job" /usr/local/bin/dots-ops-job
 sudo install -m 755 "$W/system/dots-ops/bin/dots-ops-run" /usr/local/bin/dots-ops-run
 [ -d "$W/system/dots-ops/jobs" ] && sudo cp -r --no-preserve=ownership,mode "$W/system/dots-ops/jobs/." "$L/jobs/"
 [ -d "$W/system/dots-ops/actions" ] && sudo cp -r --no-preserve=ownership,mode "$W/system/dots-ops/actions/." "$L/actions/"
+# security domain (Task 9): declarative firewall rules (R39) and the sshd drop-in; root jobs read only these copies
+sudo install -m 644 "$W/system/dots-ops/firewall.json" "$L/firewall.json"
+sudo install -m 644 "$W/system/dots-ops/sshd/50-dots.conf" "$L/sshd/50-dots.conf"
+# R40: the owner whose ~/.ssh/authorized_keys guards ssh-harden (root resolves the home with getent, never env)
+printf '%s\n' "$me" | sudo install -m 644 -o root -g root /dev/stdin /etc/dots-ops/owner
 sudo chown -R root:root "$L" /var/lib/dots-ops /usr/local/bin/dots-ops-run /usr/local/bin/dots-ops-job
 sudo chmod -R go-w "$L"; sudo chmod 755 /var/lib/dots-ops
 sudo install -m 644 "$W/system/dots-ops/units/"* /etc/systemd/system/
@@ -47,5 +52,7 @@ if [ -d "$W/system/dots-ops/udev" ]; then sudo udevadm control --reload || true;
 for t in "$W"/system/dots-ops/units/*.timer "$W"/system/dots-ops/units/*.path; do
   [ -e "$t" ] && sudo systemctl enable --now "$(basename "$t")"
 done
+# check firewall + sshd right after an install/change: both only ask (or no-op); neither applies anything unapproved
+sudo systemctl start --no-block dots-ops@firewall.service dots-ops@ssh-harden.service
 {{- end }}
 exit 0
