@@ -5,6 +5,6 @@ After=aw-server.service
 
 [Service]
 Type=simple
-ExecStart={{ if eq .gpu "nixos" }}/etc/profiles/per-user/%u{{ else }}%h/.nix-profile{{ end }}/bin/awatcher
+ExecStart=%h/.nix-profile/bin/awatcher
 Restart=on-failure
 RestartSec=5

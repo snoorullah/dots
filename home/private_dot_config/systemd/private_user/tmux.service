@@ -4,10 +4,10 @@ Documentation=man:tmux(1)
 
 [Service]
 Type=forking
-ExecStart={{ if eq .gpu "nixos" }}/etc/profiles/per-user/%u{{ else }}%h/.nix-profile{{ end }}/bin/tmux new-session -d
+ExecStart=%h/.nix-profile/bin/tmux new-session -d
 
 ExecStop=%h/.config/tmux/plugins/tmux-resurrect/scripts/save.sh
-ExecStop={{ if eq .gpu "nixos" }}/etc/profiles/per-user/%u{{ else }}%h/.nix-profile{{ end }}/bin/tmux kill-server
+ExecStop=%h/.nix-profile/bin/tmux kill-server
 KillMode=control-group
 
 RestartSec=2

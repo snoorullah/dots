@@ -4,7 +4,7 @@ After=default.target
 
 [Service]
 Type=simple
-ExecStart={{ if eq .gpu "nixos" }}/etc/profiles/per-user/%u{{ else }}%h/.nix-profile{{ end }}/bin/aw-server
+ExecStart=%h/.nix-profile/bin/aw-server
 Restart=on-failure
 RestartSec=5
 

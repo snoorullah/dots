@@ -1,7 +1,7 @@
 [Unit]
 Description=Herdr agent multiplexer server
 [Service]
-ExecStart={{ if eq .gpu "nixos" }}/etc/profiles/per-user/%u{{ else }}%h/.nix-profile{{ end }}/bin/herdr server
+ExecStart=%h/.nix-profile/bin/herdr server
 Restart=on-failure
 [Install]
 WantedBy=default.target

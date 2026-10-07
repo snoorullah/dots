@@ -37,7 +37,9 @@
           ./hosts/nixos-laptop/configuration.nix
           home-manager.nixosModules.home-manager
           { nixpkgs.overlays = [ (import ./pkgs/overlay.nix) ];
-            home-manager = { useGlobalPkgs = true; useUserPackages = true;
+            # useUserPackages = false: home-manager installs into its own per-user profile, linked at ~/.nix-profile,
+            # the same path as on every other distro, so units/scripts/PATH need no NixOS branch (ruling R28).
+            home-manager = { useGlobalPkgs = true; useUserPackages = false;
               extraSpecialArgs = { inherit inputs; gpu = "nixos"; };
               users.devsupreme = import ./home.nix; }; }
         ];

@@ -11,8 +11,13 @@ local mod  = "SUPER"
 -- hl.env does not go through a shell, so $HOME is read via os.getenv.
 -- Nix profile first so its entries win; this PATH is inherited by every exec_cmd.
 local HOME = os.getenv("HOME")
-hl.env("PATH", HOME .. "/.local/bin:" .. HOME .. "/.nix-profile/bin:/usr/local/bin:/usr/bin:/bin")
+{{- if eq .gpu "nixos" }}
+hl.env("PATH", HOME .. "/.local/bin:" .. HOME .. "/.nix-profile/bin:/run/wrappers/bin:/run/current-system/sw/bin")
+hl.env("XDG_DATA_DIRS", HOME .. "/.nix-profile/share:/run/current-system/sw/share")
+{{- else }}
+hl.env("PATH", HOME .. "/.local/bin:" .. HOME .. "/.nix-profile/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin")
 hl.env("XDG_DATA_DIRS", HOME .. "/.nix-profile/share:/usr/local/share:/usr/share")
+{{- end }}
 hl.env("KUBECONFIG", HOME .. "/.kube/onprem-s2a.yaml")   -- default kube cluster (waybar kube module + GUI-launched shells)
 hl.env("ELECTRON_OZONE_PLATFORM_HINT", "auto")
 {{- if eq .gpu "nvidia" }}
@@ -126,9 +131,9 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("swaync")
   hl.exec_cmd("swayosd-server")
   hl.exec_cmd("~/.local/bin/wallpaper --restore")
-  hl.exec_cmd("{{ .chezmoi.homeDir }}/.local/bin/clipse -listen")   -- clipboard-history daemon for the clipse TUI
+  hl.exec_cmd("clipse -listen")   -- clipboard-history daemon for the clipse TUI
   hl.exec_cmd("systemctl --user start awatcher.service")     -- ActivityWatch window+AFK watcher (needs Wayland env)
-  hl.exec_cmd("sh -c '[ -e {{ if eq .gpu "nixos" }}/etc/profiles/per-user/{{ .chezmoi.username }}{{ else }}{{ .chezmoi.homeDir }}/.nix-profile{{ end }}/lib/libhyprcapture.so ] && hyprctl plugin load {{ if eq .gpu "nixos" }}/etc/profiles/per-user/{{ .chezmoi.username }}{{ else }}{{ .chezmoi.homeDir }}/.nix-profile{{ end }}/lib/libhyprcapture.so'")  -- HyprCapture plugin (Nix-built against this Hyprland); skipped if absent
+  hl.exec_cmd("sh -c '[ -e {{ .chezmoi.homeDir }}/.nix-profile/lib/libhyprcapture.so ] && hyprctl plugin load {{ .chezmoi.homeDir }}/.nix-profile/lib/libhyprcapture.so'")  -- HyprCapture plugin (Nix-built against this Hyprland); skipped if absent
   hl.exec_cmd("hypridle")                                   -- idle → lock/screen-off
   hl.exec_cmd("nm-applet --indicator")
   hl.exec_cmd("systemctl --user start hyprpolkitagent.service")
@@ -152,7 +157,7 @@ hl.bind(mod .. " + SPACE",     hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk
 hl.bind(mod .. " + Tab",       hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e otter-launcher win"))
 hl.bind(mod .. " + SHIFT + S", hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e otter-launcher run"))
 hl.bind(mod .. " + SHIFT + F", hl.dsp.exec_cmd("ghostty --class=dots.yazi --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e ~/.local/bin/yazi-launch.sh"))  -- file manager (yazi)
-hl.bind(mod .. " + C",         hl.dsp.exec_cmd("ghostty --class=dots.clipse --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e {{ .chezmoi.homeDir }}/.local/bin/clipse"))  -- clipse clipboard history (was legacy-menu-clipboard.sh)
+hl.bind(mod .. " + C",         hl.dsp.exec_cmd("ghostty --class=dots.clipse --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e clipse"))  -- clipse clipboard history (was legacy-menu-clipboard.sh)
 hl.bind(mod .. " + SHIFT + B", hl.dsp.exec_cmd("ghostty --class=dots.bluetuith --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup-bluetuith -e bluetuith"))  -- bluetuith panel (was legacy-menu-bluetooth.sh)
 hl.bind(mod .. " + SHIFT + W", hl.dsp.exec_cmd("ghostty --class=dots.wallpaper --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e ~/.local/bin/wallpaper"))  -- wallpaper picker (otter-styled fzf + swww, no caelestia)
 -- HyprCapture plugin when loaded (modes: region|fullscreen|window), else grim/slurp script

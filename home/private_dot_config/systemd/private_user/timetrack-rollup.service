@@ -1,0 +1,7 @@
+[Unit]
+Description=timetrack rollup (refresh local observe DB + Obsidian note)
+
+[Service]
+Type=oneshot
+ExecStart=%h/.nix-profile/bin/timetrack rollup
+ExecStartPost=%h/.nix-profile/bin/timetrack note
