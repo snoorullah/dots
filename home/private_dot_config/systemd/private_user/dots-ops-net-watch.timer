@@ -1,0 +1,10 @@
+[Unit]
+Description=dots-ops network and kube tunnel watch (every 5 min)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=dots-ops@net-watch.service
+
+[Install]
+WantedBy=timers.target
