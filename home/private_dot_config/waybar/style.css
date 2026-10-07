@@ -47,7 +47,7 @@ window#waybar {
 #custom-ops.ok   { color: #50fa7b; }
 #custom-ops.warn { color: #ffb86c; }
 #custom-ops.fail { color: #ff5555; }
-#custom-ctx.ctx-none    { color: #6272a4; }
+#custom-ctx.ctx-none     { color: #6272a4; }
 #custom-ctx.ctx-work     { color: #8be9fd; }
 #custom-ctx.ctx-lab      { color: #50fa7b; }
 #custom-ctx.ctx-agents   { color: #bd93f9; }

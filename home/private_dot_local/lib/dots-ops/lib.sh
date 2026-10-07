@@ -164,9 +164,19 @@ ops_live_asks() {   # prints "job<TAB>question" per live, un-snoozed pending (us
   done
 }
 
+ops_state_entries() {   # one JSON object per line per state file; an unreadable file becomes a warn entry (never fails open)
+  local f job
+  for f in "$OPS_STATE"/state/*.json; do
+    [ -e "$f" ] || continue
+    job=$(basename "$f" .json)
+    jq -ce 'select(type=="object" and (.status|type)=="string" and (.job|type)=="string") | {job,status,summary:(.summary // ""),changed:(.changed // 0)}' "$f" 2>/dev/null | grep . \
+      || jq -cn --arg j "$job" '{job:$j,status:"warn",summary:"unreadable state",changed:null}'
+  done
+}
+
 ops_waybar_json() {   # one JSON object for the Waybar custom/ops module
   local states asks
-  states=$(cat "$OPS_STATE"/state/*.json 2>/dev/null | jq -cs '[.[] | select(type=="object" and (.status|type)=="string")]' 2>/dev/null)
+  states=$(ops_state_entries | jq -cs '.' 2>/dev/null)
   asks=$(ops_live_asks | jq -Rsc 'split("\n") | map(select(length>0) | split("\t") | {job:.[0], q:(.[1:]|join(" "))})' 2>/dev/null)
   jq -nc --argjson s "${states:-[]}" --argjson a "${asks:-[]}" '
     ([$s[] | select(.status=="fail")] | length) as $f
@@ -183,9 +193,8 @@ ops_waybar_json() {   # one JSON object for the Waybar custom/ops module
 ops_status_lines() {   # fzf input: job ⟂ status ⟂ summary ⟂ last change, worst first; live asks listed with status "ask"
   local now j q; now=$(ops_now)
   {
-    cat "$OPS_STATE"/state/*.json 2>/dev/null | jq -r --argjson now "$now" '
-      select(type=="object" and (.status|type)=="string")
-      | (if .status=="fail" then 0 elif .status=="warn" then 2 else 3 end) as $o
+    ops_state_entries | jq -r --argjson now "$now" '
+      (if .status=="fail" then 0 elif .status=="warn" then 2 else 3 end) as $o
       | (((($now - (.changed // $now)) / 60) | floor)) as $m
       | [$o, .job, .status, (.summary // "" | gsub("[\n\t]";" ")),
          (if $m < 60 then "\($m)m ago" elif $m < 1440 then "\($m / 60 | floor)h ago" else "\($m / 1440 | floor)d ago" end)]

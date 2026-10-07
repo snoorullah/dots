@@ -59,3 +59,26 @@ newline'
   grep -q 'enter: log · ctrl-a: approve · ctrl-s: snooze · ctrl-k: skip · ctrl-r: run now' "$BATS_TEST_TMPDIR/fzf.args"
   grep -q 'ctrl-r:execute' "$BATS_TEST_TMPDIR/fzf.args"; grep -q 'reload' "$BATS_TEST_TMPDIR/fzf.args"
 }
+@test "garbage state file next to a fail file: class fail, counted, tooltip names it" {
+  ops_state a fail "x"; echo '{not json' > "$OPS_STATE/state/junk.json"
+  run wb; echo "$output" | jq -e '.text=="✗ 1" and .class=="fail"'
+  [[ $(echo "$output" | jq -r .tooltip) == *"junk: unreadable state"* ]]
+  [[ $(echo "$output" | jq -r .tooltip) == *"a: x"* ]]
+}
+@test "garbage state file alone: class warn, never ok" {
+  echo '{not json' > "$OPS_STATE/state/junk.json"
+  run wb; echo "$output" | jq -e '.text=="! 1" and .class=="warn"'
+}
+@test "ops_status_lines survives a garbage state file and lists it" {
+  ops_state a fail "x"; echo '{not json' > "$OPS_STATE/state/junk.json"
+  run ops_status_lines; [ "$status" -eq 0 ]
+  [[ ${lines[0]} == "a ⟂ fail ⟂ x ⟂ "* ]]
+  [[ ${lines[1]} == "junk ⟂ warn ⟂ unreadable state ⟂ "* ]]
+}
+@test "snoozed ask is hidden: waybar stays ok with no ask text, no status row (R25)" {
+  ops_ask j q "user:true"; ops_answer j snooze
+  [ -f "$OPS_STATE/pending/j.json" ]
+  run wb; echo "$output" | jq -e '.text=="✓" and .class=="ok"'
+  [[ $output != *ask* ]]
+  run ops_status_lines; [[ $output != *"j ⟂"* ]]
+}
