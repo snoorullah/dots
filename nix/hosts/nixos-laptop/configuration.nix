@@ -5,6 +5,7 @@
 # committed PLACEHOLDER — regenerate it on the real machine at install time:
 #   nixos-generate-config --root /mnt
 #   cp /mnt/etc/nixos/hardware-configuration.nix hosts/laptop/
+let user = "devsupreme"; in
 {
   imports = [ ./hardware-configuration.nix ];
 
@@ -72,7 +73,7 @@
   services.greetd = {
     enable = true;
     settings.default_session = {
-      command = "${pkgs.tuigreet}/bin/tuigreet --time --remember --cmd /home/devsupreme/.local/bin/start-hyprland-dots";
+      command = "${pkgs.tuigreet}/bin/tuigreet --time --remember --cmd ${config.users.users.${user}.home}/.local/bin/start-hyprland-dots";
       user = "greeter";
     };
   };
@@ -101,9 +102,9 @@
 
   # ── User ──
   programs.zsh.enable = true;
-  users.users.devsupreme = {
+  users.users.${user} = {
     isNormalUser = true;
-    description = "devsupreme";
+    description = user;
     extraGroups = [ "wheel" "networkmanager" "video" "audio" "docker" "wireshark" ];
     shell = pkgs.zsh;
   };
