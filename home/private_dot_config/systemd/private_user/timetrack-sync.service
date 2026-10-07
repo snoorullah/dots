@@ -1,6 +1,0 @@
-[Unit]
-Description=timetrack git backup (sqlite-diffable dump to private repo)
-
-[Service]
-Type=oneshot
-ExecStart=%h/.nix-profile/bin/timetrack sync

@@ -1,0 +1,6 @@
+[Unit]
+Description=timetrack git backup (sqlite-diffable dump to private repo)
+
+[Service]
+Type=oneshot
+ExecStart={{ if eq .gpu "nixos" }}/etc/profiles/per-user/%u{{ else }}%h/.nix-profile{{ end }}/bin/timetrack sync

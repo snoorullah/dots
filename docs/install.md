@@ -43,8 +43,10 @@ Run `tailscale up` once, and log out and back in so the new groups apply.
 
 ## 4. Log in
 
-Log out and choose "Hyprland (dots)" in your login manager. greetd and tuigreet are installed but not
-enabled, so an existing login manager is never replaced; enable greetd yourself if you want it.
+Log out and choose "Hyprland (dots)" in your login manager. The root script writes
+`/etc/greetd/config.toml` (tuigreet launching `start-hyprland-dots`, left alone if you already customised it)
+and enables greetd only when the machine has no display manager. An existing display manager is never
+disabled or replaced; it just lists the "Hyprland (dots)" session.
 
 ## 5. Update
 

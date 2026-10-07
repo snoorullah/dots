@@ -2,7 +2,7 @@
 Description=Hyprland polkit agent
 PartOf=graphical-session.target
 [Service]
-ExecStart=%h/.nix-profile/libexec/hyprpolkitagent
+ExecStart={{ if eq .gpu "nixos" }}/etc/profiles/per-user/%u{{ else }}%h/.nix-profile{{ end }}/libexec/hyprpolkitagent
 Restart=on-failure
 [Install]
 WantedBy=graphical-session.target

@@ -85,6 +85,29 @@ Name=Hyprland (dots)
 Exec={{ .chezmoi.homeDir }}/.local/bin/start-hyprland-dots
 Type=Application
 DESKTOP
+# greetd: configure for the session above, and enable it ONLY when no display manager exists.
+# An existing display manager is never disabled or replaced.
+greeter=""
+for u in greeter _greetd greetd; do id -u "$u" >/dev/null 2>&1 && { greeter="$u"; break; }; done
+if [ -z "$greeter" ]; then sudo useradd -r -M -s /usr/sbin/nologin -G video greeter 2>/dev/null || true; greeter=greeter; fi
+if [ ! -s /etc/greetd/config.toml ] || grep -qE 'agreety|start-hyprland-dots' /etc/greetd/config.toml; then
+  sudo install -d /etc/greetd
+  sudo tee /etc/greetd/config.toml >/dev/null <<GREETD
+[terminal]
+vt = 1
+
+[default_session]
+command = "tuigreet --time --remember --cmd {{ .chezmoi.homeDir }}/.local/bin/start-hyprland-dots"
+user = "$greeter"
+GREETD
+else
+  echo "greetd: existing custom /etc/greetd/config.toml left untouched" >&2
+fi
+if ! systemctl cat display-manager.service >/dev/null 2>&1; then
+  sudo systemctl enable greetd.service
+else
+  echo "a display manager already exists; not enabling greetd" >&2
+fi
 sudo install -Dm644 {{ joinPath .chezmoi.workingTree "system/keyd/default.conf" | quote }} /etc/keyd/default.conf
 sudo systemctl enable --now keyd
 

@@ -3,7 +3,7 @@ Description=timetrack - systemd-logind session/lock/suspend capture
 
 [Service]
 Type=simple
-ExecStart=%h/.nix-profile/bin/timetrack-logind
+ExecStart={{ if eq .gpu "nixos" }}/etc/profiles/per-user/%u{{ else }}%h/.nix-profile{{ end }}/bin/timetrack-logind
 Restart=on-failure
 RestartSec=5
 
