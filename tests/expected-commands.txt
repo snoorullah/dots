@@ -75,3 +75,5 @@ tasksh
 bugwarrior
 taskchampion-sync-server
 bat
+bats
+yq

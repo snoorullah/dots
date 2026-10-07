@@ -46,7 +46,7 @@ in {
     (lib.hiPrio taskwarrior3) timewarrior taskwarrior-tui aw-server-rust awatcher dotsAdhanPython timetrack
     zsh antidote starship zoxide fzf eza bat ripgrep jq gh neovim git chezmoi
     tmux dotsTmuxPluginFarm inputs.herdr.packages.${pkgs.system}.default
-    kubectl k9s openssh
+    kubectl k9s openssh bats yq-go
     nerd-fonts.jetbrains-mono nerd-fonts.fantasque-sans-mono victor-mono material-symbols noto-fonts noto-fonts-color-emoji
     kdePackages.breeze kdePackages.breeze-icons
 
