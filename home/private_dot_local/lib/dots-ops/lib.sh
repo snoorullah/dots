@@ -92,7 +92,11 @@ ops_ask() {   # job question action — one live pending per job
 ops_ask_pending() {   # 0 = live pending (or snoozed) exists
   local f="$OPS_STATE/pending/$1.json" now; now=$(ops_now)
   [ -f "$f" ] || return 1
-  if [ "$(jq -r .expires "$f")" -le "$now" ] && [ "$(jq -r .snooze_until "$f")" -le "$now" ]; then
+  local exp snz
+  if ! exp=$(jq -er .expires "$f" 2>/dev/null) || ! snz=$(jq -er .snooze_until "$f" 2>/dev/null); then
+    rm -f "$f"; ops_log "$1" warn "corrupt pending removed"; return 1
+  fi
+  if [ "$exp" -le "$now" ] && [ "$snz" -le "$now" ]; then
     rm -f "$f"; ops_log "$1" info "approval expired; skipped"; return 1
   fi
   return 0
@@ -101,9 +105,10 @@ ops_ask_pending() {   # 0 = live pending (or snoozed) exists
 ops_answer() {   # job approve|skip|snooze
   local job=$1 ans=$2 f="$OPS_STATE/pending/$1.json" act rc=0
   [ -f "$f" ] || return 0
-  act=$(jq -r .action "$f")
+  act=$(jq -r .action "$f" 2>/dev/null)
   case $ans in
     approve)
+      if ! ops_ask_pending "$job"; then ops_log "$job" info "approval expired; not run"; return 0; fi
       rm -f "$f"; ops_log "$job" approve "$act"
       case $act in
         user:*) bash -c "${act#user:}" || rc=$? ;;
@@ -113,7 +118,7 @@ ops_answer() {   # job approve|skip|snooze
           read -ra sudo_cmd <<< "$OPS_SUDO"
           "${sudo_cmd[@]}" "$OPS_RUNNER" "${ra[0]}" "${ra[1]}" || rc=$? ;;
       esac
-      [ "$rc" -eq 0 ] || ops_log "$job" warn "approved action failed (rc=$rc): $act" ;;
+      [ "$rc" -eq 0 ] || ops_state "$job" warn "approved action failed (rc=$rc): $act" ;;
     skip)   rm -f "$f"; ops_log "$job" skip "$act" ;;
     snooze) jq --argjson s $(( $(ops_now) + 86400 )) '.snooze_until=$s' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
             ops_log "$job" snooze "$act" ;;
@@ -125,6 +130,7 @@ ops_on_ac() {
   local d bat=0
   for d in "$OPS_POWER_DIR"/*; do
     [ -e "$d/type" ] || continue
+    grep -q Device "$d/scope" 2>/dev/null && continue   # peripheral batteries (mouse, headset)
     case $(cat "$d/type") in
       Mains) [ "$(cat "$d/online" 2>/dev/null)" = 1 ] && return 0 ;;
       Battery) bat=1 ;;

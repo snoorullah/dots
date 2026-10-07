@@ -53,6 +53,7 @@ setup() { setup_ops; }
   ( ops_lock busy; sleep 2 ) &
   sleep 0.3
   run bash -c "source $BATS_TEST_DIRNAME/../../home/private_dot_local/lib/dots-ops/lib.sh; ops_lock busy; echo ran"
-  [ "$status" -eq 0 ] && [ "$output" != *ran* ]
+  [ "$status" -eq 0 ]
+  [[ $output != *ran* ]]
   wait
 }
