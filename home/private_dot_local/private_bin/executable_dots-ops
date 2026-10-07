@@ -170,10 +170,12 @@ case "${1:-}" in
     valid_job "$2"; ops_answer "$2" "$3" "${4:-}" ;;
   idle-start)
     if [ "${2:-}" = --fallback ]; then   # R15: only when on AC and nobody is using the machine
-      if ops_on_ac && { pgrep -x hyprlock >/dev/null 2>&1 || ! loginctl list-sessions --no-legend 2>/dev/null | grep -q .; }; then
+      # R58: and logind agrees the user has been idle >= 15 min (a resume into active work is not idle, locked or not)
+      if ops_on_ac && { pgrep -x hyprlock >/dev/null 2>&1 || ! loginctl list-sessions --no-legend 2>/dev/null | grep -q .; } \
+         && ops_logind_idle; then
         systemd-run --user --on-active=2h "$(readlink -f "$0")" idle-end >/dev/null 2>&1 || ops_log system warn "could not schedule idle-end"
       else
-        ops_log system info "fallback skipped: not idle/AC"; exit 0
+        ops_log system info "fallback skipped: not on AC, not locked, or logind not idle for 15 min"; exit 0
       fi
     fi
     mkdir -p "$(dirname "$OPS_IDLE_FLAG")"; touch "$OPS_IDLE_FLAG"

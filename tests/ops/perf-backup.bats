@@ -255,6 +255,17 @@ perf() { run --separate-stderr bash "$CLI" perf-mode "$@"; }
   unset RESTIC_REPOSITORY
   runjob "$UJ/backup-check.sh"
   [[ $(ustate backup-check summary) == n/a* ]]; grep -q '^OPS_HEAVY=1' "$UJ/backup-check.sh"
+  [ ! -e "$OPS_STATE/backup-check.last" ]   # n/a is not a run
+}
+@test "R59 backup-check: ran within 7 days -> skipped unless forced (the idle target pulls it every idle period)" {
+  runjob "$UJ/backup-check.sh"; [ "$(grep -c 'restic check' "$STUB_LOG")" -eq 1 ]; [ -s "$OPS_STATE/backup-check.last" ]
+  runjob "$UJ/backup-check.sh"; [ "$(grep -c 'restic check' "$STUB_LOG")" -eq 1 ]
+  grep -q 'skipped: last run' "$OPS_STATE/log.jsonl"
+  OPS_FORCE=1 runjob "$UJ/backup-check.sh"; [ "$(grep -c 'restic check' "$STUB_LOG")" -eq 2 ]
+  echo $(( $(date +%s) - 7 * 86400 - 1 )) > "$OPS_STATE/backup-check.last"
+  runjob "$UJ/backup-check.sh"; [ "$(grep -c 'restic check' "$STUB_LOG")" -eq 3 ]
+  export STUB_RESTIC_RC=1; echo 1 > "$OPS_STATE/backup-check.last"   # a failed check also counts as a run (fail stays red)
+  runjob "$UJ/backup-check.sh"; [ "$(cat "$OPS_STATE/backup-check.last")" != 1 ]
 }
 
 # ---- wiring ----

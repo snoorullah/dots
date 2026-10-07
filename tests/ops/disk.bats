@@ -83,6 +83,18 @@ dw() { STUB_FINDMNT="$1" runjob "$UJ/disk-watch.sh"; }
   [[ $output == *"+ systemd-run --user --no-block --collect --setenv=OPS_FORCE=1 -p ExecStopPost=$HOME/.local/bin/dots-ops-job --report-failure disk-clean-user $HOME/.local/bin/dots-ops-job disk-clean-user"* ]]
   ! grep -q systemd-run "$STUB_LOG"
 }
+@test "R63 disk-watch: forced cleaners start at most every 6 h (backoff in OPS_STATE); still warn meanwhile" {
+  dw 'ext4 500000000000 91% / rw\n'
+  [ "$(grep -c 'disk-clean-user' "$STUB_LOG")" -eq 1 ]; [ "$(grep -c 'run-now' "$STUB_LOG")" -eq 1 ]
+  [ -s "$OPS_STATE/disk-watch.forced" ]
+  dw 'ext4 500000000000 92% / rw\n'
+  [ "$(ustate disk-watch status)" = warn ]
+  [ "$(grep -c 'disk-clean-user' "$STUB_LOG")" -eq 1 ]; [ "$(grep -c 'run-now' "$STUB_LOG")" -eq 1 ]
+  grep -q 'cleaners started' "$OPS_STATE/log.jsonl"
+  echo $(( $(date +%s) - 6 * 3600 - 1 )) > "$OPS_STATE/disk-watch.forced"
+  dw 'ext4 500000000000 92% / rw\n'
+  [ "$(grep -c 'disk-clean-user' "$STUB_LOG")" -eq 2 ]; [ "$(grep -c 'run-now' "$STUB_LOG")" -eq 2 ]
+}
 
 # ---- disk-clean-user ----
 @test "disk-clean-user: deletes only >30d cache files, reports freed MB" {

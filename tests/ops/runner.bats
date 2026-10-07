@@ -40,7 +40,19 @@ stubs() {   # fake systemctl/systemd-run/pgrep/loginctl recording argv; sudo stu
     printf '#!/bin/sh\necho "%s $*" >> %s/calls.log\n' "$c" "$BATS_TEST_TMPDIR" > "$BATS_TEST_TMPDIR/fakebin/$c"
   done
   printf '#!/bin/sh\n[ -n "$STUB_LOCKED" ]\n' > "$BATS_TEST_TMPDIR/fakebin/pgrep"
-  printf '#!/bin/sh\n[ -n "$STUB_SESSION" ] && echo "1 1000 u seat0"\nexit 0\n' > "$BATS_TEST_TMPDIR/fakebin/loginctl"
+  # loginctl: list-sessions (STUB_SESSION), show-user -> IdleHint (STUB_IDLE_HINT, default yes) + IdleSinceHint in µs
+  # (STUB_IDLE_MIN minutes ago, default 20); show-user args are recorded so the test can check the uid asked about
+  cat > "$BATS_TEST_TMPDIR/fakebin/loginctl" <<'EOF'
+#!/bin/sh
+case "$1" in
+  show-user) echo "$*" >> "$STUB_LOGIND_LOG"
+             echo "IdleHint=${STUB_IDLE_HINT:-yes}"
+             echo "IdleSinceHint=$(( ($(date +%s) - ${STUB_IDLE_MIN:-20} * 60) * 1000000 ))" ;;
+  *) [ -n "$STUB_SESSION" ] && echo "1 1000 u seat0" ;;
+esac
+exit 0
+EOF
+  export STUB_LOGIND_LOG="$BATS_TEST_TMPDIR/logind.log"
   chmod +x "$BATS_TEST_TMPDIR"/fakebin/*
   mkdir -p "$BATS_TEST_TMPDIR/ps"   # no battery => AC
   export OPS_POWER_DIR="$BATS_TEST_TMPDIR/ps" OPS_IDLE_FLAG="$BATS_TEST_TMPDIR/rt/idle" OPS_SUDO="echo SUDO" OPS_RUNNER=/x/runner
@@ -76,6 +88,22 @@ stubs() {   # fake systemctl/systemd-run/pgrep/loginctl recording argv; sudo stu
   [ "$(jq -r .status "$OPS_STATE/state/system.json")" = ok ]
   rm -f "$OPS_STATE/state/system.json"; run bash "$BIN/executable_dots-ops" idle-end
   [ ! -e "$OPS_STATE/state/system.json" ]   # no state noise while everything works
+}
+@test "R58 fallback needs logind IdleHint=yes for >= 15 min: resume during active use (hint no / idle 5 min) is skipped" {
+  stubs
+  STUB_LOCKED=1 STUB_SESSION=1 STUB_IDLE_HINT=no run bash "$BIN/executable_dots-ops" idle-start --fallback
+  [ "$status" -eq 0 ]; [ ! -e "$OPS_IDLE_FLAG" ]; [ ! -s "$BATS_TEST_TMPDIR/calls.log" ]
+  grep -q 'fallback skipped' "$OPS_STATE/log.jsonl"
+  STUB_LOCKED=1 STUB_SESSION=1 STUB_IDLE_MIN=5 run bash "$BIN/executable_dots-ops" idle-start --fallback
+  [ ! -e "$OPS_IDLE_FLAG" ]; [ ! -s "$BATS_TEST_TMPDIR/calls.log" ]
+  grep -q "^show-user $(id -u) " "$STUB_LOGIND_LOG"
+  STUB_LOCKED=1 STUB_SESSION=1 STUB_IDLE_MIN=16 run bash "$BIN/executable_dots-ops" idle-start --fallback
+  [ -e "$OPS_IDLE_FLAG" ]
+}
+@test "R58 fallback timer is not Persistent (a missed 03:30 must not fire on resume)" {
+  t="$BATS_TEST_DIRNAME/../../home/private_dot_config/systemd/private_user/dots-ops-fallback.timer"
+  grep -qx 'OnCalendar=\*-\*-\* 03:30:00' "$t"
+  run ! grep -q '^Persistent=' "$t"
 }
 @test "fallback with screen locked on AC: flag, restart, 2h idle-end timer" {
   stubs; STUB_LOCKED=1 STUB_SESSION=1 run bash "$BIN/executable_dots-ops" idle-start --fallback

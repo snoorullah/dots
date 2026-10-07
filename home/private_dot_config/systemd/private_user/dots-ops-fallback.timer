@@ -3,7 +3,7 @@ Description=dots-ops nightly fallback for heavy jobs
 
 [Timer]
 OnCalendar=*-*-* 03:30:00
-Persistent=true
+# R58: no Persistent=: a missed 03:30 (machine asleep) must not fire on resume, when the owner is about to work
 
 [Install]
 WantedBy=timers.target

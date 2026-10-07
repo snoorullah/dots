@@ -15,13 +15,22 @@ _uf_step() {
   fi
 }
 case $_uf_fam in
+  debian|fedora|arch) ;;
+  *) ops_state updates-full ok "n/a: $_uf_fam has no full-update path here"; unset _uf_fam _uf_hint; return 0 ;;
+esac
+# R56: the shared package lock for the whole transaction (reboot now/tonight refuse or wait while it is held)
+if ! ops_pkg_lock; then
+  ops_state updates-full fail "another package transaction held the lock for ${OPS_PKG_LOCK_WAIT:-1800}s; nothing was run — approve again later"
+  exit 1
+fi
+case $_uf_fam in
   debian)
     _uf_step "apt-get update" apt-get update -qq
     _uf_step "apt-get dist-upgrade" env DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef -o DPkg::Lock::Timeout=300 dist-upgrade ;;
   fedora) _uf_step "dnf upgrade" dnf upgrade -y ;;
   arch)   _uf_step "pacman -Syu" pacman -Syu --noconfirm ;;
-  *)      ops_state updates-full ok "n/a: $_uf_fam has no full-update path here"; unset _uf_fam _uf_hint; return 0 ;;
 esac
+ops_pkg_unlock
 rm -f "$OPS_ROOT_STATE/ask-updates-full.json"
 ops_state updates-full ok "updated ($_uf_fam) [rollback: $_uf_hint]"
 ops_state updates-check ok "up to date (just applied)"

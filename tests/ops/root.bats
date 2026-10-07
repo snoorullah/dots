@@ -364,3 +364,10 @@ render_installer() {   # data-file → rendered script path
   [[ $toks == *"/usr/local/bin/dots-ops-run"* && $toks == *"/usr/local/bin/dots-ops-job"* && $toks == *"/usr/local/lib/dots-ops"* ]]
   for t in $toks; do grep -qE -- "--replace-(fail|quiet) $t( |$)" "$nix" || { echo "not substituted in dots-ops.nix: $t"; return 1; }; done
 }
+@test "R56/R57 every /usr/local dots-ops path in root jobs/actions is rewritten by the NixOS jobs/actions loop" {
+  nix="$R/nix/hosts/nixos-laptop/dots-ops.nix"
+  toks=$(grep -rohE '/usr/local/(bin/dots-ops[a-z-]*|lib/dots-ops)' "$R/system/dots-ops/jobs" "$R/system/dots-ops/actions" | sort -u)
+  [[ $toks == *"/usr/local/bin/dots-ops-job"* ]]
+  loop=$(sed -n '/for f in \$L\/jobs\/\*.sh/,/done/p' "$nix")
+  for t in $toks; do grep -qE -- "--replace-quiet $t " <<< "$loop" || { echo "jobs/actions loop misses $t"; return 1; }; done
+}

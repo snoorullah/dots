@@ -1,7 +1,7 @@
 # reboot-needed (root): is a reboot pending? Triggered by dots-ops-reboot.path and after updates-full apply.
 # Needed -> two-button ask (R5): Approve = reboot now, alt = tonight 03:00.
 job_main() {
-  local fam needed=0 rc=0 rel rr="${OPS_REBOOT_REQUIRED:-/var/run/reboot-required}" ask="$OPS_ROOT_STATE/ask-reboot-needed.json"
+  local fam needed=0 rc=0 rel rr="${OPS_REBOOT_REQUIRED:-/run/reboot-required}" ask="$OPS_ROOT_STATE/ask-reboot-needed.json"
   fam=$(ops_family)
   case $fam in
     debian) [ -e "$rr" ] && needed=1 ;;

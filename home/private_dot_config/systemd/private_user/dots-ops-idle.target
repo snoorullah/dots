@@ -1,3 +1,3 @@
 [Unit]
 Description=dots-ops heavy jobs (machine idle)
-Wants=dots-ops@disk-clean-user.service dots-ops@backup.service dots-ops@containers-prune.service
+Wants=dots-ops@disk-clean-user.service dots-ops@backup.service dots-ops@containers-prune.service dots-ops@backup-check.service dots-ops@dots-update.service

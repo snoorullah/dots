@@ -6,12 +6,20 @@ job_main() {
   local fam out rc=0
   fam=$(ops_family)
   case $fam in
-    debian) out=$(ops_run unattended-upgrade -v 2>&1) || rc=$? ;;
-    fedora) out=$(ops_run dnf upgrade --security -y 2>&1) || rc=$? ;;
+    debian|fedora) ;;
     arch)   ops_state updates-security ok "n/a: no security channel; use full updates"; return 0 ;;
     nixos)  ops_state updates-security ok "n/a: nixos updates come from the repo"; return 0 ;;
     *)      ops_state updates-security ok "n/a: unsupported distro"; return 0 ;;
   esac
+  # R56: shared package lock for the transaction (an approved full update may be running; reboots wait for us)
+  if ! ops_pkg_lock; then
+    ops_state updates-security warn "skipped: another package transaction is running (lock busy ${OPS_PKG_LOCK_WAIT:-1800}s)"; return 0
+  fi
+  case $fam in
+    debian) out=$(ops_run unattended-upgrade -v 2>&1) || rc=$? ;;
+    fedora) out=$(ops_run dnf upgrade --security -y 2>&1) || rc=$? ;;
+  esac
+  ops_pkg_unlock
   [ -z "$out" ] || printf '%s\n' "$out"
   if [ "$rc" = 0 ]; then
     ops_state updates-security ok "security updates applied ($fam)"

@@ -119,6 +119,38 @@ ops_report_unit() {   # name [act] — ExecStopPost of every dots-ops unit (R57)
   ops_state "$name" fail "unit $res/${EXIT_CODE:-?}/${EXIT_STATUS:-?}"
 }
 
+ops_ran_within() {   # name secs — 0 = skip: <name> last ran less than secs ago ($OPS_STATE/<name>.last) and the run is not forced
+  local t now; [ "${OPS_FORCE:-0}" = 1 ] && return 1
+  t=$(head -n 1 "$OPS_STATE/$1.last" 2>/dev/null) || return 1
+  [[ $t =~ ^[0-9]+$ ]] || return 1
+  now=$(ops_now); [ $((now - t)) -lt "$2" ] || return 1
+  ops_log "$1" info "skipped: last run $(( (now - t) / 3600 ))h ago"
+}
+ops_ran_mark() { [ "${DOTS_OPS_DRY_RUN:-0}" = 1 ] || ops_now > "$OPS_STATE/$1.last"; }   # name — record a real run
+
+# R56: one shared root package lock. updates-full apply and updates-security hold it for the package transaction;
+# reboot now/tonight refuse (or retry) while it is held, so no reboot lands in the middle of dpkg/pacman/dnf.
+ops_pkg_lock() {   # [wait-secs] — take it on fd OPS_PKG_FD, waiting up to OPS_PKG_LOCK_WAIT (30 min); 1 = still busy
+  mkdir -p "$OPS_ROOT_DATA/locks" && exec {OPS_PKG_FD}>>"$OPS_ROOT_DATA/locks/pkg.lock" || return 1
+  flock -w "${1:-${OPS_PKG_LOCK_WAIT:-1800}}" "$OPS_PKG_FD"
+}
+ops_pkg_unlock() { if [ -n "${OPS_PKG_FD:-}" ]; then exec {OPS_PKG_FD}>&-; OPS_PKG_FD=""; fi; }
+ops_pkg_busy() {   # 0 = a package transaction holds the lock right now (never waits)
+  local fd
+  [ -e "$OPS_ROOT_DATA/locks/pkg.lock" ] || return 1
+  exec {fd}>>"$OPS_ROOT_DATA/locks/pkg.lock" || return 1
+  if flock -n "$fd"; then exec {fd}>&-; return 1; fi
+  exec {fd}>&-
+}
+
+ops_logind_idle() {   # 0 = logind says this user has been idle >= OPS_FALLBACK_IDLE_SECS (900 s): IdleHint=yes, IdleSinceHint old (R58)
+  local out hint since
+  out=$(loginctl show-user "$EUID" -p IdleHint -p IdleSinceHint 2>/dev/null) || return 1
+  hint=$(sed -n 's/^IdleHint=//p' <<< "$out"); since=$(sed -n 's/^IdleSinceHint=//p' <<< "$out")
+  [ "$hint" = yes ] && [[ $since =~ ^[0-9]+$ ]] || return 1
+  [ $(( $(ops_now) - since / 1000000 )) -ge "${OPS_FALLBACK_IDLE_SECS:-900}" ]   # 0 = idle since before boot: long enough
+}
+
 ops_lock() {   # job — exits 0 if another instance holds the lock
   exec {OPS_LOCK_FD}>"$OPS_STATE/locks/$1.lock"
   flock -n "$OPS_LOCK_FD" || { ops_log "$1" info "already running; skipped"; exit 0; }

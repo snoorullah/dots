@@ -43,9 +43,10 @@ let
         --replace-fail /usr/local/bin/dots-ops-run $out/bin/dots-ops-run
       substituteInPlace $out/bin/dots-ops-job --replace-fail /usr/local/lib/dots-ops $L
       substituteInPlace $L/lib.sh --replace-fail /usr/local/bin/dots-ops-run $out/bin/dots-ops-run
-      # jobs/actions default to the /usr/local prefix (e.g. OPS_SYS_DIR); point them at the store copy
+      # jobs/actions default to the /usr/local prefix (e.g. OPS_SYS_DIR, the reboot-scheduled job runner); point them at the store copy
       for f in $L/jobs/*.sh $L/actions/*/*.sh; do
-        substituteInPlace "$f" --replace-quiet /usr/local/lib/dots-ops $L
+        substituteInPlace "$f" --replace-quiet /usr/local/lib/dots-ops $L \
+          --replace-quiet /usr/local/bin/dots-ops-job $out/bin/dots-ops-job
       done
       for u in $out/lib/systemd/system/*; do
         substituteInPlace "$u" --replace-quiet /usr/local/bin/dots-ops-job $out/bin/dots-ops-job

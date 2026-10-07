@@ -202,10 +202,81 @@ without_cmd() {   # without_cmd <cmd>: hermetic PATH = stubs (minus <cmd>) + the
   asroot "$NIX"; runjob "$SJ/reboot-needed.sh"
   [[ $(rstate reboot-needed summary) == n/a:* ]]
 }
-@test "reboot actions: now = systemctl reboot, tonight = shutdown -r 03:00 (dry run)" {
+@test "reboot actions: now = systemctl reboot; tonight = a 03:00 transient timer running the lock-checking job, never bare shutdown (dry run)" {
   asroot "$DEB"
   run runact reboot now;     [ "$status" -eq 0 ]; [ "$output" = "+ systemctl reboot" ]
-  run runact reboot tonight; [ "$status" -eq 0 ]; [ "$output" = "+ shutdown -r 03:00" ]
+  run runact reboot tonight; [ "$status" -eq 0 ]
+  [[ $output == *"+ systemd-run --no-block --collect --unit=dots-ops-reboot-scheduled --on-calendar=*-*-* 03:00:00 --setenv=PATH="*" --setenv=OPS_IS_ROOT=1 -p ExecStopPost=/usr/local/bin/dots-ops-job --report-failure reboot-scheduled /usr/local/bin/dots-ops-job reboot-scheduled"* ]]
+  [[ $output != *shutdown* ]]
+  [ ! -e "$OPS_ROOT_STATE/root/reboot-scheduled.json" ]   # dry run: nothing armed
+}
+
+# ---- R56: shared root package lock ----
+holdlock() {   # hold the pkg lock in the background for $1 s (default 5); waits until it is really held
+  mkdir -p "$OPS_ROOT_STATE/root/locks"   # exec: the holder IS the sleep, so `kill $LOCKPID` releases the lock
+  ( exec 9>>"$OPS_ROOT_STATE/root/locks/pkg.lock"; flock -x 9; exec sleep "${1:-5}" ) & LOCKPID=$!
+  local i; for i in 1 2 3 4 5 6 7 8 9 10; do flock -n "$OPS_ROOT_STATE/root/locks/pkg.lock" true || return 0; sleep 0.1; done; return 1
+}
+lockprobe() {   # a package-manager stub that records whether the pkg lock is held while it runs
+  printf '#!/bin/sh\necho "%s $*" >> "$STUB_LOG"\nflock -n "%s" true && echo FREE >> "%s" || echo HELD >> "%s"\nexit 0\n' \
+    "$1" "$OPS_ROOT_STATE/root/locks/pkg.lock" "$BATS_TEST_TMPDIR/probe" "$BATS_TEST_TMPDIR/probe" > "$BATS_TEST_TMPDIR/pb/$1"
+  chmod +x "$BATS_TEST_TMPDIR/pb/$1"
+}
+@test "R56 updates-full apply and updates-security hold the pkg lock during the package transaction, release it after" {
+  asroot "$ARCH"; mkdir -p "$BATS_TEST_TMPDIR/pb"; lockprobe pacman; lockprobe unattended-upgrade
+  PATH="$BATS_TEST_TMPDIR/pb:$PATH" run runact_live updates-full apply; [ "$status" -eq 0 ]
+  [ "$(cat "$BATS_TEST_TMPDIR/probe")" = HELD ]
+  asroot "$DEB"; : > "$BATS_TEST_TMPDIR/probe"
+  PATH="$BATS_TEST_TMPDIR/pb:$PATH" runjob "$SJ/updates-security.sh"
+  [ "$(cat "$BATS_TEST_TMPDIR/probe")" = HELD ]
+  flock -n "$OPS_ROOT_STATE/root/locks/pkg.lock" true   # released once the transaction is over
+}
+@test "R56 a held pkg lock: apply waits, then fails without running; updates-security skips with warn" {
+  asroot "$ARCH"; holdlock 5
+  OPS_PKG_LOCK_WAIT=1 run runact_live updates-full apply
+  [ "$status" -ne 0 ]; ! grep -q '^pacman' "$STUB_LOG"
+  [ "$(rstate updates-full status)" = fail ]; [[ $(rstate updates-full summary) == *"package transaction"* ]]
+  asroot "$DEB"; OPS_PKG_LOCK_WAIT=1 runjob "$SJ/updates-security.sh"
+  ! grep -q '^unattended-upgrade' "$STUB_LOG"
+  [ "$(rstate updates-security status)" = warn ]; [[ $(rstate updates-security summary) == *"package transaction"* ]]
+  kill "$LOCKPID" 2>/dev/null || true
+}
+@test "R56 reboot now refuses while a package transaction runs: warn, non-zero, ask kept, no reboot" {
+  asroot "$DEB"; mkdir -p "$OPS_ROOT_STATE"; echo '{}' > "$OPS_ROOT_STATE/ask-reboot-needed.json"; holdlock 5
+  run runact_live reboot now; [ "$status" -ne 0 ]
+  ! grep -q 'systemctl reboot' "$STUB_LOG"
+  [ "$(rstate reboot-needed status)" = warn ]; [ "$(rstate reboot-needed summary)" = "package transaction running — try again" ]
+  [ -e "$OPS_ROOT_STATE/ask-reboot-needed.json" ]
+  kill "$LOCKPID" 2>/dev/null || true
+}
+@test "R56 reboot tonight arms the scheduled job (tries 0), withdraws the ask and says how to cancel" {
+  asroot "$DEB"; mkdir -p "$OPS_ROOT_STATE"; echo '{}' > "$OPS_ROOT_STATE/ask-reboot-needed.json"
+  run runact_live reboot tonight; [ "$status" -eq 0 ]
+  grep -q '^systemd-run .*--unit=dots-ops-reboot-scheduled --on-calendar=\*-\*-\* 03:00:00 .* reboot-scheduled$' "$STUB_LOG"
+  ! grep -q '^shutdown' "$STUB_LOG"
+  [ "$(jq -r .tries "$OPS_ROOT_STATE/root/reboot-scheduled.json")" = 0 ]
+  [ ! -e "$OPS_ROOT_STATE/ask-reboot-needed.json" ]
+  [[ $(rstate reboot-needed summary) == *"03:00"*"systemctl stop dots-ops-reboot-scheduled.timer"* ]]
+}
+@test "R56 reboot-scheduled job: not armed -> nothing; armed + lock free -> reboot; lock held -> re-arm +15 min, at most 8 times" {
+  asroot "$DEB"
+  runjob "$SJ/reboot-scheduled.sh"; ! grep -q 'reboot' "$STUB_LOG"   # nothing armed (e.g. the daily timer fired again)
+  mkdir -p "$OPS_ROOT_STATE/root"; echo '{"tries":0}' > "$OPS_ROOT_STATE/root/reboot-scheduled.json"
+  holdlock 8
+  runjob "$SJ/reboot-scheduled.sh"
+  ! grep -qx 'systemctl reboot' "$STUB_LOG"
+  grep -q '^systemd-run .*--unit=dots-ops-reboot-scheduled-1 --on-active=15min .* reboot-scheduled$' "$STUB_LOG"
+  [ "$(jq -r .tries "$OPS_ROOT_STATE/root/reboot-scheduled.json")" = 1 ]
+  [[ $(rstate reboot-needed summary) == *"retry 1/8"* ]]
+  echo '{"tries":8}' > "$OPS_ROOT_STATE/root/reboot-scheduled.json"; : > "$STUB_LOG"
+  runjob "$SJ/reboot-scheduled.sh"
+  ! grep -q 'systemd-run' "$STUB_LOG"; ! grep -qx 'systemctl reboot' "$STUB_LOG"
+  [ ! -e "$OPS_ROOT_STATE/root/reboot-scheduled.json" ]
+  [ "$(rstate reboot-needed status)" = warn ]; [[ $(rstate reboot-needed summary) == *"gave up"* ]]
+  kill "$LOCKPID" 2>/dev/null || true; wait "$LOCKPID" 2>/dev/null || true
+  echo '{"tries":3}' > "$OPS_ROOT_STATE/root/reboot-scheduled.json"; : > "$STUB_LOG"
+  runjob "$SJ/reboot-scheduled.sh"
+  grep -qx 'systemctl reboot' "$STUB_LOG"; [ ! -e "$OPS_ROOT_STATE/root/reboot-scheduled.json" ]
 }
 
 # ---- firmware ----
@@ -359,15 +430,31 @@ without_cmd() {   # without_cmd <cmd>: hermetic PATH = stubs (minus <cmd>) + the
   grep -q '^Wants=.*dots-ops@updates-security.service' "$SU/dots-ops-system-idle.target"
   grep -q 'dots-ops@disk-clean-system.service' "$SU/dots-ops-system-idle.target"
 }
-@test "reboot path unit triggers reboot-needed on /var/run/reboot-required" {
+@test "reboot path unit triggers reboot-needed on /run/reboot-required (R63: not the legacy /var/run)" {
   f="$SU/dots-ops-reboot.path"
-  grep -q '^Path\(Exists\|Changed\)=/var/run/reboot-required' "$f"
+  grep -qx 'PathChanged=/run/reboot-required' "$f"
   grep -q '^Unit=dots-ops@reboot-needed.service' "$f"; grep -q 'WantedBy=paths.target\|WantedBy=multi-user.target' "$f"
+  grep -q 'OPS_REBOOT_REQUIRED:-/run/reboot-required}' "$SJ/reboot-needed.sh"
 }
 @test "dots-update user timer: daily, persistent, enabled by the systemd script" {
   f="$R/home/private_dot_config/systemd/private_user/dots-ops-dots-update.timer"
   grep -q '^OnCalendar=daily' "$f"; grep -q '^Persistent=true' "$f"; grep -q '^Unit=dots-ops@dots-update.service' "$f"
   grep -q 'enable --now dots-ops-dots-update.timer' "$R/home/.chezmoiscripts/run_onchange_after_24-systemd.sh.tmpl"
+}
+@test "R59 dots-update and backup-check are pulled by the idle target" {
+  t="$R/home/private_dot_config/systemd/private_user/dots-ops-idle.target"
+  grep -q '^Wants=.*dots-ops@dots-update.service' "$t"; grep -q '^Wants=.*dots-ops@backup-check.service' "$t"
+  grep -q '^Wants=.*dots-ops@backup.service' "$t"
+}
+@test "R59 dots-update: ran within 1 day -> skipped unless forced; a real run records when" {
+  runjob "$UJ/dots-update.sh"; grep -q 'chezmoi update' "$STUB_LOG"
+  [ -s "$OPS_STATE/dots-update.last" ]
+  : > "$STUB_LOG"; runjob "$UJ/dots-update.sh"
+  ! grep -q chezmoi "$STUB_LOG"; grep -q 'skipped: last run' "$OPS_STATE/log.jsonl"
+  OPS_FORCE=1 runjob "$UJ/dots-update.sh"; grep -q 'chezmoi update' "$STUB_LOG"
+  echo $(( $(date +%s) - 86401 )) > "$OPS_STATE/dots-update.last"; : > "$STUB_LOG"
+  runjob "$UJ/dots-update.sh"; grep -q 'chezmoi update' "$STUB_LOG"
+  rm -f "$OPS_STATE/dots-update.last"; DOTS_OPS_DRY_RUN=1 run runjob "$UJ/dots-update.sh"; [ ! -e "$OPS_STATE/dots-update.last" ]
 }
 @test "units verify (systemd-analyze, temp copies)" {
   command -v systemd-analyze >/dev/null || skip "no systemd-analyze"
@@ -445,9 +532,9 @@ RN='systemctl start --no-block dots-ops@reboot-needed.service'
   echo '{}' > "$a"; run env STUB_SYSTEMCTL_FAIL=1 bash -c 'set -euo pipefail; source "$1"; source "$2"' _ "$LIB" "$SA/reboot/now.sh"
   [ "$status" -ne 0 ]; [ -e "$a" ]
   run runact_live reboot now; [ "$status" -eq 0 ]; [ ! -e "$a" ]; grep -qx 'systemctl reboot' "$STUB_LOG"
-  echo '{}' > "$a"; run env STUB_SHUTDOWN_FAIL=1 bash -c 'set -euo pipefail; source "$1"; source "$2"' _ "$LIB" "$SA/reboot/tonight.sh"
-  [ "$status" -ne 0 ]; [ -e "$a" ]
-  run runact_live reboot tonight; [ "$status" -eq 0 ]; [ ! -e "$a" ]; grep -qx 'shutdown -r 03:00' "$STUB_LOG"
+  echo '{}' > "$a"; run env STUB_SYSTEMRUN_FAIL=1 bash -c 'set -euo pipefail; source "$1"; source "$2"' _ "$LIB" "$SA/reboot/tonight.sh"
+  [ "$status" -ne 0 ]; [ -e "$a" ]; [ ! -e "$OPS_ROOT_STATE/root/reboot-scheduled.json" ]   # timer not created: nothing armed
+  run runact_live reboot tonight; [ "$status" -eq 0 ]; [ ! -e "$a" ]; grep -q '^systemd-run .*--on-calendar' "$STUB_LOG"
 }
 @test "R36 ops_ask launches the UI through systemd-run --user, not setsid; failure does not fail ops_ask; OPS_ASK_UI=0 skips" {
   export OPS_ASK_UI=1
