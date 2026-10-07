@@ -6,7 +6,7 @@ else LIB="${OPS_LIB:-$HOME/.local/lib/dots-ops/lib.sh}"; [ -f "$LIB" ] || LIB=/u
 source "$LIB"
 : "${OPS_JOBS_DIR:=$HOME/.local/lib/dots-ops/jobs}"
 here=$(dirname "$(readlink -f "$0")")
-usage() { echo "usage: dots-ops run <job> [--now] | answer <job> <approve|skip|snooze> | idle-start [--fallback] | idle-end | relay | waybar | status" >&2; exit 2; }
+usage() { echo "usage: dots-ops run <job> [--now] | answer <job> <approve|alt|skip|snooze> | idle-start [--fallback] | idle-end | relay | waybar | status" >&2; exit 2; }
 
 sudo_runner() {   # R8: sudo -n only; returns the runner rc (callers decide if it is fatal)
   local sc; read -ra sc <<< "$OPS_SUDO"
@@ -14,7 +14,7 @@ sudo_runner() {   # R8: sudo -n only; returns the runner rc (callers decide if i
 }
 relay() {   # root → user: /var/lib/dots-ops/<job>.json → ops_state; ask-<job>.json → ops_ask (user context only)
   [ "$OPS_IS_ROOT" != 1 ] || { echo "dots-ops relay runs as the desktop user, not root" >&2; exit 2; }
-  local f base st sum changed seen ask_sum q act alt asked
+  local f base st sum changed seen ask_sum q act alt altl asked
   mkdir -p "$OPS_STATE/relayed"
   for f in "$OPS_ROOT_STATE"/*.json; do
     [ -f "$f" ] || continue
@@ -26,6 +26,7 @@ relay() {   # root → user: /var/lib/dots-ops/<job>.json → ops_state; ask-<jo
       q=$(jq -er '.question | strings' "$f" 2>/dev/null) && act=$(jq -er '.action | strings' "$f" 2>/dev/null) \
         || { ops_log "$job" warn "relay: unreadable ask file"; continue; }
       alt=$(jq -r '.alt_action // "" | strings' "$f" 2>/dev/null)
+      altl=$(jq -r '.alt_label // "" | strings' "$f" 2>/dev/null)
       asked=$(jq -r '.asked // 0' "$f" 2>/dev/null); [[ $asked =~ ^[0-9]+$ ]] || asked=0
       if [ $(( $(ops_now) - asked )) -ge 86400 ]; then   # R21: a stale ask (root job stopped asking) is dropped
         ops_log "$job" info "relay: dropped stale root ask (asked $asked)"
@@ -34,7 +35,7 @@ relay() {   # root → user: /var/lib/dots-ops/<job>.json → ops_state; ask-<jo
       if [[ $act != root:* ]] || { [ -n "$alt" ] && [[ $alt != root:* ]]; }; then   # root may only ask for root actions
         ops_log "$job" warn "relay: ignored non-root action in ask file"; continue
       fi
-      if [ -n "$alt" ]; then ops_ask "$job" "$q" "$act" "$alt"; else ops_ask "$job" "$q" "$act"; fi
+      if [ -n "$alt" ]; then ops_ask "$job" "$q" "$act" "$alt" "$altl"; else ops_ask "$job" "$q" "$act"; fi
       echo "$ask_sum" > "$OPS_STATE/relayed/ask-$job"
       continue
     fi
@@ -74,7 +75,7 @@ case "${1:-}" in
     fi ;;
   answer)
     [ $# -eq 3 ] || usage
-    case $3 in approve|skip|snooze) ;; *) usage ;; esac
+    case $3 in approve|alt|skip|snooze) ;; *) usage ;; esac
     valid_job "$2"; ops_answer "$2" "$3" ;;
   idle-start)
     if [ "${2:-}" = --fallback ]; then   # R15: only when on AC and nobody is using the machine

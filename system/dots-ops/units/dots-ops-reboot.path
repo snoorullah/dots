@@ -1,0 +1,10 @@
+[Unit]
+Description=dots-ops: a reboot became required
+
+[Path]
+# PathChanged, not PathExists: the flag file stays until the reboot, and PathExists would re-trigger the service in a loop
+PathChanged=/var/run/reboot-required
+Unit=dots-ops@reboot-needed.service
+
+[Install]
+WantedBy=multi-user.target

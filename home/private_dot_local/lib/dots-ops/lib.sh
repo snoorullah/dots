@@ -97,19 +97,20 @@ else
 fi
 : "${OPS_POWER_DIR:=/sys/class/power_supply}"
 
-ops_ask() {   # job question action [alt_action] — one live pending per job
-  local job=$1 q=$2 act=$3 now; now=$(ops_now)
+ops_ask() {   # job question action [alt_action [alt_label]] — one live pending per job; alt = optional second button (R5)
+  local job=$1 q=$2 act=$3 alt=${4:-} altl=${5:-} now; now=$(ops_now)
   if [ "$OPS_IS_ROOT" = 1 ]; then   # root cannot reach the desktop: leave an ask file for `dots-ops relay`
     mkdir -p "$OPS_ROOT_STATE"
-    jq -cn --arg q "$q" --arg a "$act" --arg alt "${4:-}" --argjson t "$now" \
-      '{question:$q,action:$a,asked:$t} + (if $alt == "" then {} else {alt_action:$alt} end)' \
+    jq -cn --arg q "$q" --arg a "$act" --arg alt "$alt" --arg al "$altl" --argjson t "$now" \
+      '{question:$q,action:$a,asked:$t} + (if $alt == "" then {} else {alt_action:$alt} + (if $al == "" then {} else {alt_label:$al} end) end)' \
       > "$OPS_ROOT_STATE/ask-$job.json.tmp" && mv "$OPS_ROOT_STATE/ask-$job.json.tmp" "$OPS_ROOT_STATE/ask-$job.json"
     ops_log "$job" ask "$q"
     return 0
   fi
   ops_ask_pending "$job" && return 0
-  jq -cn --arg q "$q" --arg a "$act" --argjson t "$now" --argjson e $((now + 86400)) \
-    '{question:$q,action:$a,asked:$t,expires:$e,snooze_until:0}' > "$OPS_STATE/pending/$job.json"
+  jq -cn --arg q "$q" --arg a "$act" --arg alt "$alt" --arg al "$altl" --argjson t "$now" --argjson e $((now + 86400)) \
+    '{question:$q,action:$a,asked:$t,expires:$e,snooze_until:0}
+     + (if $alt == "" then {} else {alt_action:$alt} + (if $al == "" then {} else {alt_label:$al} end) end)' > "$OPS_STATE/pending/$job.json"
   ops_log "$job" ask "$q"
   [ "$OPS_ASK_UI" = 1 ] && command -v setsid >/dev/null && setsid -f dots-ops-ask "$job" >/dev/null 2>&1
   return 0
@@ -128,22 +129,33 @@ ops_ask_pending() {   # 0 = live pending (or snoozed) exists
   return 0
 }
 
-ops_answer() {   # job approve|skip|snooze
-  local job=$1 ans=$2 f="$OPS_STATE/pending/$1.json" act rc=0
+ops_dispatch() {   # job action-string: run a user:/root: action; returns its rc
+  local act=$1 rc=0
+  case $act in
+    user:*) bash -c "${act#user:}" || rc=$? ;;
+    root:*)
+      local ra sudo_cmd
+      read -ra ra <<< "${act#root:}"
+      read -ra sudo_cmd <<< "$OPS_SUDO"
+      "${sudo_cmd[@]}" "$OPS_RUNNER" "${ra[0]}" "${ra[1]}" || rc=$? ;;
+  esac
+  return "$rc"
+}
+
+ops_answer() {   # job approve|alt|skip|snooze
+  local job=$1 ans=$2 f="$OPS_STATE/pending/$1.json" act altact rc=0
   [ -f "$f" ] || return 0
   act=$(jq -r .action "$f" 2>/dev/null)
   case $ans in
-    approve)
+    approve|alt)
+      if [ "$ans" = alt ]; then
+        altact=$(jq -r '.alt_action // empty' "$f" 2>/dev/null)
+        [ -n "$altact" ] || { ops_log "$job" warn "alt answered but the pending has no alt_action"; return 0; }
+        act=$altact
+      fi
       if ! ops_ask_pending "$job"; then ops_log "$job" info "approval expired; not run"; ops_signal; return 0; fi
-      rm -f "$f"; ops_log "$job" approve "$act"
-      case $act in
-        user:*) bash -c "${act#user:}" || rc=$? ;;
-        root:*)
-          local ra sudo_cmd
-          read -ra ra <<< "${act#root:}"
-          read -ra sudo_cmd <<< "$OPS_SUDO"
-          "${sudo_cmd[@]}" "$OPS_RUNNER" "${ra[0]}" "${ra[1]}" || rc=$? ;;
-      esac
+      rm -f "$f"; ops_log "$job" "$ans" "$act"
+      ops_dispatch "$act" || rc=$?
       [ "$rc" -eq 0 ] || ops_state "$job" warn "approved action failed (rc=$rc): $act" ;;
     skip)   rm -f "$f"; ops_log "$job" skip "$act" ;;
     snooze) jq --argjson s $(( $(ops_now) + 86400 )) '.snooze_until=$s' "$f" > "$f.tmp" && mv "$f.tmp" "$f"

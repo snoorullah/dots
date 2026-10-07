@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "snapper $*" >> "${STUB_LOG:-/dev/null}"

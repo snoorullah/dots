@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "needs-restarting $*" >> "${STUB_LOG:-/dev/null}"
+exit "${STUB_NR_RC:-0}"

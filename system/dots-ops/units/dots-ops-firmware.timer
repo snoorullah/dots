@@ -1,0 +1,10 @@
+[Unit]
+Description=dots-ops firmware check (weekly)
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+Unit=dots-ops@firmware.service
+
+[Install]
+WantedBy=timers.target

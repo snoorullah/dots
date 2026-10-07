@@ -1,0 +1,10 @@
+#!/bin/sh
+# stub fwupdmgr: logs; refresh exits $STUB_FWUPD_REFRESH_RC (0); get-updates prints $STUB_FWUPD_JSON and exits $STUB_FWUPD_GET_RC (0);
+# update fails with STUB_FWUPD_FAIL
+echo "fwupdmgr $*" >> "${STUB_LOG:-/dev/null}"
+case "$1" in
+  refresh)     exit "${STUB_FWUPD_REFRESH_RC:-0}" ;;
+  get-updates) printf '%s' "${STUB_FWUPD_JSON:-}"; exit "${STUB_FWUPD_GET_RC:-0}" ;;
+  update)      [ -z "${STUB_FWUPD_FAIL:-}" ] || { echo "$STUB_FWUPD_FAIL"; exit 1; }; exit 0 ;;
+esac
+exit 0

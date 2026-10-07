@@ -1,0 +1,5 @@
+#!/bin/sh
+# stub checkupdates: prints $STUB_CHECKUPDATES (printf %b); exits 2 when empty (real behaviour); STUB_CHECKUPDATES_RC overrides
+echo "checkupdates $*" >> "${STUB_LOG:-/dev/null}"
+if [ -n "${STUB_CHECKUPDATES:-}" ]; then printf '%b' "$STUB_CHECKUPDATES"; def=0; else def=2; fi
+exit "${STUB_CHECKUPDATES_RC:-$def}"

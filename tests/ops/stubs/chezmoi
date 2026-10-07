@@ -1,0 +1,5 @@
+#!/bin/sh
+# stub chezmoi: logs; STUB_CHEZMOI_FAIL=<msg> fails
+echo "chezmoi $*" >> "${STUB_LOG:-/dev/null}"
+[ -z "${STUB_CHEZMOI_FAIL:-}" ] || { printf '%b\n' "$STUB_CHEZMOI_FAIL"; exit 1; }
+exit 0

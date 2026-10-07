@@ -1,0 +1,11 @@
+[Unit]
+Description=dots-ops update check (daily, and 10 min after boot)
+
+[Timer]
+OnCalendar=daily
+OnBootSec=10min
+Persistent=true
+Unit=dots-ops@updates-check.service
+
+[Install]
+WantedBy=timers.target

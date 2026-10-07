@@ -26,7 +26,7 @@ KEYD_TAG=v2.6.0 KEYD_COMMIT=7c0aecb8bfd34dc8642bf4eefd2e59c89e61cec3   # github.
 {{- if eq $fam "arch" }}
 
 # ---- Arch family: package lists ----
-REQ=(pipewire pipewire-pulse wireplumber polkit hyprlock xdg-desktop-portal-gtk tailscale wireshark-cli{{ if eq .gpu "nvidia" }} nvidia-container-toolkit{{ end }})
+REQ=(pipewire pipewire-pulse wireplumber polkit hyprlock xdg-desktop-portal-gtk tailscale wireshark-cli pacman-contrib fwupd{{ if eq .gpu "nvidia" }} nvidia-container-toolkit{{ end }})
 FRESH=(docker)
 OPT=(keyd greetd greetd-tuigreet)
 KEYD_BUILD_DEPS=(base-devel git)
@@ -35,7 +35,7 @@ pkg_install() { sudo pacman -S --needed --noconfirm "$@"; }
 {{- else if eq $fam "debian" }}
 
 # ---- Debian / Ubuntu family: package lists ----
-REQ=(pipewire pipewire-pulse wireplumber xdg-desktop-portal-gtk curl gpg ca-certificates wireshark-common)
+REQ=(pipewire pipewire-pulse wireplumber xdg-desktop-portal-gtk curl gpg ca-certificates wireshark-common unattended-upgrades fwupd)
 FRESH=(docker.io)
 OPT=(keyd greetd tuigreet polkitd pkexec policykit-1 hyprlock{{ if eq $id "ubuntu" }} software-properties-common{{ end }})
 KEYD_BUILD_DEPS=(build-essential git)
@@ -44,7 +44,7 @@ pkg_install() { sudo DEBIAN_FRONTEND=noninteractive apt-get install -y "$@"; }
 {{- else }}
 
 # ---- Fedora / RHEL family: package lists ----
-REQ=(pipewire wireplumber polkit xdg-desktop-portal-gtk wireshark-cli)
+REQ=(pipewire wireplumber polkit xdg-desktop-portal-gtk wireshark-cli dnf-plugins-core fwupd)
 FRESH=({{ if eq $id "fedora" }}moby-engine{{ end }})   # RHEL-likes: docker-ce from Docker's repo (added at install time)
 OPT=(keyd greetd tuigreet hyprlock{{ if ne $id "fedora" }} epel-release{{ end }})
 KEYD_BUILD_DEPS=(gcc make git)

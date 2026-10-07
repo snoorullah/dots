@@ -4,7 +4,10 @@ set -u
 source "${OPS_LIB:-$HOME/.local/lib/dots-ops/lib.sh}"
 job=${1:?usage: dots-ops-ask <job>}; [[ $job =~ ^[a-z0-9-]+$ ]] || exit 2
 f="$OPS_STATE/pending/$job.json"; [ -f "$f" ] || exit 0
-choice=$(notify-send -a dots-ops -u normal --wait -t 0 \
-  -A approve=Approve -A skip=Skip -A snooze="Snooze 1d" \
+btns=(-A approve=Approve)
+alt=$(jq -r '.alt_action // empty' "$f" 2>/dev/null)
+[ -z "$alt" ] || btns+=(-A "alt=$(jq -r '.alt_label // "Alternative"' "$f")")   # R5: second action button
+btns+=(-A skip=Skip -A snooze="Snooze 1d")
+choice=$(notify-send -a dots-ops -u normal --wait -t 0 "${btns[@]}" \
   "dots-ops: $job" "$(jq -r .question "$f")") || exit 0
-case $choice in approve|skip|snooze) exec "$HOME/.local/bin/dots-ops" answer "$job" "$choice" ;; esac
+case $choice in approve|alt|skip|snooze) exec "$HOME/.local/bin/dots-ops" answer "$job" "$choice" ;; esac

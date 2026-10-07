@@ -1,0 +1,10 @@
+[Unit]
+Description=dots-ops dotfiles update (daily)
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+Unit=dots-ops@dots-update.service
+
+[Install]
+WantedBy=timers.target
