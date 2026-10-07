@@ -16,5 +16,5 @@ encryption = "age"
 [data]
   gpu = {{ $gpu | quote }}
   multiplexer = {{ $mux | quote }}
-  timetrack = false
+  timetrack = {{ get . "timetrack" | default false }}   # opt-in kept across re-init (set true in chezmoi.toml)
   hasAgeKey = {{ if stat $key }}true{{ else }}false{{ end }}

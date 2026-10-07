@@ -1,6 +1,6 @@
 # hypr-kdeconnect-fix (github:gfhdhytghd/hypr-kdeconnect-fix): user-level xdg-desktop-portal RemoteDesktop backend
 # for KDE Connect / Deskflow on Hyprland. Built per its README "Dependencies" + "Build" (cmake, Qt6 Core/DBus,
-# wayland-client + scanner, xkbcommon, libeis; libei for tests). The portal routing is chezmoi's portals.conf.
+# wayland-client + scanner, xkbcommon, libeis; libei for tests). The portal routing is chezmoi's hyprland-portals.conf.
 { lib, stdenv, fetchFromGitHub, cmake, pkg-config, wayland-scanner, wayland, libxkbcommon, libei, kdePackages }:
 stdenv.mkDerivation {
   pname = "hypr-kdeconnect-fix";
