@@ -65,3 +65,78 @@ ops_lock() {   # job — exits 0 if another instance holds the lock
   exec {OPS_LOCK_FD}>"$OPS_STATE/locks/$1.lock"
   flock -n "$OPS_LOCK_FD" || { ops_log "$1" info "already running; skipped"; exit 0; }
 }
+
+: "${OPS_ASK_UI:=1}"
+: "${OPS_SUDO:=sudo -n}"   # R8: never prompt for a password from a background job
+if [ -z "${OPS_RUNNER:-}" ]; then   # R1: NixOS puts the runner in the system profile
+  if [ -x /run/current-system/sw/bin/dots-ops-run ]; then OPS_RUNNER=/run/current-system/sw/bin/dots-ops-run
+  else OPS_RUNNER=/usr/local/bin/dots-ops-run; fi
+fi
+if [ "$OPS_IS_ROOT" = 1 ]; then   # R3: root has no XDG_RUNTIME_DIR; the flag lives in /run/dots-ops
+  : "${OPS_IDLE_FLAG:=/run/dots-ops/idle}"
+else
+  : "${OPS_IDLE_FLAG:=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/dots-ops/idle}"
+fi
+: "${OPS_POWER_DIR:=/sys/class/power_supply}"
+
+ops_ask() {   # job question action — one live pending per job
+  local job=$1 q=$2 act=$3 now; now=$(ops_now)
+  ops_ask_pending "$job" && return 0
+  jq -cn --arg q "$q" --arg a "$act" --argjson t "$now" --argjson e $((now + 86400)) \
+    '{question:$q,action:$a,asked:$t,expires:$e,snooze_until:0}' > "$OPS_STATE/pending/$job.json"
+  ops_log "$job" ask "$q"
+  [ "$OPS_ASK_UI" = 1 ] && command -v setsid >/dev/null && setsid -f dots-ops-ask "$job" >/dev/null 2>&1
+  return 0
+}
+
+ops_ask_pending() {   # 0 = live pending (or snoozed) exists
+  local f="$OPS_STATE/pending/$1.json" now; now=$(ops_now)
+  [ -f "$f" ] || return 1
+  if [ "$(jq -r .expires "$f")" -le "$now" ] && [ "$(jq -r .snooze_until "$f")" -le "$now" ]; then
+    rm -f "$f"; ops_log "$1" info "approval expired; skipped"; return 1
+  fi
+  return 0
+}
+
+ops_answer() {   # job approve|skip|snooze
+  local job=$1 ans=$2 f="$OPS_STATE/pending/$1.json" act rc=0
+  [ -f "$f" ] || return 0
+  act=$(jq -r .action "$f")
+  case $ans in
+    approve)
+      rm -f "$f"; ops_log "$job" approve "$act"
+      case $act in
+        user:*) bash -c "${act#user:}" || rc=$? ;;
+        root:*)
+          local ra sudo_cmd
+          read -ra ra <<< "${act#root:}"
+          read -ra sudo_cmd <<< "$OPS_SUDO"
+          "${sudo_cmd[@]}" "$OPS_RUNNER" "${ra[0]}" "${ra[1]}" || rc=$? ;;
+      esac
+      [ "$rc" -eq 0 ] || ops_log "$job" warn "approved action failed (rc=$rc): $act" ;;
+    skip)   rm -f "$f"; ops_log "$job" skip "$act" ;;
+    snooze) jq --argjson s $(( $(ops_now) + 86400 )) '.snooze_until=$s' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+            ops_log "$job" snooze "$act" ;;
+  esac
+  return "$rc"
+}
+
+ops_on_ac() {
+  local d bat=0
+  for d in "$OPS_POWER_DIR"/*; do
+    [ -e "$d/type" ] || continue
+    case $(cat "$d/type") in
+      Mains) [ "$(cat "$d/online" 2>/dev/null)" = 1 ] && return 0 ;;
+      Battery) bat=1 ;;
+    esac
+  done
+  [ "$bat" = 0 ]   # no battery = desktop = AC
+}
+
+ops_idle_ok() {
+  ops_on_ac || return 1
+  [ -e "$OPS_IDLE_FLAG" ] && return 0
+  [ "${OPS_FALLBACK:-0}" = 1 ] && pgrep -x hyprlock >/dev/null 2>&1 && return 0
+  [ "${OPS_FALLBACK:-0}" = 1 ] && ! loginctl list-sessions --no-legend 2>/dev/null | grep -q . && return 0
+  return 1
+}
