@@ -1,0 +1,7 @@
+[Unit]
+Description=dots-ops nightly fallback (run heavy jobs even if not idle)
+
+[Service]
+Type=oneshot
+Environment=OPS_FALLBACK=1
+ExecStart=%h/.local/bin/dots-ops idle-start

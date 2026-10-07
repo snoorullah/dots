@@ -1,0 +1,9 @@
+[Unit]
+Description=dots-ops job %i
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/dots-ops-job %i
+TimeoutStartSec=10min
+Nice=10
+IOSchedulingClass=idle

@@ -1,0 +1,16 @@
+[idle]
+minutes = 15
+[disk]
+warn = 85
+crit = 95
+[backup]
+keep_daily = 7
+keep_weekly = 4
+keep_monthly = 6
+max_age_hours = 48
+[k8s]
+contexts = ["admin@onprem-s2a", "ovh"]
+[jobs.k8s-health]
+enabled = true
+[jobs.updates-security]
+enabled = true
