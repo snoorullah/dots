@@ -74,3 +74,4 @@ HandBrakeCLI
 tasksh
 bugwarrior
 taskchampion-sync-server
+bat

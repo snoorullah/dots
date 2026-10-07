@@ -1,6 +1,6 @@
 # Aliases and helper functions (sourced by ~/.zshrc). Git aliases come from zimfw/git.
-alias ls='eza' ll='eza -l --git' la='eza -la --git' l='eza'
-(( $+commands[bat] )) && alias cat='bat --paging=never'
+alias ls='eza --icons=auto' ll='eza -la --icons=auto --git' la='eza -la --icons=auto' l='eza --icons=auto'
+alias cat='bat --paging=never'
 alias lg='lazygit'
 alias k='kubectl' kgp='kubectl get pods' kgs='kubectl get svc' kgn='kubectl get nodes'
 alias kdp='kubectl describe pod' kds='kubectl describe svc'

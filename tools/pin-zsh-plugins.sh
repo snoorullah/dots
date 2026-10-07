@@ -6,6 +6,7 @@ f=home/dot_zsh_plugins.txt; tmp=$(mktemp)
 while read -r repo rest; do
   [ -z "$repo" ] && continue
   sha=$(git ls-remote "https://github.com/$repo" HEAD | cut -f1)
+  [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "bad sha for $repo"; rm -f "$tmp"; exit 1; }
   printf '%-42s pin:%s\n' "$repo" "$sha"
 done < <(sed -E 's/ +pin:[^ ]*//' "$f") > "$tmp"
 mv "$tmp" "$f"; grep -c 'pin:[0-9a-f]\{40\}' "$f"

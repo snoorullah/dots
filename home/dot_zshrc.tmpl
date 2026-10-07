@@ -10,7 +10,7 @@ fi
 export PNPM_HOME="{{ .chezmoi.homeDir }}/.local/share/pnpm"
 export BUN_INSTALL="$HOME/.bun"
 typeset -U path
-path=($PNPM_HOME $BUN_INSTALL/bin $HOME/.grok/bin $path "{{ .chezmoi.homeDir }}/.lmstudio/bin")
+path=($path $PNPM_HOME(N-/) $BUN_INSTALL/bin(N-/) $HOME/.grok/bin(N-/) {{ .chezmoi.homeDir }}/.lmstudio/bin(N-/))
 fpath=(~/.grok/completions/zsh $fpath)
 
 zstyle ':zim:git' aliases-prefix 'g'                                     # omz-style gs, gc, gp…
@@ -44,6 +44,10 @@ if [ -z "$WAYLAND_DISPLAY" ]; then
   done
   unset _xauth
 fi
+
+# Re-assert the PATH contract last: nix.sh or tool hooks must not outrank these two.
+typeset -U path PATH
+path=($HOME/.local/bin(N-/) $HOME/.nix-profile/bin(N-/) $path)
 
 # >>> shell history disabled 2026-09-22 >>>
 # Remove this block to re-enable history.
