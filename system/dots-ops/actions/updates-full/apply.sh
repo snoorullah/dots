@@ -17,7 +17,7 @@ _uf_step() {
 case $_uf_fam in
   debian)
     _uf_step "apt-get update" apt-get update -qq
-    _uf_step "apt-get dist-upgrade" env DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::=--force-confold dist-upgrade ;;
+    _uf_step "apt-get dist-upgrade" env DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef -o DPkg::Lock::Timeout=300 dist-upgrade ;;
   fedora) _uf_step "dnf upgrade" dnf upgrade -y ;;
   arch)   _uf_step "pacman -Syu" pacman -Syu --noconfirm ;;
   *)      ops_state updates-full ok "n/a: $_uf_fam has no full-update path here"; unset _uf_fam _uf_hint; return 0 ;;

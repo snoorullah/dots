@@ -3,7 +3,9 @@
 # Called as `sudo -n dots-ops-run <job> <action>` by group dots-ops (sudoers rule), or by root.
 #   <job> run              start the system unit dots-ops@<job>.service (non-blocking)
 #   <job> run-now          run the root job now, synchronously, bypassing the idle/AC gate (R4)
-#   <job> <action>         source the approved action <prefix>/actions/<job>/<action>.sh
+#   <job> <action>         start transient unit dots-ops-act-<job>-<action> (R34: survives the approver's logout), which re-runs
+#                          `dots-ops-run <job> <action> inline` and sources <prefix>/actions/<job>/<action>.sh;
+#                          `inline` is accepted only when systemd set INVOCATION_ID
 #   system idle-run|idle-end   set/clear the root idle flag and restart/stop dots-ops-system-idle.target (R3/R14)
 # Only files under the root-owned prefix are ever sourced or executed.
 # The absolute `#!/bin/bash -p` shebang matters: sudo may keep the caller's PATH (no secure_path on Arch/NixOS), so
@@ -14,14 +16,15 @@ unset BASH_ENV ENV CDPATH GLOBIGNORE
 IFS=$' \t\n'
 set -euo pipefail
 umask 022
+inv=${INVOCATION_ID:-}   # set by systemd for a unit's processes; sudo's env_reset strips it. Read before the OPS_* purge below.
 if [ "${OPS_TEST:-0}" = 1 ] && [ "$EUID" != 0 ]; then   # tests only: never honoured for root
-  P=${OPS_ROOT_PREFIX:?}; JOB_BIN=$P/dots-ops-job; RUN_DIR=$P/run; SYSTEMCTL=(echo systemctl); SYSRUN=(echo systemd-run)
+  P=${OPS_ROOT_PREFIX:?}; JOB_BIN=$P/dots-ops-job; RUN_DIR=$P/run; SYSTEMCTL=(echo systemctl); SYSRUN=(echo systemd-run); SELF=$0
 else
   [ "$EUID" = 0 ] || { echo "dots-ops-run: must run as root (sudo -n dots-ops-run ...)" >&2; exit 1; }
   # sudo resets most of the environment already; drop anything that could still steer the lib or a job
   for v in $(compgen -e); do case $v in OPS_*|DOTS_OPS_*) unset "$v" ;; esac; done
   export HOME=/root
-  P=/usr/local/lib/dots-ops; JOB_BIN=/usr/local/bin/dots-ops-job; RUN_DIR=/run/dots-ops; SYSTEMCTL=(systemctl); SYSRUN=(systemd-run)
+  P=/usr/local/lib/dots-ops; JOB_BIN=/usr/local/bin/dots-ops-job; RUN_DIR=/run/dots-ops; SYSTEMCTL=(systemctl); SYSRUN=(systemd-run); SELF=/usr/local/bin/dots-ops-run
 fi
 
 die() { echo "dots-ops-run: $1" >&2; exit 2; }
@@ -34,12 +37,17 @@ root_owned() {
   done
 }
 
-[ $# -eq 2 ] || die "usage: dots-ops-run <job> <action>"
-job=$1; act=$2
+[ $# -eq 2 ] || [ $# -eq 3 ] || die "usage: dots-ops-run <job> <action>"
+job=$1; act=$2; inline=0
+if [ $# -eq 3 ]; then   # R34: only the transient unit started below may use the literal 3rd argument `inline`
+  [ "$3" = inline ] && [ -n "$inv" ] || die "invalid third argument"
+  inline=1
+fi
 [[ $job =~ ^[a-z0-9][a-z0-9-]*$ && $act =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "invalid job/action name"
 [[ $job != ask-* ]] || die "invalid job name (ask- is reserved for relay ask files)"   # R22
 
 if [ "$job" = system ]; then
+  [ "$inline" = 0 ] || die "invalid third argument"
   case $act in
     idle-run) mkdir -p -m 755 "$RUN_DIR"; touch "$RUN_DIR/idle"
               exec "${SYSTEMCTL[@]}" restart --no-block dots-ops-system-idle.target ;;   # restart re-pulls Wants= (R14)
@@ -51,6 +59,7 @@ fi
 
 case $act in
   run|run-now)
+    [ "$inline" = 0 ] || die "invalid third argument"
     [ -f "$P/jobs/$job.sh" ] || die "unknown job"
     root_owned "$P/.." "$P" "$P/jobs" "$P/jobs/$job.sh"
     if [ "$act" = run ]; then exec "${SYSTEMCTL[@]}" start --no-block "dots-ops@$job.service"; fi
@@ -62,6 +71,9 @@ esac
 f="$P/actions/$job/$act.sh"
 [ -f "$f" ] || die "unknown action"
 root_owned "$P/.." "$P" "$P/lib.sh" "$P/actions" "$P/actions/$job" "$f"
+if [ "$inline" = 0 ]; then   # R34: run in a transient unit, not in the approver's process tree (logout/cgroup cleanup must not kill pacman/dpkg mid-transaction)
+  exec "${SYSRUN[@]}" --no-block --collect --unit="dots-ops-act-$job-$act" -p TimeoutStartSec=2h "$SELF" "$job" "$act" inline
+fi
 export OPS_IS_ROOT=1
 source "$P/lib.sh"
 ops_log "$job" action "$act (approved)"

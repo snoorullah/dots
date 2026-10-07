@@ -99,7 +99,7 @@ without_cmd() {   # without_cmd <cmd>: hermetic PATH = stubs (minus <cmd>) + the
 @test "updates-check nixos -> ok n/a: nixos-rebuild, no package manager touched" {
   asroot "$NIX"; runjob "$SJ/updates-check.sh"
   [ "$(rstate updates-check status)" = ok ]; [[ $(rstate updates-check summary) == "n/a: nixos-rebuild"* ]]
-  [ ! -s "$STUB_LOG" ]
+  [ "$(cat "$STUB_LOG")" = "systemctl start --no-block dots-ops@reboot-needed.service" ]   # only the reboot re-check
 }
 
 # ---- updates-security ----
@@ -128,7 +128,7 @@ without_cmd() {   # without_cmd <cmd>: hermetic PATH = stubs (minus <cmd>) + the
 @test "updates-full apply dry-run: debian command, noninteractive, keep conffiles" {
   asroot "$DEB"
   run runact updates-full apply; [ "$status" -eq 0 ]
-  [[ $output == *"+ env DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::=--force-confold dist-upgrade"* ]]
+  [[ $output == *"+ env DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef -o DPkg::Lock::Timeout=300 dist-upgrade"* ]]
 }
 @test "updates-full apply dry-run: fedora and arch commands" {
   asroot "$FED"; run runact updates-full apply
@@ -192,9 +192,9 @@ without_cmd() {   # without_cmd <cmd>: hermetic PATH = stubs (minus <cmd>) + the
   runjob "$SJ/reboot-needed.sh"
   [ "$(rstate reboot-needed status)" = ok ]; [ ! -e "$OPS_ROOT_STATE/ask-reboot-needed.json" ]
 }
-@test "reboot-needed fedora: needs-restarting -r exit 1 = needed, 0 = ok" {
+@test "reboot-needed fedora: dnf needs-restarting -r exit 1 = needed, 0 = ok" {
   asroot "$FED"; STUB_NR_RC=1 runjob "$SJ/reboot-needed.sh"
-  [ -e "$OPS_ROOT_STATE/ask-reboot-needed.json" ]; grep -qx 'needs-restarting -r' "$STUB_LOG"
+  [ -e "$OPS_ROOT_STATE/ask-reboot-needed.json" ]; grep -qx 'dnf needs-restarting -r' "$STUB_LOG"
   STUB_NR_RC=0 runjob "$SJ/reboot-needed.sh"
   [ "$(rstate reboot-needed status)" = ok ]; [ ! -e "$OPS_ROOT_STATE/ask-reboot-needed.json" ]
 }
@@ -393,4 +393,68 @@ render_pkgs() {   # render_pkgs <osRelease id> [idLike]: DOTS_PKG_LIST output of
   run render_pkgs ubuntu debian; [ "$status" -eq 0 ]; [[ $output == *unattended-upgrades* && $output == *fwupd* ]]
   run render_pkgs fedora;        [ "$status" -eq 0 ]; [[ $output == *dnf-plugins-core* && $output == *fwupd* ]]
   run render_pkgs arch;          [ "$status" -eq 0 ]; [[ $output == *pacman-contrib* && $output == *fwupd* ]]
+}
+
+# ---- fix round 1: R34-R37 and minors ----
+runact_live() { bash -c 'set -euo pipefail; source "$1"; source "$2"' _ "$LIB" "$SA/$1/$2.sh"; }   # stubs on PATH, not dry run
+RN='systemctl start --no-block dots-ops@reboot-needed.service'
+@test "R35 updates-check re-evaluates the reboot state at the end, every family, also with 0 updates" {
+  asroot "$DEB"; STUB_APT_INST='Inst curl [1] (2 u)\n' runjob "$SJ/updates-check.sh"; grep -qx "$RN" "$STUB_LOG"
+  : > "$STUB_LOG"; STUB_APT_INST='' runjob "$SJ/updates-check.sh"; grep -qx "$RN" "$STUB_LOG"
+  : > "$STUB_LOG"; asroot "$ARCH"; STUB_CHECKUPDATES='' runjob "$SJ/updates-check.sh"; grep -qx "$RN" "$STUB_LOG"
+  : > "$STUB_LOG"; asroot "$FED"; STUB_DNF_RC=0 runjob "$SJ/updates-check.sh"; grep -qx "$RN" "$STUB_LOG"
+  : > "$STUB_LOG"; asroot "$NIX"; runjob "$SJ/updates-check.sh"; grep -qx "$RN" "$STUB_LOG"
+}
+@test "R35 updates-security starts the reboot check after success only" {
+  asroot "$DEB"; runjob "$SJ/updates-security.sh"; grep -qx "$RN" "$STUB_LOG"
+  : > "$STUB_LOG"; STUB_UU_FAIL=boom runjob "$SJ/updates-security.sh"; ! grep -q reboot-needed "$STUB_LOG"
+}
+@test "R35 reboot-needed clears a stale warn and its ask once nothing is needed (after a reboot)" {
+  asroot "$DEB"; touch "$BATS_TEST_TMPDIR/rr"; export OPS_REBOOT_REQUIRED="$BATS_TEST_TMPDIR/rr"
+  runjob "$SJ/reboot-needed.sh"; [ "$(rstate reboot-needed status)" = warn ]
+  rm -f "$BATS_TEST_TMPDIR/rr"
+  runjob "$SJ/reboot-needed.sh"
+  [ "$(rstate reboot-needed status)" = ok ]; [ "$(rstate reboot-needed summary)" = "no reboot needed" ]
+  [ ! -e "$OPS_ROOT_STATE/ask-reboot-needed.json" ]
+}
+@test "R35 fedora: dnf missing or an error rc is ok n/a, never a reboot ask" {
+  asroot "$FED"; STUB_NR_RC=2 runjob "$SJ/reboot-needed.sh"
+  [ "$(rstate reboot-needed status)" = ok ]; [[ $(rstate reboot-needed summary) == n/a:* ]]; [ ! -e "$OPS_ROOT_STATE/ask-reboot-needed.json" ]
+  STUB_NR_RC=127 runjob "$SJ/reboot-needed.sh"
+  [[ $(rstate reboot-needed summary) == n/a:* ]]; [ ! -e "$OPS_ROOT_STATE/ask-reboot-needed.json" ]
+  without_cmd dnf; runjob "$SJ/reboot-needed.sh"
+  [ "$(rstate reboot-needed status)" = ok ]; [[ $(rstate reboot-needed summary) == n/a:* ]]; [ ! -e "$OPS_ROOT_STATE/ask-reboot-needed.json" ]
+}
+@test "debian apply options: confold + confdef + lock timeout" {
+  asroot "$DEB"; run runact updates-full apply
+  [[ $output == *"-o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef -o DPkg::Lock::Timeout=300"* ]]
+}
+@test "debian updates-check: a failing apt-get -s dist-upgrade warns with its last line and keeps the ask" {
+  asroot "$DEB"; mkdir -p "$OPS_ROOT_STATE"; echo '{"question":"old"}' > "$OPS_ROOT_STATE/ask-updates-full.json"
+  printf '#!/bin/sh\ncase " $* " in *" -s "*) echo "E: dpkg was interrupted"; exit 100 ;; esac\nexit 0\n' > "$BATS_TEST_TMPDIR/apt-get"; chmod +x "$BATS_TEST_TMPDIR/apt-get"
+  PATH="$BATS_TEST_TMPDIR:$PATH" runjob "$SJ/updates-check.sh"
+  [ "$(rstate updates-check status)" = warn ]; [[ $(rstate updates-check summary) == *"E: dpkg was interrupted"* ]]
+  [ "$(jq -r .question "$OPS_ROOT_STATE/ask-updates-full.json")" = old ]
+}
+@test "reboot actions keep the ask file when the command fails, remove it on success" {
+  asroot "$DEB"; mkdir -p "$OPS_ROOT_STATE"; a="$OPS_ROOT_STATE/ask-reboot-needed.json"
+  echo '{}' > "$a"; run env STUB_SYSTEMCTL_FAIL=1 bash -c 'set -euo pipefail; source "$1"; source "$2"' _ "$LIB" "$SA/reboot/now.sh"
+  [ "$status" -ne 0 ]; [ -e "$a" ]
+  run runact_live reboot now; [ "$status" -eq 0 ]; [ ! -e "$a" ]; grep -qx 'systemctl reboot' "$STUB_LOG"
+  echo '{}' > "$a"; run env STUB_SHUTDOWN_FAIL=1 bash -c 'set -euo pipefail; source "$1"; source "$2"' _ "$LIB" "$SA/reboot/tonight.sh"
+  [ "$status" -ne 0 ]; [ -e "$a" ]
+  run runact_live reboot tonight; [ "$status" -eq 0 ]; [ ! -e "$a" ]; grep -qx 'shutdown -r 03:00' "$STUB_LOG"
+}
+@test "R36 ops_ask launches the UI through systemd-run --user, not setsid; failure does not fail ops_ask; OPS_ASK_UI=0 skips" {
+  export OPS_ASK_UI=1
+  ops_ask j "q" "user:true"
+  grep -qx "systemd-run --user --no-block --collect $HOME/.local/bin/dots-ops-ask j" "$STUB_LOG"
+  rm -f "$OPS_STATE/pending/j.json"; : > "$STUB_LOG"
+  STUB_SYSTEMRUN_FAIL=1 run ops_ask j "q" "user:true"; [ "$status" -eq 0 ]; [ -e "$OPS_STATE/pending/j.json" ]
+  rm -f "$OPS_STATE/pending/j.json"; : > "$STUB_LOG"; OPS_ASK_UI=0 ops_ask j "q" "user:true"
+  ! grep -q systemd-run "$STUB_LOG"
+  ! grep -q setsid "$LIB"
+}
+@test "R37 user job unit allows 2h" {
+  grep -qx 'TimeoutStartSec=2h' "$R/home/private_dot_config/systemd/private_user/dots-ops@.service"
 }

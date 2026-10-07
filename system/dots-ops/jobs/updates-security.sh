@@ -13,6 +13,8 @@ job_main() {
     *)      ops_state updates-security ok "n/a: unsupported distro"; return 0 ;;
   esac
   [ -z "$out" ] || printf '%s\n' "$out"
-  if [ "$rc" = 0 ]; then ops_state updates-security ok "security updates applied ($fam)"
+  if [ "$rc" = 0 ]; then
+    ops_state updates-security ok "security updates applied ($fam)"
+    ops_run systemctl start --no-block dots-ops@reboot-needed.service || true   # R35: security updates can need a reboot
   else ops_state updates-security fail "security update failed (rc=$rc): $(printf '%s\n' "$out" | tail -n 3 | tr '\n' ' ')"; fi
 }

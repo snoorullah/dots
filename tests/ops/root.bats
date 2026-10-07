@@ -25,12 +25,28 @@ trun() { run env OPS_TEST=1 OPS_ROOT_PREFIX="$P" OPS_STATE="$BATS_TEST_TMPDIR/st
   trun ../evil run; [ "$status" -eq 2 ]
   [ ! -e "$BATS_TEST_TMPDIR/pwned" ]
 }
-@test "runs an allow-listed action file" {
-  mkdir -p "$P/actions/updates-full"
+@test "R34: an action starts a transient unit (systemd-run argv), nothing is sourced in the caller's tree" {
   printf 'touch %s/applied\n' "$BATS_TEST_TMPDIR" > "$P/actions/updates-full/apply.sh"
-  run env OPS_TEST=1 OPS_ROOT_PREFIX="$P" OPS_STATE="$BATS_TEST_TMPDIR/st" OPS_ROOT_STATE="$BATS_TEST_TMPDIR/rs" bash "$RUN" updates-full apply
+  trun updates-full apply; [ "$status" -eq 0 ]
+  [ "$output" = "systemd-run --no-block --collect --unit=dots-ops-act-updates-full-apply -p TimeoutStartSec=2h $RUN updates-full apply inline" ]
+  [ ! -e "$BATS_TEST_TMPDIR/applied" ]
+}
+@test "R34: inline without INVOCATION_ID is rejected; a bogus third argument is rejected" {
+  printf 'touch %s/applied\n' "$BATS_TEST_TMPDIR" > "$P/actions/updates-full/apply.sh"; touch "$P/jobs/updates-full.sh"
+  trun updates-full apply inline; [ "$status" -eq 2 ]
+  run env -u INVOCATION_ID OPS_TEST=1 OPS_ROOT_PREFIX="$P" bash "$RUN" updates-full apply inline; [ "$status" -eq 2 ]
+  run env INVOCATION_ID=abc OPS_TEST=1 OPS_ROOT_PREFIX="$P" bash "$RUN" updates-full apply bogus; [ "$status" -eq 2 ]
+  run env INVOCATION_ID=abc OPS_TEST=1 OPS_ROOT_PREFIX="$P" bash "$RUN" updates-full run inline; [ "$status" -eq 2 ]
+  run env INVOCATION_ID=abc OPS_TEST=1 OPS_ROOT_PREFIX="$P" bash "$RUN" system idle-end inline; [ "$status" -eq 2 ]
+  [ ! -e "$BATS_TEST_TMPDIR/applied" ]
+}
+@test "R34: inline with INVOCATION_ID runs the allow-listed action file and logs it; validation is repeated" {
+  printf 'touch %s/applied\n' "$BATS_TEST_TMPDIR" > "$P/actions/updates-full/apply.sh"
+  run env INVOCATION_ID=abc OPS_TEST=1 OPS_ROOT_PREFIX="$P" OPS_STATE="$BATS_TEST_TMPDIR/st" OPS_ROOT_STATE="$BATS_TEST_TMPDIR/rs" bash "$RUN" updates-full apply inline
   [ "$status" -eq 0 ] && [ -e "$BATS_TEST_TMPDIR/applied" ]
   grep -q 'apply (approved)' "$BATS_TEST_TMPDIR/st/log.jsonl"
+  run env INVOCATION_ID=abc OPS_TEST=1 OPS_ROOT_PREFIX="$P" bash "$RUN" updates-full ../../evil inline; [ "$status" -eq 2 ]
+  run env INVOCATION_ID=abc OPS_TEST=1 OPS_ROOT_PREFIX="$P" bash "$RUN" updates-full nope inline; [ "$status" -eq 2 ]
 }
 @test "run starts the system unit without blocking, only for an existing root job" {
   touch "$P/jobs/updates-full.sh"

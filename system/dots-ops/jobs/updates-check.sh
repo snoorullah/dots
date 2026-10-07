@@ -1,12 +1,16 @@
 # updates-check (root): count pending package updates per family; any pending -> ask for approval (updates-full apply).
 # The ask text carries the count and a kernel/driver flag. Arch never runs `pacman -Sy` (partial upgrades); NixOS -> n/a.
-job_main() {
-  local fam list="" n kd rc=0 ask="$OPS_ROOT_STATE/ask-updates-full.json"
+_uc_main() {
+  local fam list="" n kd rc=0 out ask="$OPS_ROOT_STATE/ask-updates-full.json"
   fam=$(ops_family)
   case $fam in
     debian)
       ops_run apt-get update -qq || ops_log updates-check warn "apt-get update failed; counting from the old indexes"
-      list=$(apt-get -s dist-upgrade 2>/dev/null | grep '^Inst' || true) ;;
+      out=$(apt-get -s dist-upgrade 2>&1) || rc=$?
+      if [ "$rc" -ne 0 ]; then   # keep any existing ask: we do not know the count any more
+        ops_state updates-check warn "apt-get -s dist-upgrade failed (rc=$rc): $(printf '%s\n' "$out" | tail -n 1)"; return 0
+      fi
+      list=$(grep '^Inst' <<< "$out" || true) ;;
     fedora)
       list=$(dnf -q check-update 2>/dev/null) || rc=$?
       case $rc in
@@ -32,4 +36,10 @@ job_main() {
     rm -f "$ask"   # nothing pending any more: withdraw an old ask
     ops_state updates-check ok "up to date"
   fi
+}
+
+job_main() {
+  _uc_main
+  # R35: a package change (or a reboot since the last run) can flip the reboot state; re-evaluate it every time
+  ops_run systemctl start --no-block dots-ops@reboot-needed.service || true
 }

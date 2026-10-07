@@ -1,6 +1,7 @@
 #!/bin/sh
 # stub dnf: logs; `check-update` prints $STUB_DNF_OUT (printf %b), exits $STUB_DNF_RC (default 0); STUB_DNF_FAIL=<msg> fails upgrades
 echo "dnf $*" >> "${STUB_LOG:-/dev/null}"
+case " $* " in *" needs-restarting "*) exit "${STUB_NR_RC:-0}" ;; esac
 case " $* " in *" check-update "*) printf '%b' "${STUB_DNF_OUT:-}"; exit "${STUB_DNF_RC:-0}" ;; esac
 [ -z "${STUB_DNF_FAIL:-}" ] || { printf '%b\n' "$STUB_DNF_FAIL"; exit 1; }
 exit 0

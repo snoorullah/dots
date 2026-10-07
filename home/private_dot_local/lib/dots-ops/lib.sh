@@ -112,7 +112,8 @@ ops_ask() {   # job question action [alt_action [alt_label]] — one live pendin
     '{question:$q,action:$a,asked:$t,expires:$e,snooze_until:0}
      + (if $alt == "" then {} else {alt_action:$alt} + (if $al == "" then {} else {alt_label:$al} end) end)' > "$OPS_STATE/pending/$job.json"
   ops_log "$job" ask "$q"
-  [ "$OPS_ASK_UI" = 1 ] && command -v setsid >/dev/null && setsid -f dots-ops-ask "$job" >/dev/null 2>&1
+  # R36: a transient user unit, not a detached child (that stays in the calling unit's cgroup and dies with a oneshot relay)
+  if [ "$OPS_ASK_UI" = 1 ]; then systemd-run --user --no-block --collect "$HOME/.local/bin/dots-ops-ask" "$job" >/dev/null 2>&1 || true; fi
   return 0
 }
 
