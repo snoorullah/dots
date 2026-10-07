@@ -31,6 +31,10 @@ let
       if [ -d system/dots-ops/actions ]; then cp -r system/dots-ops/actions/. $L/actions/; fi
       install -m 644 system/dots-ops/units/* $out/lib/systemd/system/
       if [ -d system/dots-ops/udev ]; then install -Dm 644 -t $out/lib/udev/rules.d system/dots-ops/udev/*; fi
+      # udev RUN needs an absolute path: the store's systemctl instead of /usr/bin
+      for r in $out/lib/udev/rules.d/*.rules; do
+        substituteInPlace "$r" --replace-fail /usr/bin/systemctl ${pkgs.systemd}/bin/systemctl
+      done
       install -m 644 system/dots-ops/firewall.json $L/firewall.json
       install -Dm 644 system/dots-ops/sshd/50-dots.conf $L/sshd/50-dots.conf
       substituteInPlace $out/bin/dots-ops-run \
@@ -53,7 +57,7 @@ let
   units = builtins.attrNames (builtins.readDir (sys + "/units"));
   withSuffix = sfx: map (lib.removeSuffix sfx) (builtins.filter (lib.hasSuffix sfx) units);
   # tools root jobs need on PATH (the user's Nix profile is never on root's PATH)
-  rootPath = [ pkgs.jq pkgs.util-linux pkgs.gawk pkgs.procps "/run/current-system/sw" ];
+  rootPath = [ pkgs.jq pkgs.util-linux pkgs.gawk pkgs.procps pkgs.power-profiles-daemon "/run/current-system/sw" ];
   runners = "${pkg}/bin/dots-ops-run, /run/current-system/sw/bin/dots-ops-run";
   cfg = config.dots-ops;
   # Task 9 / R39: the same declarative rules the ufw/firewalld job applies elsewhere, as networking.firewall options
@@ -78,6 +82,7 @@ in
     environment.systemPackages = [ pkg pkgs.jq ];
     systemd.packages = [ pkg ];
     services.udev.packages = [ pkg ];
+    services.power-profiles-daemon.enable = lib.mkDefault true;   # powerprofilesctl for the power-profile job and perf-mode
     systemd.services."dots-ops@".path = rootPath;
     # [Install] sections of packaged units are ignored on NixOS: enable every shipped timer/path unit here
     systemd.timers = lib.genAttrs (withSuffix ".timer") (_: { wantedBy = [ "timers.target" ]; });

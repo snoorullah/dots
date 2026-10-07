@@ -191,6 +191,7 @@ hl.bind(mod .. " + SHIFT + P", hl.dsp.exec_cmd("~/.local/bin/adhd-break.sh"))  -
 hl.bind(mod .. " + SHIFT + semicolon", hl.dsp.exec_cmd("ghostty --class=dots.salahpick --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e ~/.local/bin/adhd-salah-pick.sh"))  -- one-key salah logger
 hl.bind(mod .. " + D",              hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e otter-launcher"))  -- otter-launcher (floating panel)
 hl.bind(mod .. " + SHIFT + N", hl.dsp.exec_cmd("swaync-client -t -sw"))  -- SwayNC control center (notification history + do-not-disturb switch)
+hl.bind(mod .. " + SHIFT + F12", hl.dsp.exec_cmd("~/.local/bin/dots-ops perf-mode"))  -- performance mode toggle (performance power profile + do-not-disturb)
 hl.window_rule({ match = { class = "^(dots[.]ops)$" }, float = true, center = true })   -- dots-ops status TUI (Waybar custom/ops click)
 hl.window_rule({ match = { class = "^(dots[.]ops)$" }, size = "1000 560" })
 hl.window_rule({ match = { class = "^(dots[.]otter)$" }, float = true })

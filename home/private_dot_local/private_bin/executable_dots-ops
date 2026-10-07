@@ -6,7 +6,7 @@ else LIB="${OPS_LIB:-$HOME/.local/lib/dots-ops/lib.sh}"; [ -f "$LIB" ] || LIB=/u
 source "$LIB"
 : "${OPS_JOBS_DIR:=$HOME/.local/lib/dots-ops/jobs}"
 here=$(dirname "$(readlink -f "$0")")
-usage() { echo "usage: dots-ops run <job> [--now] | answer <job> <approve|alt|skip|snooze> | idle-start [--fallback] | idle-end | relay | waybar | status" >&2; exit 2; }
+usage() { echo "usage: dots-ops run <job> [--now] | answer <job> <approve|alt|skip|snooze> | idle-start [--fallback] | idle-end | perf-mode [on|off|toggle] | relay | waybar | status" >&2; exit 2; }
 
 sudo_runner() {   # R8: sudo -n only; returns the runner rc (callers decide if it is fatal)
   local sc; read -ra sc <<< "$OPS_SUDO"
@@ -117,6 +117,26 @@ case "${1:-}" in
     rm -f "$OPS_IDLE_FLAG"
     systemctl --user stop --no-block dots-ops-idle.target || true
     sudo_runner system idle-end || true ;;   # R3
+  perf-mode)   # on: performance profile + DND; off: back to the AC/battery default + DND off. State: $OPS_STATE/perf-mode
+    [ $# -le 2 ] || usage
+    want=${2:-toggle}; cur=$(cat "$OPS_STATE/perf-mode" 2>/dev/null || echo off)
+    case $want in on|off) ;; toggle) if [ "$cur" = on ]; then want=off; else want=on; fi ;; *) usage ;; esac
+    ppd=1; command -v powerprofilesctl >/dev/null || ppd=0
+    if [ "$want" = on ]; then profile=performance
+    elif ops_on_ac; then profile=balanced; else profile=power-saver; fi
+    note="profile $profile"
+    if [ "$ppd" = 1 ]; then ops_run powerprofilesctl set "$profile" || note="could not set profile $profile"
+    else note="power profiles unavailable"; fi
+    mkdir -p "$OPS_STATE"
+    [ "${DOTS_OPS_DRY_RUN:-0}" = 1 ] || printf '%s\n' "$want" > "$OPS_STATE/perf-mode"
+    if [ "$want" = on ]; then   # tell the owner first: DND would swallow the notification
+      ops_notify low "dots-ops: performance mode on" "$note; do-not-disturb on"
+      ops_run swaync-client -dn || true
+    else
+      ops_run swaync-client -df || true
+      ops_notify low "dots-ops: performance mode off" "$note; do-not-disturb off"
+    fi
+    ops_log perf-mode info "$want ($note)" ;;
   relay) relay ;;
   waybar) ops_waybar_json ;;
   status)

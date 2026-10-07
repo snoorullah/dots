@@ -255,3 +255,11 @@ ops_family() {   # prints arch|debian|fedora|nixos|unknown from os-release ID / 
   done
   echo unknown
 }
+
+ops_restic_env() {   # 0 if restic credentials are available; sources ~/.secrets only when it is ours and not group/other-writable
+  local s="$HOME/.secrets"
+  if [ -f "$s" ] && [ "$(stat -Lc %u "$s")" = "$EUID" ] && [ $(( 0$(stat -Lc %a "$s") & 022 )) = 0 ]; then
+    set -a; . "$s" 2>/dev/null; set +a
+  fi
+  [ -n "${RESTIC_REPOSITORY:-}" ] && { [ -n "${RESTIC_PASSWORD:-}" ] || [ -n "${RESTIC_PASSWORD_FILE:-}" ]; }
+}

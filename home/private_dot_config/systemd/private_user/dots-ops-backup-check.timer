@@ -1,0 +1,10 @@
+[Unit]
+Description=dots-ops backup repository check (weekly)
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+Unit=dots-ops@backup-check.service
+
+[Install]
+WantedBy=timers.target
