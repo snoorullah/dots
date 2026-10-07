@@ -53,7 +53,7 @@ dw() { STUB_FINDMNT="$1" runjob "$UJ/disk-watch.sh"; }
   [ "$(ustate disk-watch status)" = warn ]
   [[ $(ustate disk-watch summary) == *"/ 91%"* ]]
   [[ $(ustate disk-watch summary) != *"/data"* ]]
-  grep -qxF "systemd-run --user --no-block --collect --setenv=OPS_FORCE=1 $HOME/.local/bin/dots-ops-job disk-clean-user" "$STUB_LOG"
+  grep -qxF "systemd-run --user --no-block --collect --setenv=OPS_FORCE=1 -p ExecStopPost=$HOME/.local/bin/dots-ops-job --report-failure disk-clean-user $HOME/.local/bin/dots-ops-job disk-clean-user" "$STUB_LOG"
   grep -q 'sudo /fake/dots-ops-run disk-clean-system run-now' "$STUB_LOG"
 }
 @test "disk-watch: 96% -> fail" {
@@ -80,7 +80,7 @@ dw() { STUB_FINDMNT="$1" runjob "$UJ/disk-watch.sh"; }
 }
 @test "disk-watch: dry-run prints instead of starting" {
   STUB_FINDMNT='ext4 500000000000 90% / rw\n' DOTS_OPS_DRY_RUN=1 run runjob "$UJ/disk-watch.sh"
-  [[ $output == *"+ systemd-run --user --no-block --collect --setenv=OPS_FORCE=1 $HOME/.local/bin/dots-ops-job disk-clean-user"* ]]
+  [[ $output == *"+ systemd-run --user --no-block --collect --setenv=OPS_FORCE=1 -p ExecStopPost=$HOME/.local/bin/dots-ops-job --report-failure disk-clean-user $HOME/.local/bin/dots-ops-job disk-clean-user"* ]]
   ! grep -q systemd-run "$STUB_LOG"
 }
 

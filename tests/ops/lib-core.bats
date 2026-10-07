@@ -19,6 +19,59 @@ setup() { setup_ops; }
   [ "$(notified)" = 2 ]
 }
 
+@test "R62 warn notifies once on the transition, never again after the reminder window (only fail reminds)" {
+  OPS_REMIND_SECS=0 ops_state net warn "x"
+  OPS_REMIND_SECS=0 ops_state net warn "x"
+  OPS_REMIND_SECS=0 ops_state net warn "y"
+  [ "$(notified)" = 1 ]
+  OPS_REMIND_SECS=0 ops_state net fail "z"; [ "$(notified)" = 2 ]   # warn -> fail is a change
+  OPS_REMIND_SECS=0 ops_state net warn "w"; [ "$(notified)" = 3 ]   # fail -> warn too
+}
+
+# ---- R57: unit failure reporter (ExecStopPost) ----
+@test "R57 reporter: failed/timed-out unit -> fail 'unit <result>/<code>/<status>' under the job name" {
+  SERVICE_RESULT=timeout EXIT_CODE=killed EXIT_STATUS=TERM INVOCATION_ID=inv1 ops_report_unit backup
+  [ "$(jq -r .status "$OPS_STATE/state/backup.json")" = fail ]
+  [ "$(jq -r .summary "$OPS_STATE/state/backup.json")" = "unit timeout/killed/TERM" ]
+  [ "$(notified)" = 1 ]
+  SERVICE_RESULT=exit-code EXIT_CODE=exited EXIT_STATUS=203 INVOCATION_ID=inv2 OPS_IS_ROOT=1 ops_report_unit smart
+  [ "$(jq -r .summary "$OPS_ROOT_STATE/smart.json")" = "unit exit-code/exited/203" ]
+}
+@test "R57 reporter: success writes nothing; a failure the job already reported in this run is kept" {
+  SERVICE_RESULT=success EXIT_CODE=exited EXIT_STATUS=0 INVOCATION_ID=i ops_report_unit backup
+  [ ! -e "$OPS_STATE/state/backup.json" ]
+  INVOCATION_ID=run1 ops_state backup fail "restic: repository locked"
+  SERVICE_RESULT=exit-code EXIT_CODE=exited EXIT_STATUS=1 INVOCATION_ID=run1 ops_report_unit backup
+  [ "$(jq -r .summary "$OPS_STATE/state/backup.json")" = "restic: repository locked" ]
+  # an action unit reports under <job>-<action>; its own failure state (e.g. updates-full) counts as already reported
+  INVOCATION_ID=run2 OPS_IS_ROOT=1 ops_state updates-full fail "pacman -Syu: conflict"
+  SERVICE_RESULT=exit-code EXIT_CODE=exited EXIT_STATUS=1 INVOCATION_ID=run2 OPS_IS_ROOT=1 ops_report_unit updates-full-apply act
+  [ ! -e "$OPS_ROOT_STATE/updates-full-apply.json" ]
+}
+@test "R57 reporter: ok written earlier in the same run does not hide a later crash; action success clears its own unit failure" {
+  INVOCATION_ID=run3 ops_state disk-watch ok "worst 10%"
+  SERVICE_RESULT=signal EXIT_CODE=killed EXIT_STATUS=KILL INVOCATION_ID=run3 ops_report_unit disk-watch
+  [ "$(jq -r .summary "$OPS_STATE/state/disk-watch.json")" = "unit signal/killed/KILL" ]
+  SERVICE_RESULT=signal EXIT_CODE=killed EXIT_STATUS=KILL INVOCATION_ID=a1 ops_report_unit firewall-apply act
+  [ "$(jq -r .status "$OPS_STATE/state/firewall-apply.json")" = fail ]
+  SERVICE_RESULT=success EXIT_CODE=exited EXIT_STATUS=0 INVOCATION_ID=a2 ops_report_unit firewall-apply act
+  [ "$(jq -r .status "$OPS_STATE/state/firewall-apply.json")" = ok ]
+  SERVICE_RESULT=success INVOCATION_ID=a3 ops_report_unit never-failed act; [ ! -e "$OPS_STATE/state/never-failed.json" ]
+}
+@test "R57 dots-ops-job --report-failure <name> [act] is the reporter entry point; bad names refused" {
+  J="$BATS_TEST_DIRNAME/../../home/private_dot_local/private_bin/executable_dots-ops-job"
+  export OPS_LIB="$BATS_TEST_DIRNAME/../../home/private_dot_local/lib/dots-ops/lib.sh"
+  run env SERVICE_RESULT=timeout EXIT_CODE=killed EXIT_STATUS=TERM INVOCATION_ID=x bash "$J" --report-failure backup-check
+  [ "$status" -eq 0 ]; [ "$(jq -r .summary "$OPS_STATE/state/backup-check.json")" = "unit timeout/killed/TERM" ]
+  run env SERVICE_RESULT=timeout bash "$J" --report-failure ../x; [ "$status" -eq 2 ]
+  run env SERVICE_RESULT=timeout bash "$J" --report-failure ask-x; [ "$status" -eq 2 ]
+  run env SERVICE_RESULT=timeout bash "$J" --report-failure ok bogus; [ "$status" -eq 2 ]
+}
+@test "R57 every dots-ops job unit carries the ExecStopPost reporter (user + system template)" {
+  R="$BATS_TEST_DIRNAME/../.."
+  grep -qx 'ExecStopPost=%h/.local/bin/dots-ops-job --report-failure %i' "$R/home/private_dot_config/systemd/private_user/dots-ops@.service"
+  grep -qx 'ExecStopPost=/usr/local/bin/dots-ops-job --report-failure %i' "$R/system/dots-ops/units/dots-ops@.service"
+}
 @test "fail -> ok sends one recovered notification" {
   ops_state net fail "no dns"; ops_state net ok "back"; ops_state net ok "back"
   [ "$(notified)" = 2 ]

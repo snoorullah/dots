@@ -4,6 +4,7 @@ bats_require_minimum_version 1.5.0
 # Everything runs unprivileged: dots-ops-run honours OPS_ROOT_PREFIX only with OPS_TEST=1 and prints systemctl calls.
 R="$BATS_TEST_DIRNAME/../.."
 setup() { unset INVOCATION_ID; P="$BATS_TEST_TMPDIR/p"; RUN="$BATS_TEST_DIRNAME/../../system/dots-ops/bin/dots-ops-run"; mkdir -p "$P/jobs" "$P/actions/updates-full"; cp "$BATS_TEST_DIRNAME/../../home/private_dot_local/lib/dots-ops/lib.sh" "$P/lib.sh"; }
+FIXED_PATH=/run/wrappers/bin:/run/current-system/sw/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin   # dots-ops-run's PATH
 trun() { run env -u INVOCATION_ID OPS_TEST=1 OPS_ROOT_PREFIX="$P" OPS_STATE="$BATS_TEST_TMPDIR/st" OPS_ROOT_STATE="$BATS_TEST_TMPDIR/rs" bash "$RUN" "$@"; }
 
 # ---- dots-ops-run: allow-list (Review Focus 1) ----
@@ -27,8 +28,10 @@ trun() { run env -u INVOCATION_ID OPS_TEST=1 OPS_ROOT_PREFIX="$P" OPS_STATE="$BA
 }
 @test "R34: an action starts a transient unit (systemd-run argv), nothing is sourced in the caller's tree" {
   printf 'touch %s/applied\n' "$BATS_TEST_TMPDIR" > "$P/actions/updates-full/apply.sh"
+  printf '#!/bin/sh\n' > "$P/dots-ops-job"; chmod +x "$P/dots-ops-job"
   trun updates-full apply; [ "$status" -eq 0 ]
-  [ "$output" = "systemd-run --no-block --collect --unit=dots-ops-act-updates-full-apply $RUN updates-full apply inline" ]
+  # R57: ExecStopPost reports a crashed/killed action as <job>-<action>; R63: fixed root PATH inside the unit
+  [ "$output" = "systemd-run --no-block --collect --unit=dots-ops-act-updates-full-apply --setenv=PATH=$FIXED_PATH -p ExecStopPost=$P/dots-ops-job --report-failure updates-full-apply act $RUN updates-full apply inline" ]
   [ ! -e "$BATS_TEST_TMPDIR/applied" ]
 }
 @test "R34: inline without INVOCATION_ID is rejected; a bogus third argument is rejected" {
@@ -58,7 +61,7 @@ trun() { run env -u INVOCATION_ID OPS_TEST=1 OPS_ROOT_PREFIX="$P" OPS_STATE="$BA
   touch "$P/jobs/disk-clean-system.sh"
   printf '#!/bin/sh\n' > "$P/dots-ops-job"; chmod +x "$P/dots-ops-job"
   trun disk-clean-system run-now; [ "$status" -eq 0 ]
-  [[ $output == "systemd-run --no-block --collect --unit=dots-ops-now-disk-clean-system --setenv=OPS_FORCE=1 --setenv=OPS_IS_ROOT=1 $P/dots-ops-job disk-clean-system" ]]
+  [[ $output == "systemd-run --no-block --collect --unit=dots-ops-now-disk-clean-system --setenv=PATH=$FIXED_PATH --setenv=OPS_FORCE=1 --setenv=OPS_IS_ROOT=1 -p ExecStopPost=$P/dots-ops-job --report-failure disk-clean-system $P/dots-ops-job disk-clean-system" ]]
   trun nope run-now; [ "$status" -eq 2 ]
 }
 @test "system idle-run (R3/R14) sets the root idle flag and restarts the system idle target" {

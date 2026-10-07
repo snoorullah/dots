@@ -10,6 +10,11 @@ source "$LIB"
 : "${OPS_CONFIG:=$( [ "$OPS_IS_ROOT" = 1 ] && echo /etc/dots-ops/config.toml || echo "${XDG_CONFIG_HOME:-$HOME/.config}/dots-ops/config.toml")}"
 ops_cfg() { local v; v=$(yq -p toml -oy ".$1" "$OPS_CONFIG" 2>/dev/null); if [ -n "$v" ] && [ "$v" != null ]; then echo "$v"; else echo "$2"; fi; }
 [ "${1:-}" = --lib-only ] && return 0 2>/dev/null
+if [ "${1:-}" = --report-failure ]; then   # R57: ExecStopPost=dots-ops-job --report-failure <job | job-action act>
+  [[ ${2:-} =~ ^[a-z0-9][a-z0-9-]*$ && ${2:-} != ask-* ]] && { [ $# -eq 2 ] || { [ $# -eq 3 ] && [ "$3" = act ]; }; } \
+    || { echo "usage: dots-ops-job --report-failure <name> [act]" >&2; exit 2; }
+  ops_report_unit "$2" "${3:-}"; exit 0
+fi
 job=${1:?usage: dots-ops-job <job>}
 [[ $job =~ ^[a-z0-9-]+$ ]] || { echo "bad job name" >&2; exit 2; }
 [ "$(ops_cfg "jobs.$job.enabled" true)" = true ] || { ops_log "$job" info "disabled in config"; exit 0; }

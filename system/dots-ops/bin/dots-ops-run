@@ -2,7 +2,8 @@
 # Root entry point for approved/scheduled root work: the ONLY privilege path of dots-ops.
 # Called as `sudo -n dots-ops-run <job> <action>` by group dots-ops (sudoers rule), or by root.
 #   <job> run              start the system unit dots-ops@<job>.service (non-blocking)
-#   <job> run-now          run the root job now, synchronously, bypassing the idle/AC gate (R4)
+#   <job> run-now          start transient unit dots-ops-now-<job>: the root job now, bypassing the idle/AC gate (R4/R26)
+# Transient units carry the fixed PATH below and ExecStopPost=dots-ops-job --report-failure (R57).
 #   <job> <action>         start transient unit dots-ops-act-<job>-<action> (R34: survives the approver's logout), which re-runs
 #                          `dots-ops-run <job> <action> inline` and sources <prefix>/actions/<job>/<action>.sh;
 #                          `inline` is accepted only when systemd set INVOCATION_ID
@@ -64,15 +65,19 @@ case $act in
     root_owned "$P/.." "$P" "$P/jobs" "$P/jobs/$job.sh"
     if [ "$act" = run ]; then exec "${SYSTEMCTL[@]}" start --no-block "dots-ops@$job.service"; fi
     root_owned "${JOB_BIN%/*}" "$JOB_BIN"
-    # R26: async via a transient unit (clean environment, survives the caller, never blocks the user job)
-    exec "${SYSRUN[@]}" --no-block --collect --unit="dots-ops-now-$job" --setenv=OPS_FORCE=1 --setenv=OPS_IS_ROOT=1 "$JOB_BIN" "$job" ;;
+    # R26: async via a transient unit (clean environment, survives the caller, never blocks the user job);
+    # fixed root PATH inside it (R63); R57: ExecStopPost reports a crash/kill as <job> fail
+    exec "${SYSRUN[@]}" --no-block --collect --unit="dots-ops-now-$job" --setenv="PATH=$PATH" --setenv=OPS_FORCE=1 --setenv=OPS_IS_ROOT=1 \
+      -p "ExecStopPost=$JOB_BIN --report-failure $job" "$JOB_BIN" "$job" ;;
 esac
 
 f="$P/actions/$job/$act.sh"
 [ -f "$f" ] || die "unknown action"
 root_owned "$P/.." "$P" "$P/lib.sh" "$P/actions" "$P/actions/$job" "$f"
 if [ "$inline" = 0 ]; then   # R34: run in a transient unit, not in the approver's process tree (logout/cgroup cleanup must not kill pacman/dpkg mid-transaction)
-  exec "${SYSRUN[@]}" --no-block --collect --unit="dots-ops-act-$job-$act" "$SELF" "$job" "$act" inline
+  root_owned "${JOB_BIN%/*}" "$JOB_BIN"   # the unit's failure reporter (R57: reports as <job>-<action>, R55)
+  exec "${SYSRUN[@]}" --no-block --collect --unit="dots-ops-act-$job-$act" --setenv="PATH=$PATH" \
+    -p "ExecStopPost=$JOB_BIN --report-failure $job-$act act" "$SELF" "$job" "$act" inline
 fi
 export OPS_IS_ROOT=1
 source "$P/lib.sh"

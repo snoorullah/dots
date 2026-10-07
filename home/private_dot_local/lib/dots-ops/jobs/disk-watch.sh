@@ -15,7 +15,8 @@ job_main() {
   if [ "$worst" -ge "$crit" ]; then ops_state disk-watch fail "$offenders"
   elif [ "$worst" -ge "$warn" ]; then ops_state disk-watch warn "$offenders"
   else ops_state disk-watch ok "worst $worst%"; return 0; fi
-  ops_run systemd-run --user --no-block --collect --setenv=OPS_FORCE=1 "$HOME/.local/bin/dots-ops-job" disk-clean-user \
+  ops_run systemd-run --user --no-block --collect --setenv=OPS_FORCE=1 \
+    -p "ExecStopPost=$HOME/.local/bin/dots-ops-job --report-failure disk-clean-user" "$HOME/.local/bin/dots-ops-job" disk-clean-user \
     || ops_log disk-watch warn "could not start disk-clean-user"
   read -ra sudo_cmd <<< "$OPS_SUDO"
   ops_run "${sudo_cmd[@]}" "$OPS_RUNNER" disk-clean-system run-now \

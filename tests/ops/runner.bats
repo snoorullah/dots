@@ -64,6 +64,19 @@ stubs() {   # fake systemctl/systemd-run/pgrep/loginctl recording argv; sudo stu
 @test "idle-start tolerates sudo refusal" {
   stubs; OPS_SUDO=false run bash "$BIN/executable_dots-ops" idle-start; [ "$status" -eq 0 ]; [ -e "$OPS_IDLE_FLAG" ]
 }
+@test "R60 refused sudo for idle-run / idle-end -> system warn naming the fix; a later success clears it" {
+  stubs
+  OPS_SUDO=false run bash "$BIN/executable_dots-ops" idle-start; [ "$status" -eq 0 ]
+  [ "$(jq -r .status "$OPS_STATE/state/system.json")" = warn ]
+  [ "$(jq -r .summary "$OPS_STATE/state/system.json")" = "root runner refused (rc=1): log out/in or check /etc/sudoers.d/dots-ops" ]
+  rm -f "$OPS_STATE/state/system.json"
+  OPS_SUDO=false run bash "$BIN/executable_dots-ops" idle-end; [ "$status" -eq 0 ]
+  [ "$(jq -r .status "$OPS_STATE/state/system.json")" = warn ]
+  run bash "$BIN/executable_dots-ops" idle-end; [ "$status" -eq 0 ]
+  [ "$(jq -r .status "$OPS_STATE/state/system.json")" = ok ]
+  rm -f "$OPS_STATE/state/system.json"; run bash "$BIN/executable_dots-ops" idle-end
+  [ ! -e "$OPS_STATE/state/system.json" ]   # no state noise while everything works
+}
 @test "fallback with screen locked on AC: flag, restart, 2h idle-end timer" {
   stubs; STUB_LOCKED=1 STUB_SESSION=1 run bash "$BIN/executable_dots-ops" idle-start --fallback
   [ "$status" -eq 0 ]; [ -e "$OPS_IDLE_FLAG" ]

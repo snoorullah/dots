@@ -65,7 +65,8 @@ ops_state() {   # job status summary — notifies on change (user context only)
   notified=$(jq -r '.notified // 0' "$dir/$job.json" 2>/dev/null || echo 0)
   local send=""
   if [ "$OPS_IS_ROOT" != 1 ]; then
-    if [ "$st" != ok ] && { [ "$prev" != "$st" ] || [ $((now - notified)) -ge "$OPS_REMIND_SECS" ]; }; then send=$st
+    # R62: a change notifies once; only a lasting fail reminds (every OPS_REMIND_SECS) — a permanent warn must not nag daily
+    if [ "$st" != ok ] && { [ "$prev" != "$st" ] || { [ "$st" = fail ] && [ $((now - notified)) -ge "$OPS_REMIND_SECS" ]; }; }; then send=$st
     elif [ "$st" = ok ] && [ "$prev" != ok ] && [ "$prev" != none ]; then send=recovered; fi
   fi
   case $send in
@@ -73,10 +74,36 @@ ops_state() {   # job status summary — notifies on change (user context only)
     warn)      ops_notify normal   "dots-ops: $job" "$sum"; notified=$now ;;
     recovered) ops_notify low      "dots-ops: $job recovered" "$sum"; notified=0 ;;
   esac
-  jq -cn --arg j "$job" --arg s "$st" --arg m "$sum" --argjson t "$now" --argjson n "$notified" \
-    '{job:$j,status:$s,summary:$m,changed:$t,notified:$n}' > "$dir/$job.json.tmp" && mv "$dir/$job.json.tmp" "$dir/$job.json"
+  # inv = the systemd invocation that wrote it: the ExecStopPost reporter (R57) sees the job already reported its failure
+  jq -cn --arg j "$job" --arg s "$st" --arg m "$sum" --argjson t "$now" --argjson n "$notified" --arg i "${INVOCATION_ID:-}" \
+    '{job:$j,status:$s,summary:$m,changed:$t,notified:$n} + (if $i == "" then {} else {inv:$i} end)' \
+    > "$dir/$job.json.tmp" && mv "$dir/$job.json.tmp" "$dir/$job.json"
   ops_log "$job" "$st" "$sum"
   ops_signal
+}
+
+ops_report_unit() {   # name [act] — ExecStopPost of every dots-ops unit (R57), via `dots-ops-job --report-failure`
+  # A unit that crashed, was killed or hit its timeout never reached its own ops_state: report it as fail
+  # "unit <SERVICE_RESULT>/<EXIT_CODE>/<EXIT_STATUS>" under <name> (job units: the job; action units: <job>-<action>, R55).
+  # Skipped when a state written by this same invocation is already warn/fail (the job/action said why itself).
+  # act: on success, a fail this reporter wrote earlier for the action is cleared (nothing else would ever clear it).
+  local name=$1 mode=${2:-} res=${SERVICE_RESULT:-} dir f cur
+  if [ "$OPS_IS_ROOT" = 1 ]; then dir=$OPS_ROOT_STATE; else dir=$OPS_STATE/state; fi
+  if [ -z "$res" ] || [ "$res" = success ]; then
+    if [ "$mode" = act ] && [ -f "$dir/$name.json" ] \
+       && [ "$(jq -r 'select(.status == "fail") | .summary' "$dir/$name.json" 2>/dev/null | cut -c1-5)" = "unit " ]; then
+      ops_state "$name" ok "last run finished normally"
+    fi
+    return 0
+  fi
+  if [ -n "${INVOCATION_ID:-}" ]; then
+    for f in "$dir"/*.json; do
+      [ -f "$f" ] || continue
+      cur=$(jq -r --arg i "$INVOCATION_ID" 'select(.inv == $i and (.status == "warn" or .status == "fail")) | .status' "$f" 2>/dev/null) || cur=""
+      [ -z "$cur" ] || { ops_log "$name" info "unit $res; already reported by the job ($(basename "$f" .json) $cur)"; return 0; }
+    done
+  fi
+  ops_state "$name" fail "unit $res/${EXIT_CODE:-?}/${EXIT_STATUS:-?}"
 }
 
 ops_lock() {   # job — exits 0 if another instance holds the lock

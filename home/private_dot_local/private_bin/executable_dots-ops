@@ -12,6 +12,16 @@ sudo_runner() {   # R8: sudo -n only; returns the runner rc (callers decide if i
   local sc; read -ra sc <<< "$OPS_SUDO"
   "${sc[@]}" "$OPS_RUNNER" "$@" || { local rc=$?; ops_log system warn "sudo runner failed (rc=$rc): $*"; return "$rc"; }
 }
+idle_runner() {   # system idle-run|idle-end — R60: a refused sudo is visible (Waybar), not just a log line; success clears it
+  local rc=0
+  sudo_runner system "$1" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    ops_state system warn "root runner refused (rc=$rc): log out/in or check /etc/sudoers.d/dots-ops"
+  elif [ "$(jq -r '.status // "ok"' "$OPS_STATE/state/system.json" 2>/dev/null || echo ok)" != ok ]; then
+    ops_state system ok "root runner reachable again"
+  fi
+  return 0
+}
 relay() {   # root → user: /var/lib/dots-ops/<job>.json → ops_state; ask-<job>.json → ops_ask (user context only)
   [ "$OPS_IS_ROOT" != 1 ] || { echo "dots-ops relay runs as the desktop user, not root" >&2; exit 2; }
   local f base st sum changed seen ask_sum q act alt altl asked p job
@@ -168,11 +178,11 @@ case "${1:-}" in
     fi
     mkdir -p "$(dirname "$OPS_IDLE_FLAG")"; touch "$OPS_IDLE_FLAG"
     systemctl --user restart --no-block dots-ops-idle.target || ops_log system warn "idle target failed to start"   # R14
-    sudo_runner system idle-run || true ;;
+    idle_runner idle-run ;;
   idle-end)
     rm -f "$OPS_IDLE_FLAG"
     systemctl --user stop --no-block dots-ops-idle.target || true
-    sudo_runner system idle-end || true ;;   # R3
+    idle_runner idle-end ;;   # R3
   perf-mode)   # on: performance profile + DND; off: back to the AC/battery default + DND off. State: $OPS_STATE/perf-mode
     [ $# -le 2 ] || usage
     want=${2:-toggle}; cur=$(cat "$OPS_STATE/perf-mode" 2>/dev/null || echo off)

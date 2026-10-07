@@ -31,16 +31,20 @@ case "$1 $2" in
 esac
 exit 0'
   # kubectl: files in $KDIR: <ctx>.down | <ctx>.nodes | <ctx>.pods | <ctx>.certs | <ctx>.apps ; <ctx>.crd-cert / .crd-argo = CRD exists
+  # <ctx>.fail-<nodes|pods|crd|certs|apps> = that one query fails (timeout/RBAC); $KDIR/contexts = `config get-contexts -o name`
   mkstub kubectl 'echo "kubectl $*" >> "$STUB_LOG"
+if [ "$1" = config ]; then [ "$2 $3 $4" = "get-contexts -o name" ] || exit 9; cat "$KDIR/contexts" 2>/dev/null || printf "c1\nc2\nadmin@onprem-s2a\novh\n"; exit 0; fi
 [ "$3" = "--request-timeout=10s" ] || exit 9
 c=$2; shift 3
 [ -e "$KDIR/$c.down" ] && exit 1
+fails() { [ -e "$KDIR/$c.fail-$1" ] && { echo "error: the server was unable to return a response in the time allotted" >&2; exit 1; }; }
+nf() { echo "Error from server (NotFound): customresourcedefinitions.apiextensions.k8s.io $1 not found" >&2; exit 1; }
 case "$1 $2" in
-  "get nodes")  cat "$KDIR/$c.nodes" 2>/dev/null || echo "{\"items\":[]}" ;;
-  "get pods")   cat "$KDIR/$c.pods" 2>/dev/null || echo "{\"items\":[]}" ;;
-  "get crd")    case $3 in certificates.cert-manager.io) [ -e "$KDIR/$c.crd-cert" ] ;; applications.argoproj.io) [ -e "$KDIR/$c.crd-argo" ] ;; esac ;;
-  "get certificates.cert-manager.io") cat "$KDIR/$c.certs" ;;
-  "get applications.argoproj.io") cat "$KDIR/$c.apps" ;;
+  "get nodes")  fails nodes; cat "$KDIR/$c.nodes" 2>/dev/null || echo "{\"items\":[]}" ;;
+  "get pods")   fails pods; cat "$KDIR/$c.pods" 2>/dev/null || echo "{\"items\":[]}" ;;
+  "get crd")    fails crd; case $3 in certificates.cert-manager.io) [ -e "$KDIR/$c.crd-cert" ] || nf "$3" ;; applications.argoproj.io) [ -e "$KDIR/$c.crd-argo" ] || nf "$3" ;; esac ;;
+  "get certificates.cert-manager.io") fails certs; cat "$KDIR/$c.certs" ;;
+  "get applications.argoproj.io") fails apps; cat "$KDIR/$c.apps" ;;
 esac'
   export PATH="$BIN:$PATH"
   export HOME="$BATS_TEST_TMPDIR/home"; mkdir -p "$HOME"
@@ -193,6 +197,32 @@ bad_pod() { printf '{"items":[{"metadata":{"namespace":"app","name":"%s"},"statu
   runjob "$UJ/k8s-health.sh"
   [ "$(ustate k8s-health status)" = warn ]
   [[ "$(ustate k8s-health summary)" == *"c1 unreachable"* ]]
+}
+@test "k8s-health: a failing query (pods/crd/certs/apps) = context unreachable this run: prior keys kept, no recovered, warn" {
+  k8s_ctx; export K8S_CTX=c1
+  bad_pod p1; touch "$KDIR/c1.crd-cert" "$KDIR/c1.crd-argo"; echo '{"items":[]}' > "$KDIR/c1.certs"; echo '{"items":[]}' > "$KDIR/c1.apps"
+  runjob "$UJ/k8s-health.sh"; [ "$(ustate k8s-health status)" = warn ]; [ "$(notified)" = 1 ]
+  for q in pods crd certs apps; do
+    touch "$KDIR/c1.fail-$q"; echo '{"items":[]}' > "$KDIR/c1.pods"   # the pod would look healthy now — but the run is incomplete
+    runjob "$UJ/k8s-health.sh"
+    [ "$(ustate k8s-health status)" = warn ]
+    [[ "$(ustate k8s-health summary)" == *"c1 unreachable"* ]]
+    jq -e '.keys == ["c1/pod/app/p1/CrashLoopBackOff"]' "$OPS_STATE/k8s-issues.json"
+    ! grep -q recovered "$NOTIFY_LOG"
+    rm -f "$KDIR/c1.fail-$q"; bad_pod p1
+  done
+  [ "$(notified)" = 1 ]
+}
+@test "R62 k8s-health: a configured context missing from kubeconfig is n/a (skipped), not unreachable" {
+  ops_cfg() { if [ "$1" = k8s.contexts ]; then printf -- '- c1\n- ovh\n'; else echo "$2"; fi; }
+  printf 'c1\n' > "$KDIR/contexts"
+  runjob "$UJ/k8s-health.sh"
+  [ "$(ustate k8s-health status)" = ok ]
+  [[ "$(ustate k8s-health summary)" != *unreachable* ]]; [[ "$(ustate k8s-health summary)" == *"n/a here: ovh"* ]]
+  ! grep -q 'context ovh' "$STUB_LOG"
+  : > "$KDIR/contexts"; runjob "$UJ/k8s-health.sh"   # none of them on this host
+  [ "$(ustate k8s-health status)" = ok ]; [[ "$(ustate k8s-health summary)" == n/a:* ]]
+  [ "$(notified)" = 0 ]
 }
 @test "k8s-health: NotReady node, expiring certificate and out-of-sync app (CRDs present)" {
   k8s_ctx; export K8S_CTX=c1
