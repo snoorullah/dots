@@ -58,7 +58,7 @@ f tmux .tmux.conf
 f tmux .config/tmux/tmux.conf
 f tmux .config/tmux/tmux.remote.conf
 f tmux .config/tmux/plugins.lock
-x tmux .config/tmux/scripts/claude-notify.sh
+x all .config/tmux/scripts/claude-notify.sh
 f herdr .config/herdr/config.toml
 x all .config/dots-mux/pass-menu.sh
 x all .config/dots-mux/ssh-menu.sh
@@ -99,3 +99,4 @@ f all .config/systemd/user/ovh-k8s-tunnel.service
 f tmux .config/systemd/user/tmux.service
 f herdr .config/systemd/user/herdr.service
 f all .local/share/applications/excalidraw.desktop
+f all .config/xdg-desktop-portal/hyprland-portals.conf

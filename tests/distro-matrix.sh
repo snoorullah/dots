@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Runs as root in a fresh distro container (repo mounted read-only at /src). Ruling R26: tests the chezmoi
 # side only (no Nix build, no systemd, no sudo semantics): stale pre-existing file, no age key, gpu=mesa.
+# The root script is never executed: only its DOTS_PKG_LIST=1 mode, whose "required" packages are then resolved
+# by the distro's package manager in a dry run (apt-get -s / dnf --assumeno / pacman -Sp). Unavailable = FAIL.
 set -euo pipefail
 . /etc/os-release
 case " $ID ${ID_LIKE:-} " in
@@ -33,6 +35,36 @@ for f in ~/dots/home/.chezmoiscripts/*.tmpl; do
   bash -n /tmp/rendered.sh || { echo "FAIL bash -n $f"; exit 1; }
   echo "script ok: $(basename "$f")"
 done
+chezmoi execute-template < ~/dots/home/.chezmoiscripts/run_once_before_00-system.sh.tmpl > /tmp/root-system.sh
+DOTS_PKG_LIST=1 bash /tmp/root-system.sh > /tmp/dots-pkgs.txt || { echo "FAIL root script DOTS_PKG_LIST mode"; exit 1; }
+cat /tmp/dots-pkgs.txt
 bash ~/dots/tests/in-home.sh --sentinel
-echo "distro-matrix: PASS"
+echo "distro-matrix (chezmoi side): PASS"
 EOS
+
+# ---- package dry run (as root: dnf refuses non-root) ----
+read -r -a req <<<"$(sed -n 's/^required: //p' /tmp/dots-pkgs.txt)"
+read -r -a opt <<<"$(sed -n 's/^optional: //p' /tmp/dots-pkgs.txt)"
+[ "${#req[@]}" -gt 0 ] || { echo "FAIL no required packages listed"; exit 1; }
+case " $ID ${ID_LIKE:-} " in
+  *" arch "*)
+    rc=0; out="$(pacman -Sp "${req[@]}" 2>&1)" || rc=$?
+    [ $rc = 0 ] || { echo "$out" | grep -iE 'error|not found' ; echo "FAIL pacman -Sp: required package(s) unavailable"; exit 1; }
+    have() { pacman -Si "$1" >/dev/null 2>&1; } ;;
+  *" debian "*|*" ubuntu "*)
+    rc=0; out="$(apt-get install -s "${req[@]}" 2>&1)" || rc=$?
+    [ $rc = 0 ] || { echo "$out" | grep -E '^E:|Unable to locate|has no installation candidate'; echo "FAIL apt-get -s: required package(s) unavailable"; exit 1; }
+    have() { [ -n "$(apt-cache madison "$1" 2>/dev/null)" ]; } ;;
+  *)
+    rc=0; out="$(dnf install --assumeno "${req[@]}" 2>&1)" || rc=$?
+    if grep -qE 'No match for argument|Unable to find a match|Failed to resolve|nothing provides|^Problem' <<<"$out"; then
+      echo "$out" | grep -E 'No match for argument|Unable to find a match|Failed to resolve|nothing provides|Problem'
+      echo "FAIL dnf --assumeno: required package(s) unavailable"; exit 1
+    fi
+    grep -qiE 'Operation aborted|Nothing to do|is already installed' <<<"$out" || { echo "$out" | tail -20; echo "FAIL dnf --assumeno rc=$rc"; exit 1; }
+    have() { dnf info "$1" >/dev/null 2>&1; } ;;
+esac
+echo "package dry run: all ${#req[@]} required packages resolve (${req[*]})"
+# optional packages are installed only when present, so absence is reported, not failed
+for p in "${opt[@]}"; do if have "$p"; then echo "optional available: $p"; else echo "optional absent (script skips/builds): $p"; fi; done
+echo "distro-matrix: PASS"
