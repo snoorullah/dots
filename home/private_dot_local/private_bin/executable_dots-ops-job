@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Run one dots-ops job: lock, enabled check, idle/AC gate for heavy jobs, then job_main.
 set -uo pipefail
-if [ "$(id -u)" = 0 ]; then LIB=/usr/local/lib/dots-ops/lib.sh   # R2: root never loads user-writable code
+if [ "$(id -u)" = 0 ]; then   # R2/R17: root never loads user-writable code or env-supplied paths
+  LIB=/usr/local/lib/dots-ops/lib.sh
+  OPS_JOBS_DIR=/usr/local/lib/dots-ops/jobs; OPS_CONFIG=/etc/dots-ops/config.toml
 else LIB="${OPS_LIB:-$HOME/.local/lib/dots-ops/lib.sh}"; [ -f "$LIB" ] || LIB=/usr/local/lib/dots-ops/lib.sh; fi
 source "$LIB"
 : "${OPS_JOBS_DIR:=$( [ "$OPS_IS_ROOT" = 1 ] && echo /usr/local/lib/dots-ops/jobs || echo "$HOME/.local/lib/dots-ops/jobs")}"

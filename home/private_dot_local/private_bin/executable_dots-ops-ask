@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -u
 # Approval UI for one pending job: SwayNC buttons; result → dots-ops answer.
 source "${OPS_LIB:-$HOME/.local/lib/dots-ops/lib.sh}"
 job=${1:?usage: dots-ops-ask <job>}; [[ $job =~ ^[a-z0-9-]+$ ]] || exit 2
@@ -6,4 +7,4 @@ f="$OPS_STATE/pending/$job.json"; [ -f "$f" ] || exit 0
 choice=$(notify-send -a dots-ops -u normal --wait -t 0 \
   -A approve=Approve -A skip=Skip -A snooze="Snooze 1d" \
   "dots-ops: $job" "$(jq -r .question "$f")") || exit 0
-case $choice in approve|skip|snooze) exec dots-ops answer "$job" "$choice" ;; esac
+case $choice in approve|skip|snooze) exec "$HOME/.local/bin/dots-ops" answer "$job" "$choice" ;; esac

@@ -6,12 +6,11 @@ else LIB="${OPS_LIB:-$HOME/.local/lib/dots-ops/lib.sh}"; [ -f "$LIB" ] || LIB=/u
 source "$LIB"
 : "${OPS_JOBS_DIR:=$HOME/.local/lib/dots-ops/jobs}"
 here=$(dirname "$(readlink -f "$0")")
-usage() { echo "usage: dots-ops run <job> [--now] | answer <job> <approve|skip|snooze> | idle-start | idle-end" >&2; exit 2; }
+usage() { echo "usage: dots-ops run <job> [--now] | answer <job> <approve|skip|snooze> | idle-start [--fallback] | idle-end" >&2; exit 2; }
 
-sudo_runner() {   # R8: sudo -n only; a refusal is logged, never fatal
+sudo_runner() {   # R8: sudo -n only; returns the runner rc (callers decide if it is fatal)
   local sc; read -ra sc <<< "$OPS_SUDO"
-  "${sc[@]}" "$OPS_RUNNER" "$@" || ops_log system warn "sudo runner refused: $*"
-  return 0
+  "${sc[@]}" "$OPS_RUNNER" "$@" || { local rc=$?; ops_log system warn "sudo runner failed (rc=$rc): $*"; return "$rc"; }
 }
 job_bin() { local b="$here/dots-ops-job"; [ -e "$b" ] || b="$here/executable_dots-ops-job"; echo "$b"; }
 valid_job() { [[ ${1:-} =~ ^[a-z0-9-]+$ ]] || { echo "bad job name" >&2; exit 2; }; }
@@ -23,18 +22,31 @@ case "${1:-}" in
       if [ "$now" = 1 ]; then OPS_FORCE=1 exec bash "$(job_bin)" "$job"
       else exec systemctl --user start --no-block "dots-ops@$job.service"; fi
     else                                       # root job (R4)
-      if [ "$now" = 1 ]; then sudo_runner "$job" run-now; else sudo_runner "$job" run; fi
+      act=run; [ "$now" = 1 ] && act=run-now
+      sudo_runner "$job" "$act"; rc=$?
+      if [ "$rc" -ne 0 ]; then
+        echo "dots-ops: $job $act failed (rc=$rc); sudo refused or runner error" >&2
+        ops_state "$job" warn "run failed (rc=$rc)"; exit "$rc"
+      fi
     fi ;;
   answer)
     [ $# -eq 3 ] || usage
     case $3 in approve|skip|snooze) ;; *) usage ;; esac
     valid_job "$2"; ops_answer "$2" "$3" ;;
   idle-start)
+    if [ "${2:-}" = --fallback ]; then   # R15: only when on AC and nobody is using the machine
+      if ops_on_ac && { pgrep -x hyprlock >/dev/null 2>&1 || ! loginctl list-sessions --no-legend 2>/dev/null | grep -q .; }; then
+        systemd-run --user --on-active=2h "$(readlink -f "$0")" idle-end >/dev/null 2>&1 || ops_log system warn "could not schedule idle-end"
+      else
+        ops_log system info "fallback skipped: not idle/AC"; exit 0
+      fi
+    fi
     mkdir -p "$(dirname "$OPS_IDLE_FLAG")"; touch "$OPS_IDLE_FLAG"
-    systemctl --user start --no-block dots-ops-idle.target || ops_log system warn "idle target failed to start"
-    sudo_runner system idle-run ;;
+    systemctl --user restart --no-block dots-ops-idle.target || ops_log system warn "idle target failed to start"   # R14
+    sudo_runner system idle-run || true ;;
   idle-end)
     rm -f "$OPS_IDLE_FLAG"
-    sudo_runner system idle-end ;;   # R3
+    systemctl --user stop --no-block dots-ops-idle.target || true
+    sudo_runner system idle-end || true ;;   # R3
   *) usage ;;
 esac
