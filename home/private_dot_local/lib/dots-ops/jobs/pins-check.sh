@@ -15,6 +15,7 @@ job_main() {
   [ -n "$OPS_DOTS_REPO" ] && [ -f "$y" ] || { ops_state pins-check ok "n/a: no dots repo"; return 0; }
   while IFS=$'\t' read -r kind name from; do
     to=$(pins_latest "$kind" "$name" 2>/dev/null) || { failed=1; continue; }
+    [[ $to =~ ^[A-Za-z0-9._+-]+$ ]] || { failed=1; continue; }   # same charset pins-bump accepts
     [ "$to" = "$from" ] && continue
     auto=true; [ "$kind" = uv ] && auto=false
     out=$(jq -c --arg k "$kind" --arg n "$name" --arg f "$from" --arg t "$to" --argjson a "$auto" \

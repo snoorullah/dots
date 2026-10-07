@@ -81,6 +81,7 @@ relay() {   # root → user: /var/lib/dots-ops/<job>.json → ops_state; ask-<jo
   fi
   return 0
 }
+pins_cfg() { local v c="${OPS_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/dots-ops/config.toml}"; v=$(yq -p toml -oy ".$1" "$c" 2>/dev/null); if [ -n "$v" ] && [ "$v" != null ]; then echo "$v"; else echo "$2"; fi; }
 pins_set_version() {   # file key name from to — format-preserving edit of one flow-map entry (yq -i would reflow the file)
   PK=$2 PN=$3 PF=$4 PT=$5 perl -0777 -i -pe '
     $n += s/(\{\s*\Q$ENV{PK}\E:\s*"?\Q$ENV{PN}\E"?\s*,\s*version:\s*)\Q$ENV{PF}\E(?=\s*[,}])/$1$ENV{PT}/;
@@ -91,6 +92,7 @@ pins_bump() {   # user context: git/gh run as the owner. Always branch pins/<dat
   : "${OPS_DOTS_REPO:=$(git -C "$(chezmoi source-path 2>/dev/null)" rev-parse --show-toplevel 2>/dev/null)}"
   local c="$OPS_STATE/pins-candidates.json" wt="$OPS_STATE/pins-wt" br br0 n base body="" url kind name from to key y
   local files=(home/.chezmoidata/extra-tools.yaml nix/flake.lock)
+  bump_drop() { ops_run git -C "$OPS_DOTS_REPO" worktree remove --force "$wt"; ops_run git -C "$OPS_DOTS_REPO" branch -D "$br" >/dev/null; }   # nothing pushed yet: drop worktree and local branch
   bump_fail() { ops_state pins-check fail "$1"; echo "dots-ops pins-bump: $1" >&2; exit 1; }
   [ -n "$OPS_DOTS_REPO" ] && git -C "$OPS_DOTS_REPO" rev-parse --git-dir >/dev/null 2>&1 || bump_fail "no dots git repo (set OPS_DOTS_REPO)"
   [ -s "$c" ] && jq -e 'type == "array"' "$c" >/dev/null 2>&1 || bump_fail "no pins-candidates.json; run: dots-ops run pins-check --now"
@@ -105,18 +107,25 @@ pins_bump() {   # user context: git/gh run as the owner. Always branch pins/<dat
   ops_run git -C "$OPS_DOTS_REPO" worktree add -b "$br" "$wt" "$base" || bump_fail "worktree add failed"
   y="$wt/home/.chezmoidata/extra-tools.yaml"; body="Automated by dots-ops pins-check."$'\n'
   while IFS=$'\t' read -r kind name from to; do
-    [[ $name =~ ^[A-Za-z0-9@/._-]+$ && $from =~ ^[A-Za-z0-9._+-]+$ && $to =~ ^[A-Za-z0-9._+-]+$ ]] || bump_fail "refusing odd pin $kind $name $from $to"
+    [[ $name =~ ^[A-Za-z0-9@/._-]+$ && $from =~ ^[A-Za-z0-9._+-]+$ && $to =~ ^[A-Za-z0-9._+-]+$ ]] || { bump_drop; bump_fail "refusing odd pin $kind $name $from $to"; }
     case $kind in npm|pipx) key=name ;; cargo) key=crate ;; *) continue ;; esac
     ops_run pins_set_version "$y" "$key" "$name" "$from" "$to" || { ops_run git -C "$OPS_DOTS_REPO" worktree remove --force "$wt"; bump_fail "could not edit $kind $name in extra-tools.yaml (unexpected layout); branch $br kept locally"; }
     body+="- $kind $name $from -> $to"$'\n'
   done < <(jq -r '.[]|select(.auto)|[.kind,.name,.from,.to]|@tsv' "$c")
   body+=$(jq -r '.[]|select(.auto|not)|"- manual: \(.kind) \(.name) \(.from) -> \(.to) (check requires_python)"' "$c")
-  if [ -f "$OPS_DOTS_REPO/nix/flake.lock" ]; then
+  # R51: the lock moves only when it is older than the same threshold pins-check warns on
+  local lock_age lock_days lock_max
+  lock_age=$(jq -r '.nodes.nixpkgs.locked.lastModified // 0' "$OPS_DOTS_REPO/nix/flake.lock" 2>/dev/null || echo 0)
+  [[ $lock_age =~ ^[0-9]+$ ]] || lock_age=0
+  lock_days=0; [ "$lock_age" -eq 0 ] || lock_days=$(( ( $(date +%s) - lock_age ) / 86400 ))
+  lock_max=${OPS_LOCK_MAX_DAYS:-$(pins_cfg pins.lock_max_days 30)}
+  if [ "$lock_days" -gt "$lock_max" ]; then
+    body+=$'\n'"- nixpkgs lock was $lock_days days old: nix flake update"
     ops_run nix flake update --flake "$wt/nix" || { ops_run git -C "$OPS_DOTS_REPO" worktree remove --force "$wt"; bump_fail "nix flake update failed; branch $br kept locally"; }
   fi
   ops_run bash -c "cd '$wt' && tests/extra-tools-dryrun.sh" \
     || { ops_run git -C "$OPS_DOTS_REPO" worktree remove --force "$wt"; bump_fail "bump broke extra-tools dryrun; branch $br kept locally"; }
-  ops_run git -C "$wt" commit -qam "chore(pins): bump pinned tools and nixpkgs" || bump_fail "commit failed (nothing changed?)"
+  ops_run git -C "$wt" commit -qam "chore(pins): bump pinned tools and nixpkgs" || { bump_drop; bump_fail "commit failed (nothing changed?)"; }
   ops_run git -C "$wt" push -q -u origin "$br" || bump_fail "push of $br failed; worktree $wt kept"
   url=$(ops_run gh pr create --repo "$(git -C "$OPS_DOTS_REPO" remote get-url origin)" --base "${base#origin/}" --head "$br" \
         --title "chore(pins): $(date +%F) bumps" --body "$body") || bump_fail "gh pr create failed; branch $br is pushed"

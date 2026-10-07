@@ -112,3 +112,44 @@ cands() {
   [[ $output == *"https://example.invalid/pr/1"* ]]
   [ ! -e "$OPS_STATE/pins-wt" ]
 }
+@test "R51 pin-only bump does not run nix flake update (fresh lock)" {
+  git_repo; cands
+  DOTS_OPS_DRY_RUN=1 run bash "$BIN/executable_dots-ops" pins-bump
+  [ "$status" = 0 ]
+  [[ $output != *"nix flake update"* ]]
+}
+@test "R51 stale lock runs nix flake update, even with no auto candidates" {
+  printf '{"nodes":{"nixpkgs":{"locked":{"lastModified":%s}}}}' $(( $(date +%s) - 40*86400 )) > "$OPS_DOTS_REPO/nix/flake.lock"
+  git_repo
+  printf '[]' > "$OPS_STATE/pins-candidates.json"
+  DOTS_OPS_DRY_RUN=1 run bash "$BIN/executable_dots-ops" pins-bump
+  [ "$status" = 0 ]
+  [[ $output == *"nix flake update --flake"* ]]
+  [[ $output != *"pins_set_version"* ]]
+}
+@test "R51 OPS_LOCK_MAX_DAYS raises the threshold" {
+  printf '{"nodes":{"nixpkgs":{"locked":{"lastModified":%s}}}}' $(( $(date +%s) - 40*86400 )) > "$OPS_DOTS_REPO/nix/flake.lock"
+  git_repo; cands
+  OPS_LOCK_MAX_DAYS=60 DOTS_OPS_DRY_RUN=1 run bash "$BIN/executable_dots-ops" pins-bump
+  [[ $output != *"nix flake update"* ]]
+}
+@test "odd pin: worktree and local branch are removed, next run is not blocked" {
+  git_repo
+  printf '[{"kind":"npm","name":"bad name","from":"1.0.0","to":"1.1.0","auto":true}]' > "$OPS_STATE/pins-candidates.json"
+  run bash "$BIN/executable_dots-ops" pins-bump
+  [ "$status" = 1 ]
+  [[ $output == *"refusing odd pin"* ]]
+  [ ! -e "$OPS_STATE/pins-wt" ]
+  [ -z "$(git -C "$OPS_DOTS_REPO" branch --list 'pins/*')" ]
+  run bash "$BIN/executable_dots-ops" pins-bump
+  [[ $output == *"refusing odd pin"* ]] && [[ $output != *"stale worktree"* ]]
+}
+@test "malformed registry version is skipped and counted as check failed" {
+  mkdir -p "$BATS_TEST_TMPDIR/fx/newer"
+  cp "$PINS_FIXTURES"/newer/* "$BATS_TEST_TMPDIR/fx/newer/"
+  printf '{"version":"1.0 $(evil)"}' > "$BATS_TEST_TMPDIR/fx/newer/registry.npmjs.org_agent-browser_latest.json"
+  export PINS_FIXTURE_SET=newer PINS_FIXTURES="$BATS_TEST_TMPDIR/fx"
+  bash "$BIN/executable_dots-ops-job" pins-check
+  [ "$(jq '[.[]|select(.name=="agent-browser")]|length' "$OPS_STATE/pins-candidates.json")" = 0 ]
+  jq -r .summary "$OPS_STATE/state/pins-check.json" | grep -q 'check failed'
+}
