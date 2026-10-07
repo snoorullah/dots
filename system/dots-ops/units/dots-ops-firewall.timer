@@ -1,5 +1,5 @@
 [Unit]
-Description=dots-ops firewall check (daily, and 5 min after boot; asks or no-ops unless re-applying an approved ruleset)
+Description=dots-ops firewall check (daily, and 5 min after boot; only asks or no-ops)
 
 [Timer]
 OnCalendar=daily

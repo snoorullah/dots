@@ -16,5 +16,4 @@ if [ "$_fw_pending" != "$_fw_hash" ]; then
   ops_run systemctl start --no-block dots-ops@firewall.service || true   # the job shows the current diff in a new ask
   exit 1
 fi
-_fw_live || { ops_state firewall fail "$_fw_msg"; exit 1; }
 _fw_apply "applied ($_fw_tool, approved)" || exit 1

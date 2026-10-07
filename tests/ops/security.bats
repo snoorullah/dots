@@ -92,6 +92,9 @@ systemctl enable ufw.service'
 fw_hash() {   # the hash the job records for the current rules (from its own render)
   ( source "$SJ/firewall.sh"; _fw_setup >/dev/null && printf '%s' "$_fw_hash" )
 }
+fw_rhash() {   # the state-independent ruleset hash recorded in firewall.applied
+  ( source "$SJ/firewall.sh"; _fw_setup >/dev/null && printf '%s' "$_fw_rhash" )
+}
 pending() { fw_hash > "$OPS_ROOT_STATE/firewall.pending-hash"; }   # what the job writes when it asks (R46)
 ufw_mut() { grep -E '^ufw |^systemctl enable ' "$STUB_LOG" | grep -v 'status verbose' || true; }
 dryact() { env DOTS_OPS_DRY_RUN=1 bash -c 'set -euo pipefail; source "$1"; source "$2"' _ "$LIB" "$SA/$1/$2.sh"; }
@@ -123,7 +126,7 @@ applied() { jq -cn --arg h "$1" '{hash:$h,applied:1,tool:"ufw"}' > "$OPS_ROOT_ST
   os "$ARCH"; export STUB_ACTIVE="ufw.service" STUB_UFW_STATUS="${UFW_OK/1714:1764\/udp              ALLOW IN    Anywhere\\n/}"
   runjob firewall
   [ -e "$OPS_ROOT_STATE/ask-firewall.json" ]
-  q=$(rstate ask-firewall question); [[ $q == *"1714:1764/udp"* && $q != *"22/tcp (ssh)"* && $q != *"ufw.service"* ]]
+  q=$(rstate ask-firewall question); [[ $q == *"1714:1764/udp"* && $q != *"22/tcp (ssh)"* && $q != *"at boot"* ]]
   [ -z "$(mutations)" ]
 }
 @test "firewall: live state already matches (ufw.service enabled) -> ok, no ask, stale ask withdrawn" {
@@ -154,7 +157,7 @@ applied() { jq -cn --arg h "$1" '{hash:$h,applied:1,tool:"ufw"}' > "$OPS_ROOT_ST
   [ "$(rstate firewall status)" = ok ]; [ -z "$(mutations)" ]
 }
 @test "firewall (R44) drift with the same rules hash -> warn naming the drift + ask, NEVER re-applied" {
-  os "$DEB"; applied "$(fw_hash)"
+  os "$DEB"; applied "$(fw_rhash)"
   export STUB_UFW_STATUS='Status: inactive\n'
   runjob firewall
   [ -z "$(mutations)" ]
@@ -210,6 +213,69 @@ applied() { jq -cn --arg h "$1" '{hash:$h,applied:1,tool:"ufw"}' > "$OPS_ROOT_ST
   export STUB_IP_DEV=none; runjob firewall; [[ $(rstate ask-firewall question) == *"in zone FedoraWorkstation"* ]]
 }
 
+@test "firewall: ALLOW OUT / ALLOW FWD / LIMIT OUT lines never count as an incoming allow" {
+  os "$DEB"; export STUB_ACTIVE="ufw.service"
+  s="${UFW_OK/22\/tcp                     ALLOW IN    Anywhere/22/tcp                     ALLOW OUT   Anywhere}"
+  s="${s/1714:1764\/tcp              ALLOW IN    Anywhere/1714:1764/tcp              ALLOW FWD   Anywhere}"
+  export STUB_UFW_STATUS="${s/1714:1764\/udp              ALLOW IN    Anywhere/1714:1764/udp              LIMIT OUT   Anywhere}"
+  runjob firewall
+  q=$(rstate ask-firewall question)
+  [[ $q == *"allow 22/tcp (ssh)"* && $q == *"allow 1714:1764/tcp (kdeconnect)"* && $q == *"allow 1714:1764/udp (kdeconnect)"* ]]
+}
+@test "firewalld (R49): target change and daemon start are in the rendered, hashed, shown list" {
+  os "$FED"; export STUB_FWD_TARGET=default
+  h_default=$(fw_hash)
+  export STUB_FWD_TARGET=ACCEPT; h_accept=$(fw_hash); [ "$h_default" != "$h_accept" ]
+  runjob firewall
+  [[ $(rstate ask-firewall question) == *"Runs: firewall-cmd --permanent --zone=public --add-port=22/tcp; "*"firewall-cmd --permanent --zone=public --set-target=default; firewall-cmd --reload" ]]
+  [ "$(cat "$OPS_ROOT_STATE/firewall.pending-hash")" = "$h_accept" ]
+  rm -f "$OPS_ROOT_STATE/firewall.pending-hash"; export STUB_FWD_RUNNING=0
+  [ "$(fw_hash)" != "$h_accept" ]
+  runjob firewall
+  [[ $(rstate ask-firewall question) == *"firewall-offline-cmd --zone=public --set-target=default; systemctl enable --now firewalld.service" ]]
+  [ -z "$(mutations)" ]
+}
+@test "firewall (R48): render changes while an approval is pending -> withdrawn, not overwritten" {
+  os "$DEB"; runjob firewall; h1=$(cat "$OPS_ROOT_STATE/firewall.pending-hash")
+  echo "$h1" | sed 's/^./x/' > "$OPS_ROOT_STATE/firewall.pending-hash"   # pretend the pending ask showed another render
+  runjob firewall
+  [ ! -e "$OPS_ROOT_STATE/ask-firewall.json" ]; [ ! -e "$OPS_ROOT_STATE/firewall.pending-hash" ]
+  [ "$(rstate firewall status)" = warn ]
+  [ "$(rstate firewall summary)" = "rules changed while an approval was pending — re-asking" ]
+  runjob firewall   # next run asks fresh, bound to the current render
+  [ -e "$OPS_ROOT_STATE/ask-firewall.json" ]; [ "$(cat "$OPS_ROOT_STATE/firewall.pending-hash")" = "$(fw_hash)" ]
+  [ -z "$(mutations)" ]
+}
+@test "firewall (R48) end to end: ask A relayed -> rules change -> job run -> owner approves A -> nothing applied, fresh ask shown" {
+  os "$DEB"
+  export U="$BATS_TEST_TMPDIR/user" ROOTLOG="$OPS_STATE" LIB CLI="$R/home/private_dot_local/private_bin/executable_dots-ops"
+  mkdir -p "$U/jobs"
+  cat > "$BIN/runner" <<'RUN'
+#!/bin/sh
+# stands in for `sudo -n dots-ops-run <job> <action>`: source the root action as root context would
+exec env OPS_IS_ROOT=1 OPS_STATE="$ROOTLOG" bash -c 'set -euo pipefail; source "$1"; source "$2"' _ "$LIB" "$P/actions/$1/$2.sh"
+RUN
+  chmod +x "$BIN/runner"
+  asuser() { env OPS_IS_ROOT=0 OPS_STATE="$U" OPS_ASK_UI=0 OPS_LIB="$LIB" OPS_JOBS_DIR="$U/jobs" OPS_SUDO=env OPS_RUNNER="$BIN/runner" bash "$CLI" "$@"; }
+  runjob firewall                                              # ask A (render H1)
+  asuser relay; qa=$(jq -r .question "$U/pending/firewall.json"); [[ $qa != *8080* ]]
+  # firewall.json changes (installer update): a second rule set under a new root-owned prefix
+  cp -r "$R/system/dots-ops" "$BATS_TEST_TMPDIR/sys2"
+  jq '.allow += [{"port":8080,"proto":"tcp","why":"dev"}]' "$R/system/dots-ops/firewall.json" > "$BATS_TEST_TMPDIR/sys2/firewall.json"
+  export OPS_SYS_DIR="$BATS_TEST_TMPDIR/sys2" P="$BATS_TEST_TMPDIR/sys2"
+  runjob firewall                                              # H2 != H1 -> withdraw
+  [ ! -e "$OPS_ROOT_STATE/ask-firewall.json" ]
+  run asuser answer firewall approve                           # the owner clicks the OLD question before the relay ran
+  [ -z "$(ufw_mut)" ]; [ ! -e "$OPS_ROOT_STATE/firewall.applied" ]
+  [ "$(rstate firewall summary)" = "rules changed since approval — re-asking" ]
+  grep -qx 'systemctl start --no-block dots-ops@firewall.service' "$STUB_LOG"
+  runjob firewall                                              # what that restart runs: a fresh ask for H2
+  asuser relay
+  qb=$(jq -r .question "$U/pending/firewall.json"); [[ $qb == *"allow 8080/tcp (dev)"* ]]
+  [ "$(cat "$OPS_ROOT_STATE/firewall.pending-hash")" = "$(fw_hash)" ]
+  [ -z "$(ufw_mut)" ]
+}
+
 # ---- firewall apply (action) ----
 @test "firewall apply dry-run (ufw, arch + debian): prints the exact commands, allows before deny+enable, records nothing" {
   for o in "$ARCH" "$DEB"; do
@@ -240,7 +306,7 @@ applied() { jq -cn --arg h "$1" '{hash:$h,applied:1,tool:"ufw"}' > "$OPS_ROOT_ST
 @test "firewall apply (real, stubbed ufw): runs the commands, records the rules hash, withdraws the ask" {
   os "$DEB"; echo '{}' > "$OPS_ROOT_STATE/ask-firewall.json"; pending
   run runact firewall apply; [ "$status" -eq 0 ]
-  [ "$(jq -r .hash "$OPS_ROOT_STATE/firewall.applied")" = "$(fw_hash)" ]
+  [ "$(jq -r .hash "$OPS_ROOT_STATE/firewall.applied")" = "$(fw_rhash)" ]
   [ "$(rstate firewall status)" = ok ]; [ ! -e "$OPS_ROOT_STATE/ask-firewall.json" ]; [ ! -e "$OPS_ROOT_STATE/firewall.pending-hash" ]
   [ "$(ufw_mut)" = "$UFW_CMDS" ]
 }
@@ -370,16 +436,27 @@ applied() { jq -cn --arg h "$1" '{hash:$h,applied:1,tool:"ufw"}' > "$OPS_ROOT_ST
   [ "$(rstate ssh-harden status)" = warn ]
   [ "$(rstate ssh-harden summary)" = "hardening active, no authorized_keys: remote login impossible" ]
 }
-@test "ssh-harden (R47): OpenSSH < 8.7 -> drop-in without KbdInteractiveAuthentication (ask, apply, in-sync check)" {
+@test "ssh-harden (R49): OpenSSH < 8.7 -> ChallengeResponseAuthentication no instead (ask, apply, in-sync check)" {
   os "$DEB"; export STUB_ACTIVE="ssh.service" STUB_UNITS="ssh.service" STUB_SSHD_VER=8.4; echo 'ssh-ed25519 AAAA k' > "$OWNER_HOME/.ssh/authorized_keys"
   runjob ssh-harden
-  q=$(rstate ask-ssh-harden question); [[ $q == *"PasswordAuthentication no"* && $q != *KbdInteractive* ]]
+  q=$(rstate ask-ssh-harden question)
+  [[ $q == *"PasswordAuthentication no"* && $q == *"ChallengeResponseAuthentication no"* && $q != *KbdInteractive* ]]
   run runact ssh-harden apply; [ "$status" -eq 0 ]
   run ! grep -q KbdInteractiveAuthentication "$OPS_SSHD_DIR/50-dots.conf"
-  grep -qx 'PasswordAuthentication no' "$OPS_SSHD_DIR/50-dots.conf"
-  export STUB_SSHD_EFFECTIVE='permitrootlogin no\npasswordauthentication no\n'
+  grep -qx 'PasswordAuthentication no' "$OPS_SSHD_DIR/50-dots.conf"; grep -qx 'ChallengeResponseAuthentication no' "$OPS_SSHD_DIR/50-dots.conf"
+  export STUB_SSHD_EFFECTIVE='permitrootlogin no\npasswordauthentication no\nchallengeresponseauthentication no\n'
   runjob ssh-harden; [ "$(rstate ssh-harden status)" = ok ]
-  export STUB_SSHD_VER=8.7; runjob ssh-harden; [ -e "$OPS_ROOT_STATE/ask-ssh-harden.json" ]   # 8.7 knows it: wants the line
+  export STUB_SSHD_EFFECTIVE='permitrootlogin no\npasswordauthentication no\nchallengeresponseauthentication yes\n'
+  runjob ssh-harden; [ "$(rstate ssh-harden status)" = warn ]; [[ $(rstate ssh-harden summary) == *"challengeresponseauthentication yes"* ]]
+  export STUB_SSHD_VER=8.7; runjob ssh-harden; [ -e "$OPS_ROOT_STATE/ask-ssh-harden.json" ]   # 8.7 knows Kbd...: wants that line
+}
+@test "ssh-harden (R49): OpenSSH >= 8.7 effective check verifies kbdinteractiveauthentication no" {
+  os "$DEB"; export STUB_ACTIVE="ssh.service" STUB_SSHD_VER=9.6; echo 'ssh-ed25519 AAAA k' > "$OWNER_HOME/.ssh/authorized_keys"
+  cp "$R/system/dots-ops/sshd/50-dots.conf" "$OPS_SSHD_DIR/"
+  export STUB_SSHD_EFFECTIVE='permitrootlogin no\npasswordauthentication no\nkbdinteractiveauthentication yes\n'
+  runjob ssh-harden; [ "$(rstate ssh-harden status)" = warn ]; [[ $(rstate ssh-harden summary) == *"kbdinteractiveauthentication yes"* ]]
+  export STUB_SSHD_EFFECTIVE='permitrootlogin no\npasswordauthentication no\nkbdinteractiveauthentication no\n'
+  runjob ssh-harden; [ "$(rstate ssh-harden status)" = ok ]
 }
 @test "50-dots.conf carries exactly the three hardening settings" {
   [ "$(grep -vE '^\s*(#|$)' "$R/system/dots-ops/sshd/50-dots.conf")" = "PermitRootLogin no

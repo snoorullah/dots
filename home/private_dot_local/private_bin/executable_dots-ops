@@ -14,7 +14,7 @@ sudo_runner() {   # R8: sudo -n only; returns the runner rc (callers decide if i
 }
 relay() {   # root → user: /var/lib/dots-ops/<job>.json → ops_state; ask-<job>.json → ops_ask (user context only)
   [ "$OPS_IS_ROOT" != 1 ] || { echo "dots-ops relay runs as the desktop user, not root" >&2; exit 2; }
-  local f base st sum changed seen ask_sum q act alt altl asked
+  local f base st sum changed seen ask_sum q act alt altl asked p job
   mkdir -p "$OPS_STATE/relayed"
   for f in "$OPS_ROOT_STATE"/*.json; do
     [ -f "$f" ] || continue
@@ -35,6 +35,15 @@ relay() {   # root → user: /var/lib/dots-ops/<job>.json → ops_state; ask-<jo
       if [[ $act != root:* ]] || { [ -n "$alt" ] && [[ $alt != root:* ]]; }; then   # root may only ask for root actions
         ops_log "$job" warn "relay: ignored non-root action in ask file"; continue
       fi
+      # R48: a live pending showing another question/action than the newest root ask is replaced, never kept —
+      # otherwise ops_ask returns early and the owner would approve text they never saw for the root's new ask
+      p="$OPS_STATE/pending/$job.json"
+      if [ -f "$p" ] && [ "$(jq -r '.action // "" | strings' "$p" 2>/dev/null)" = "${act}" ] \
+           && [ "$(jq -r '.question // "" | strings' "$p" 2>/dev/null)" = "$q" ] \
+           && [ "$(jq -r '.alt_action // "" | strings' "$p" 2>/dev/null)" = "$alt" ]; then :
+      elif [ -f "$p" ] && [[ $(jq -r '.action // "" | strings' "$p" 2>/dev/null) == root:* ]]; then
+        rm -f "$p"; ops_log "$job" info "relay: pending replaced by a changed root ask"
+      fi
       if [ -n "$alt" ]; then ops_ask "$job" "$q" "$act" "$alt" "$altl"; else ops_ask "$job" "$q" "$act"; fi
       echo "$ask_sum" > "$OPS_STATE/relayed/ask-$job"
       continue
@@ -54,6 +63,22 @@ relay() {   # root → user: /var/lib/dots-ops/<job>.json → ops_state; ask-<jo
     ops_state "$base" "$st" "$sum"
     echo "$changed" > "$OPS_STATE/relayed/$base"
   done
+  # R48: a root ask that disappeared (withdrawn, applied, refused) withdraws the user's pending for it
+  if [ -d "$OPS_ROOT_STATE" ]; then
+    local gone=0
+    for f in "$OPS_STATE"/relayed/ask-*; do
+      [ -f "$f" ] || continue
+      job=${f##*/relayed/ask-}
+      [[ $job =~ ^[a-z0-9][a-z0-9-]*$ ]] || continue
+      [ -e "$OPS_ROOT_STATE/ask-$job.json" ] && continue
+      p="$OPS_STATE/pending/$job.json"
+      if [ -f "$p" ] && [[ $(jq -r '.action // "" | strings' "$p" 2>/dev/null) == root:* ]]; then
+        rm -f "$p"; ops_log "$job" info "relay: root ask withdrawn; pending removed"; gone=1
+      fi
+      rm -f "$f"
+    done
+    [ "$gone" = 0 ] || ops_signal   # the Waybar ask count drops
+  fi
   return 0
 }
 job_bin() { local b="$here/dots-ops-job"; [ -e "$b" ] || b="$here/executable_dots-ops-job"; echo "$b"; }

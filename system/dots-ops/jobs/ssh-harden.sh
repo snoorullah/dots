@@ -9,7 +9,7 @@
 #   AuthenticationMethods needs password/keyboard-interactive (2FA)            -> warn, skipped
 #   sshd_config has no Include of sshd_config.d/*.conf                         -> warn (the drop-in would be ignored)
 #   sshd not installed / NixOS (services.openssh.settings)                     -> ok n/a
-# OpenSSH < 8.7 does not know KbdInteractiveAuthentication (sshd -t would reject it): that line is dropped there (R47).
+# OpenSSH < 8.7 does not know KbdInteractiveAuthentication (sshd -t would reject it): it gets ChallengeResponseAuthentication no (R49).
 # The owner is /etc/dots-ops/owner (written by the installer, R40); their home comes from getent passwd, never from env.
 # The apply action (actions/ssh-harden/apply.sh) sources this file.
 : "${OPS_SYS_DIR:=/usr/local/lib/dots-ops}"
@@ -83,9 +83,9 @@ _sh_kbd_known() {   # 0 = this sshd knows KbdInteractiveAuthentication (OpenSSH 
   [ "${BASH_REMATCH[1]}" -gt 8 ] || { [ "${BASH_REMATCH[1]}" = 8 ] && [ "${BASH_REMATCH[2]}" -ge 7 ]; }
 }
 
-_sh_desired() {   # the drop-in content for this sshd
+_sh_desired() {   # the drop-in content for this sshd (R49: < 8.7 spells it ChallengeResponseAuthentication)
   if _sh_kbd_known; then cat "$OPS_SYS_DIR/sshd/50-dots.conf"
-  else grep -v '^[[:space:]]*KbdInteractiveAuthentication' "$OPS_SYS_DIR/sshd/50-dots.conf"; fi
+  else sed 's/^\([[:space:]]*\)KbdInteractiveAuthentication\b/\1ChallengeResponseAuthentication/' "$OPS_SYS_DIR/sshd/50-dots.conf"; fi
 }
 
 # _sh_check: every guard. 1 = do not ask/apply, with _sh_st (ok|warn) and _sh_msg set.
@@ -125,7 +125,8 @@ job_main() {
   if _sh_same "$dst"; then
     rm -f "$ask"
     # the first value sshd reads wins: an earlier drop-in (e.g. 50-cloud-init.conf) can still override ours
-    keys="permitrootlogin passwordauthentication"; _sh_kbd_known && keys+=" kbdinteractiveauthentication"
+    keys="permitrootlogin passwordauthentication"
+    if _sh_kbd_known; then keys+=" kbdinteractiveauthentication"; else keys+=" challengeresponseauthentication"; fi
     eff=$(sshd -T 2>/dev/null) || eff=""
     if [ -n "$eff" ]; then
       for k in $keys; do

@@ -11,7 +11,7 @@ if ! _sh_check; then
   rm -f "$OPS_ROOT_STATE/ask-ssh-harden.json"; ops_state ssh-harden "$_sh_st" "$_sh_msg"; return 0
 fi
 _sh_src=$OPS_ROOT_STATE/ssh-harden.desired.conf; _sh_dst=$OPS_SSHD_DIR/50-dots.conf; _sh_bak=""
-mkdir -p "$OPS_ROOT_STATE"; _sh_desired > "$_sh_src"   # R47: without the KbdInteractiveAuthentication line on OpenSSH < 8.7
+mkdir -p "$OPS_ROOT_STATE"; _sh_desired > "$_sh_src"   # R49: ChallengeResponseAuthentication instead of KbdInteractiveAuthentication on OpenSSH < 8.7
 if [ -f "$_sh_dst" ]; then _sh_bak=$OPS_ROOT_STATE/ssh-harden.prev.conf; ops_run cp "$_sh_dst" "$_sh_bak"; fi
 ops_run install -d -m 755 "$OPS_SSHD_DIR"
 ops_run install -m 644 "$_sh_src" "$_sh_dst"

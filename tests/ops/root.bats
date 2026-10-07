@@ -210,6 +210,30 @@ rootstate() { jq -cn --arg j "$1" --arg s "$2" --arg m "$3" --argjson t "$4" '{j
   jq -cn '{question:"Apply updates?",action:"root:updates-full apply",asked:($t+1)}' --argjson t "$(date +%s)" > "$OPS_ROOT_STATE/ask-updates-full.json"
   run bash "$CLI" relay; [ -e "$p" ]                       # root asked again → re-asked
 }
+@test "R48 relay: a changed root ask replaces the user's live pending; an unchanged one keeps it" {
+  relay_setup; t=$(date +%s)
+  jq -cn --argjson t "$t" '{question:"Apply A?",action:"root:firewall apply",asked:$t}' > "$OPS_ROOT_STATE/ask-firewall.json"
+  run bash "$CLI" relay; p="$OPS_STATE/pending/firewall.json"; [ "$(jq -r .question "$p")" = "Apply A?" ]
+  jq '.snooze_until = 1' "$p" > "$p.x" && mv "$p.x" "$p"   # marker: proves the same pending survives
+  jq -cn --argjson t "$((t + 1))" '{question:"Apply A?",action:"root:firewall apply",asked:$t}' > "$OPS_ROOT_STATE/ask-firewall.json"
+  run bash "$CLI" relay; [ "$(jq -r .snooze_until "$p")" = 1 ]          # same question re-asked by root: pending kept
+  jq -cn --argjson t "$((t + 2))" '{question:"Apply B?",action:"root:firewall apply",asked:$t}' > "$OPS_ROOT_STATE/ask-firewall.json"
+  run bash "$CLI" relay; [ "$status" -eq 0 ]
+  [ "$(jq -r .question "$p")" = "Apply B?" ]; [ "$(jq -r .snooze_until "$p")" = 0 ]
+  grep -q 'pending replaced by a changed root ask' "$OPS_STATE/log.jsonl"
+}
+@test "R48 relay: a root ask that disappears withdraws the user's pending (root actions only)" {
+  relay_setup
+  jq -cn --argjson t "$(date +%s)" '{question:"Apply?",action:"root:firewall apply",asked:$t}' > "$OPS_ROOT_STATE/ask-firewall.json"
+  run bash "$CLI" relay; [ -e "$OPS_STATE/pending/firewall.json" ]
+  rm "$OPS_ROOT_STATE/ask-firewall.json"
+  run bash "$CLI" relay; [ "$status" -eq 0 ]
+  [ ! -e "$OPS_STATE/pending/firewall.json" ]; [ ! -e "$OPS_STATE/relayed/ask-firewall" ]
+  grep -q 'root ask withdrawn; pending removed' "$OPS_STATE/log.jsonl"
+  # a user job's own pending (user: action) under a name that once had a root ask is never touched
+  echo x > "$OPS_STATE/relayed/ask-backup"; OPS_IS_ROOT=0 OPS_ASK_UI=0 ops_ask backup "Prune?" "user:true"
+  run bash "$CLI" relay; [ -e "$OPS_STATE/pending/backup.json" ]
+}
 @test "relay ignores non-root actions, bad names and bad statuses" {
   relay_setup
   jq -cn '{question:"x",action:"user:touch /tmp/pwn",asked:$t}' --argjson t "$(date +%s)" > "$OPS_ROOT_STATE/ask-evil.json"
