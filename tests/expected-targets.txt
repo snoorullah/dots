@@ -110,3 +110,4 @@ f tmux .config/systemd/user/tmux.service
 f herdr .config/systemd/user/herdr.service
 f all .local/share/applications/excalidraw.desktop
 f all .config/xdg-desktop-portal/hyprland-portals.conf
+f all .config/systemd/user/dots-ops@backup-check.service.d/after-backup.conf

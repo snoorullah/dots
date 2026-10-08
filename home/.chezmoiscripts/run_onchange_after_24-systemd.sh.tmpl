@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# units hash: {{ output "sh" "-c" (printf "cat %s/private_dot_config/systemd/private_user/* | sha256sum" .chezmoi.sourceDir) | trim }}
+# units hash: {{ output "sh" "-c" (printf "cd %s/private_dot_config/systemd/private_user && find . -type f | LC_ALL=C sort | xargs cat | sha256sum" .chezmoi.sourceDir) | trim }}
 # data: multiplexer={{ .multiplexer }} timetrack={{ .timetrack }}
 set -uo pipefail
 if ! systemctl --user show-environment >/dev/null 2>&1; then

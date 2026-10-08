@@ -273,6 +273,18 @@ perf() { run --separate-stderr bash "$CLI" perf-mode "$@"; }
   export STUB_RESTIC_RC=1; echo 1 > "$OPS_STATE/backup-check.last"   # a failed check also counts as a run (fail stays red)
   runjob "$UJ/backup-check.sh"; [ "$(cat "$OPS_STATE/backup-check.last")" != 1 ]
 }
+@test "R65 backup-check: locked repo (rc 11) -> no fail, not marked as a run, retried next idle" {
+  export STUB_RESTIC_RC=11 STUB_RESTIC_ERR='Fatal: unable to create lock in backend: repository is already locked'
+  runjob "$UJ/backup-check.sh"
+  [ ! -e "$OPS_STATE/state/backup-check.json" ]   # no state change: nothing red
+  [ ! -e "$OPS_STATE/backup-check.last" ]         # not a run, so the next idle retries
+  grep -q 'repository locked; check skipped' "$OPS_STATE/log.jsonl"
+}
+@test "R65 backup-check is ordered after backup (idle target starts both)" {
+  f="$R/home/private_dot_config/systemd/private_user/dots-ops@backup-check.service.d/after-backup.conf"
+  grep -qx 'After=dots-ops@backup.service' "$f"
+  grep -q 'dots-ops@backup-check.service' "$R/home/private_dot_config/systemd/private_user/dots-ops-idle.target"
+}
 
 # ---- wiring ----
 @test "timers: backup-watch daily and backup-check weekly, both Persistent; enabled by the systemd script" {
