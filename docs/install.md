@@ -61,7 +61,7 @@ You are asked once for the multiplexer (tmux by default, herdr as the trial). Th
 4. `24-systemd` (whenever the units or the data change): enables the user timers and services (after
    `22-userdata`, so the prayer-time files exist), the selected multiplexer's service, the kube tunnels (each
    skipped until its hand-copied secret exists), and the timetrack units when `timetrack` is on.
-5. `90-extra-tools` (whenever the pins change): the pinned npm/cargo/pipx/uv tools, the Grok CLI and the Aether
+5. `90-extra-tools` (whenever the pins change): the pinned npm/cargo/pipx/uv/go tools, the Grok CLI and the Aether
    Firefox profile. It runs last and puts the Nix profile on its own PATH, so it works on the first apply.
 
 Log out and back in so the new groups apply.
