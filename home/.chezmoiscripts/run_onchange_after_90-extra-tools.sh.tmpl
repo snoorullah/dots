@@ -80,9 +80,10 @@ if [ "$DRY" != 1 ] && ! go version >/dev/null 2>&1; then
   GO=(nix --extra-experimental-features "nix-command flakes" shell nixpkgs#go -c go)
 fi
 go_tool() { # package version binary
-  [ "$("${GO[@]}" version -m "$BIN/$3" 2>/dev/null | awk '$1 == "mod" {print $3; exit}')" = "$2" ] && { log "ok: $3 $2"; return 0; }
+  # only ask go about an existing binary: running go at all writes ~/.config/go/telemetry (and a dry run must not touch HOME)
+  [ -x "$BIN/$3" ] && [ "$(GOTELEMETRY=off "${GO[@]}" version -m "$BIN/$3" 2>/dev/null | awk '$1 == "mod" {print $3; exit}')" = "$2" ] && { log "ok: $3 $2"; return 0; }
   have "${GO[0]}" || { skip "$3" "no go or nix"; return 0; }
-  run env GOBIN="$BIN" GOTOOLCHAIN=auto "${GO[@]}" install "$1@$2" || fail "$3"
+  run env GOBIN="$BIN" GOTOOLCHAIN=auto GOTELEMETRY=off "${GO[@]}" install "$1@$2" || fail "$3"
 }
 
 # ── Grok CLI: vendor installer at a pinned version ─────────────────────
