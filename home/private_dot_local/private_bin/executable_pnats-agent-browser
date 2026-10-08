@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export AGENT_BROWSER_ARGS="${AGENT_BROWSER_ARGS:---no-sandbox}"
+export AGENT_BROWSER_SCREENSHOT_DIR="${AGENT_BROWSER_SCREENSHOT_DIR:-$HOME/work/pnow-ats-v2/tmp/agent-browser}"
+export AGENT_BROWSER_DOWNLOAD_PATH="${AGENT_BROWSER_DOWNLOAD_PATH:-$HOME/work/pnow-ats-v2/tmp/agent-browser/downloads}"
+export AGENT_BROWSER_MAX_OUTPUT="${AGENT_BROWSER_MAX_OUTPUT:-12000}"
+
+exec agent-browser --session "${AGENT_BROWSER_SESSION:-pnats-smoke}" "$@"

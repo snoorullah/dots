@@ -121,3 +121,6 @@ f personal .config/systemd/user/dots-ops-backup-watch.timer
 f personal .config/systemd/user/dots-ops-backup-check.timer
 f personal .config/systemd/user/dots-ops-pins-check.timer
 f personal .config/systemd/user/dots-ops-dots-update.timer
+x all .local/bin/pi-watch
+x all .local/bin/pi-fleet-monitor
+x all .local/bin/pnats-agent-browser

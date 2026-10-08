@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# pi-fleet-monitor — prints pi-agent + sub-branch status across the kaarbaaz fleet.
+# Used as a UserPromptSubmit hook so Claude gets fresh pi state at every turn.
+#
+# Output format: JSON on stdout with `hookSpecificOutput.additionalContext` that
+# Claude Code injects into the model context.
+
+set -euo pipefail
+
+PANES_TO_CHECK=(
+  "pnow-ats-v2:2.2"
+  "pnow-ats-v2:2.3"
+  "pnow-ats-v2:2.4"
+  "pnow-ats-v2:2.5"
+  "pnow-ats-v2:2.6"
+)
+
+FLEET_SESSION_PREFIX="fleet-"
+BASE_BRANCH="feat/kaarbaaz-ext-review"
+
+# Collect status
+report=""
+
+# --- pi panes in pnow-ats-v2 session ---
+for pane in "${PANES_TO_CHECK[@]}"; do
+  out=$(tmux-cli capture --pane="$pane" 2>/dev/null | tail -40 || true)
+  [[ -z "$out" ]] && continue
+  status=$(printf '%s\n' "$out" | grep -E '^(DONE|DONE_WITH_CONCERNS|BLOCKED|NEEDS_CONTEXT):' | tail -1 || true)
+  ctx_line=$(printf '%s\n' "$out" | grep -oE '[0-9]+\.[0-9]+%/1\.0M' | tail -1 || true)
+  # Active if any pi "chrome" signal is present: spinner, just-took-N time, tool-check, $-prompt, or pi model line
+  is_active="no"
+  if printf '%s\n' "$out" | grep -qE '(Working\.\.\.|Took [0-9]+\.[0-9]+s|qwen36-plus|litellm/workhorse|^ \$\s|✓ |✗ |LSP: (idle|busy))'; then
+    is_active="yes"
+  fi
+  if [[ -n "$status" ]]; then
+    report+="$pane  STATUS=$status  ctx=$ctx_line"$'\n'
+  elif [[ "$is_active" == "yes" ]]; then
+    # Grab last meaningful non-chrome line as a progress tail
+    tail_line=$(printf '%s\n' "$out" | grep -vE '^[─\s]*$|qwen36-plus|LSP:|^[0-9\.]+%/|^$' | tail -1 | sed 's/^ *//' | cut -c1-100)
+    report+="$pane  active  ctx=$ctx_line  tail=\"$tail_line\""$'\n'
+  else
+    report+="$pane  idle/unknown  ctx=$ctx_line"$'\n'
+  fi
+done
+
+# --- fleet-* sessions (spawned via fleet-spawn.sh) ---
+fleet_sessions=$(tmux list-sessions -F '#{session_name}' 2>/dev/null | grep "^$FLEET_SESSION_PREFIX" || true)
+for sess in $fleet_sessions; do
+  first_pane=$(tmux list-panes -t "$sess" -F '#{session_name}:#{window_index}.#{pane_index}' 2>/dev/null | head -1)
+  [[ -z "$first_pane" ]] && continue
+  out=$(tmux-cli capture --pane="$first_pane" 2>/dev/null | tail -30 || true)
+  status=$(printf '%s\n' "$out" | grep -E '^(DONE|DONE_WITH_CONCERNS|BLOCKED|NEEDS_CONTEXT):' | tail -1 || true)
+  if [[ -n "$status" ]]; then
+    report+="$sess  $status"$'\n'
+  fi
+done
+
+# --- sub-branch commit deltas ---
+for wt in kaarbaaz-ext-review kaarbaaz-phase-5 kaarbaaz-phase-8 kaarbaaz-phase-9 kaarbaaz-phase-3 kaarbaaz-phase-2a kaarbaaz-phase-6 kaarbaaz-phase-7; do
+  dir="$HOME/work/$wt"
+  [[ -d "$dir/.git" || -f "$dir/.git" ]] || continue
+  branch=$(git -C "$dir" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+  [[ -z "$branch" ]] && continue
+  if [[ "$branch" == "$BASE_BRANCH" ]]; then
+    ahead=$(git -C "$dir" rev-list --count origin/"$BASE_BRANCH"..HEAD 2>/dev/null || echo "?")
+    dirty=$(git -C "$dir" status --short 2>/dev/null | wc -l)
+    report+="$wt  $branch  ahead-of-origin=$ahead  dirty=$dirty"$'\n'
+  else
+    ahead_base=$(git -C "$dir" rev-list --count "$BASE_BRANCH".."$branch" 2>/dev/null || echo "?")
+    dirty=$(git -C "$dir" status --short 2>/dev/null | wc -l)
+    last=$(git -C "$dir" log -1 --format='%h %s' "$branch" 2>/dev/null || true)
+    report+="$wt  $branch  ahead-base=$ahead_base  dirty=$dirty  last=$last"$'\n'
+  fi
+done
+
+# Fleet registry snapshot (if registry exists)
+reg="$HOME/work/pnow-ats-v2/.pi/fleet/tickets.yaml"
+if [[ -f "$reg" ]]; then
+  summary=$(yq -r '.tickets | to_entries | map("\(.key): \(.value.state)") | .[]' "$reg" 2>/dev/null | tr '\n' ' | ' || true)
+  report+="fleet-registry: $summary"$'\n'
+fi
+
+if [[ -z "${report// }" ]]; then
+  report="(no pi agents active, no sub-branches ahead)"$'\n'
+fi
+
+# Emit JSON for Claude Code hook consumption
+ctx=$(printf 'pi-fleet status:\n%s' "$report")
+jq -n --arg c "$ctx" '{
+  hookSpecificOutput: {
+    hookEventName: "UserPromptSubmit",
+    additionalContext: $c
+  }
+}'

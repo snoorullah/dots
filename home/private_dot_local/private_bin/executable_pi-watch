@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# pi-watch — poll a tmux pane for pi-agent DONE/BLOCKED/NEEDS_CONTEXT status line
+# usage: pi-watch <pane-id> [poll-interval-seconds]
+# exits 0 when pattern seen, printing the matched line
+# intended for use with Claude's run_in_background=true so completion fires a notification
+
+set -euo pipefail
+
+PANE="${1:?usage: pi-watch <pane-id> [interval=15]}"
+INTERVAL="${2:-15}"
+PATTERN='^(DONE|DONE_WITH_CONCERNS|BLOCKED|NEEDS_CONTEXT):'
+
+while true; do
+  output=$(tmux-cli capture --pane="$PANE" 2>/dev/null || true)
+  match=$(printf '%s\n' "$output" | grep -E "$PATTERN" | tail -1 || true)
+  if [[ -n "$match" ]]; then
+    echo "pi-watch: signal detected on $PANE"
+    echo "$match"
+    exit 0
+  fi
+  sleep "$INTERVAL"
+done
