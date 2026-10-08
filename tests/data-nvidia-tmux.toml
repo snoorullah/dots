@@ -1,0 +1,4 @@
+[data]
+  gpu = "nvidia"
+  multiplexer = "tmux"
+  timetrack = false

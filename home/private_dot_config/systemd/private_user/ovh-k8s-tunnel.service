@@ -1,0 +1,23 @@
+[Unit]
+Description=SSH tunnel to OVH MicroK8s API (via pve-01)
+After=network-online.target
+Wants=network-online.target
+# secrets are copied by hand (never in this public repo); without them the unit is skipped, not failed
+ConditionPathExists=%h/.ssh/ovh_key
+
+[Service]
+Type=simple
+ExecStart=%h/.nix-profile/bin/ssh -N \
+  -o ExitOnForwardFailure=yes \
+  -o ServerAliveInterval=30 \
+  -o ServerAliveCountMax=3 \
+  -o IdentitiesOnly=yes \
+  -o StrictHostKeyChecking=no \
+  -i %h/.ssh/ovh_key \
+  -L 127.0.0.1:16443:192.168.0.10:16443 \
+  root@148.113.49.6
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

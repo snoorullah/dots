@@ -1,0 +1,8 @@
+zimfw/environment                          pin:d4bceaa3da89cd819843334dba1a5bf7dc137e14
+zimfw/input                                pin:bdec2b372f8bd16a072d30ebc447a22dad52cfb4
+zimfw/utility                              pin:e1d1c23f578420e285cbea41dbd5cef75b35ca5b
+zimfw/git                                  pin:7d38eb4d9e595241bbbcdd62f836d1ee668317fc
+zsh-users/zsh-autosuggestions              pin:85919cd1ffa7d2d5412f6d3fe437ebdbeeec4fc5
+MichaelAquilina/zsh-you-should-use         pin:5f3d129864ee4505043d88c3486224f1d75b692e
+zimfw/completion                           pin:8d3e0f4e6272f4d3bad659eaa13929f9dd96f123
+zdharma-continuum/fast-syntax-highlighting pin:4672ad5dd9ad68a7effc1476d65afb7c584ce2b3

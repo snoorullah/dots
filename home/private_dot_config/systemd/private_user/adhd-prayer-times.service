@@ -1,0 +1,6 @@
+[Unit]
+Description=Regenerate ADHD-OS prayer times (offline, Hyderabad/Hanafi)
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/adhd-prayer-times.sh

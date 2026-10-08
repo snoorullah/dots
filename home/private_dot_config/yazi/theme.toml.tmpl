@@ -1,0 +1,110 @@
+# ~/.config/yazi/theme.toml — Dracula, to match the rest of the desktop.
+# Explicit hex (not named ANSI) so it's Dracula regardless of the terminal palette.
+# Merged over yazi's dark preset (icons/keys kept; only colors overridden).
+# Palette: bg #282a36 · current-line #44475a · fg #f8f8f2 · comment #6272a4
+#          cyan #8be9fd · green #50fa7b · orange #ffb86c · pink #ff79c6
+#          purple #bd93f9 · red #ff5555 · yellow #f1fa8c
+
+[flavor]
+dark  = ""
+light = ""
+
+[mgr]
+cwd = { fg = "#8be9fd" }
+
+find_keyword  = { fg = "#f1fa8c", bold = true, italic = true, underline = true }
+find_position = { fg = "#ff79c6", bg = "reset", bold = true, italic = true }
+
+symlink_target = { fg = "#6272a4", italic = true }
+
+marker_copied   = { fg = "#50fa7b", bg = "#50fa7b" }
+marker_cut      = { fg = "#ff5555", bg = "#ff5555" }
+marker_marked   = { fg = "#8be9fd", bg = "#8be9fd" }
+marker_selected = { fg = "#f1fa8c", bg = "#f1fa8c" }
+marker_symbol   = "│"
+
+count_copied   = { fg = "#282a36", bg = "#50fa7b" }
+count_cut      = { fg = "#f8f8f2", bg = "#ff5555" }
+count_selected = { fg = "#282a36", bg = "#f1fa8c" }
+
+border_symbol = "│"
+border_style  = { fg = "#6272a4" }
+syntect_theme = "{{ .chezmoi.homeDir }}/.config/yazi/Dracula.tmTheme"   # code-preview syntax highlighting
+
+[tabs]
+active   = { fg = "#282a36", bg = "#bd93f9", bold = true }
+inactive = { fg = "#6272a4", bg = "#44475a" }
+
+[mode]
+normal_main = { fg = "#282a36", bg = "#bd93f9", bold = true }
+normal_alt  = { fg = "#bd93f9", bg = "#44475a" }
+select_main = { fg = "#282a36", bg = "#ff79c6", bold = true }
+select_alt  = { fg = "#ff79c6", bg = "#44475a" }
+unset_main  = { fg = "#282a36", bg = "#ff5555", bold = true }
+unset_alt   = { fg = "#ff5555", bg = "#44475a" }
+
+[status]
+perm_sep   = { fg = "#6272a4" }
+perm_type  = { fg = "#50fa7b" }
+perm_read  = { fg = "#f1fa8c" }
+perm_write = { fg = "#ff5555" }
+perm_exec  = { fg = "#8be9fd" }
+progress_label  = { bold = true }
+progress_normal = { fg = "#50fa7b", bg = "#282a36" }
+progress_error  = { fg = "#f1fa8c", bg = "#ff5555" }
+
+[which]
+mask            = { bg = "#282a36" }
+cand            = { fg = "#8be9fd" }
+rest            = { fg = "#6272a4" }
+desc            = { fg = "#bd93f9" }
+separator_style = { fg = "#6272a4" }
+
+[confirm]
+border  = { fg = "#bd93f9" }
+title   = { fg = "#bd93f9" }
+btn_yes = { fg = "#282a36", bg = "#bd93f9", bold = true }
+
+[spot]
+border   = { fg = "#bd93f9" }
+title    = { fg = "#bd93f9" }
+tbl_col  = { fg = "#bd93f9" }
+tbl_cell = { fg = "#f1fa8c", reversed = true }
+
+[notify]
+title_info  = { fg = "#50fa7b" }
+title_warn  = { fg = "#f1fa8c" }
+title_error = { fg = "#ff5555" }
+
+[pick]
+border = { fg = "#bd93f9" }
+active = { fg = "#ff79c6", bold = true }
+
+[input]
+border = { fg = "#bd93f9" }
+
+[cmp]
+border = { fg = "#bd93f9" }
+
+[tasks]
+border  = { fg = "#bd93f9" }
+hovered = { fg = "#ff79c6", bold = true }
+
+[help]
+border  = { fg = "#bd93f9" }
+chord   = { fg = "#8be9fd" }
+hovered = { reversed = true, bold = true }
+
+[filetype]
+rules = [
+  { mime = "image/*", fg = "#f1fa8c" },
+  { mime = "{audio,video}/*", fg = "#ff79c6" },
+  { mime = "application/{zip,rar,7z*,tar,gzip,xz,zstd,bzip*,lzma,compress,archive,cpio,arj,xar,ms-cab*}", fg = "#ff5555" },
+  { mime = "application/{pdf,doc,rtf}", fg = "#8be9fd" },
+  { mime = "vfs/{absent,stale}", fg = "#6272a4" },
+  { url = "*", is = "orphan", bg = "#ff5555" },
+  { url = "*", is = "exec", fg = "#50fa7b" },
+  { url = "*", is = "dummy", bg = "#ff5555" },
+  { url = "*/", is = "dummy", bg = "#ff5555" },
+  { url = "*/", fg = "#bd93f9" },
+]

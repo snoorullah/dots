@@ -1,0 +1,6 @@
+[Unit]
+Description=Schedule today's salah nudges
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/adhd-salah-schedule.sh

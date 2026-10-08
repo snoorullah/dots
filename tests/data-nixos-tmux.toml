@@ -1,0 +1,4 @@
+[data]
+  gpu = "nixos"
+  multiplexer = "tmux"
+  timetrack = false

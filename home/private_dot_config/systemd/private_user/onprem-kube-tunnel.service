@@ -1,0 +1,22 @@
+# Ansible managed
+# SSH forward to the on-prem k8s API. The PVE host forwards encrypted TCP; the TLS session and the
+# cluster-admin certificate never leave this workstation. Shape copied from ovh-k8s-tunnel.service, which
+# has carried the OVH cluster's kubectl for months — the difference is kube-tunnel.sh, which picks
+# whichever of the three hosts is up instead of hard-coding one.
+[Unit]
+Description=SSH forward to the on-prem k8s API (10.10.10.10:6443, via any PVE host)
+After=network-online.target
+Wants=network-online.target
+# secrets are copied by hand (never in this public repo); without them the unit is skipped, not failed
+ConditionPathExists=%h/.kube/onprem-s2a.yaml
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/kube-tunnel.sh %h/.config/onprem-kube-tunnel.conf
+# Restart=always is also the retry loop: the helper re-probes on every start, so a host that comes back
+# is picked up without anyone touching this unit.
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

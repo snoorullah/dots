@@ -1,0 +1,8 @@
+{{- if eq .gpu "nixos" }}
+PATH=${HOME}/.local/bin:${HOME}/.nix-profile/bin:/run/wrappers/bin:/run/current-system/sw/bin
+XDG_DATA_DIRS=${HOME}/.nix-profile/share:/run/current-system/sw/share
+{{- else }}
+PATH=${HOME}/.local/bin:${HOME}/.nix-profile/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin
+XDG_DATA_DIRS=${HOME}/.nix-profile/share:/usr/local/share:/usr/share
+{{- end }}
+KUBECONFIG=${HOME}/.kube/onprem-s2a.yaml

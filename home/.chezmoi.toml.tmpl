@@ -1,0 +1,13 @@
+{{- $gpu := "mesa" -}}
+{{- if stat "/etc/NIXOS" -}}
+{{-   $gpu = "nixos" -}}
+{{- else if lookPath "lspci" -}}
+{{-   if regexMatch "(?i)nvidia" (output "lspci") -}}{{ $gpu = "nvidia" }}{{- end -}}
+{{- end -}}
+{{- $mux := promptChoiceOnce . "multiplexer" "Multiplexer" (list "tmux" "herdr") "tmux" -}}
+sourceDir = {{ .chezmoi.sourceDir | quote }}
+# No secrets in this repo (public), not even encrypted: ~/.secrets, ~/.kube/* and ssh keys are copied by hand.
+[data]
+  gpu = {{ $gpu | quote }}
+  multiplexer = {{ $mux | quote }}
+  timetrack = {{ get . "timetrack" | default false }}   # opt-in kept across re-init (set true in chezmoi.toml)

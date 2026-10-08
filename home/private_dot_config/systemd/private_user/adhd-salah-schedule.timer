@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily salah-nudge scheduling (+ at login)
+
+[Timer]
+OnCalendar=*-*-* 00:12:00
+OnStartupSec=45
+Persistent=true
+
+[Install]
+WantedBy=timers.target

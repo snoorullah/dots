@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# nix tree hash (every file under nix/, sorted): {{ output "sh" "-c" (printf "cd %s && find nix -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum" (quote .chezmoi.workingTree)) | trim }}
+set -euo pipefail
+{{- if ne .gpu "nixos" }}
+export USER="${USER:-$(id -un)}" HOME="${HOME:-$(getent passwd "$USER" | cut -d: -f6)}"
+[ -e /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh ] && . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+export NIX_CONFIG="experimental-features = nix-command flakes"
+# home-manager CLI pinned by nix/flake.lock (--inputs-from), not a moving branch.
+# -b pre-dots only ever applies to home-manager's own few files (fontconfig conf.d, environment.d/10-home-manager.conf,
+# systemd tray.target); every dotfile is chezmoi's and is never backed up by this.
+nix run --inputs-from {{ joinPath .chezmoi.workingTree "nix" | quote }} home-manager -- switch --impure --flake {{ joinPath .chezmoi.workingTree "nix" | quote }}#{{ .gpu }} -b pre-dots
+{{- else }}
+# NixOS: packages come from nixos-rebuild (see docs/install.md); nothing to do here.
+exit 0
+{{- end }}

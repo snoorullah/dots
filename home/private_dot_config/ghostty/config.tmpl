@@ -1,0 +1,31 @@
+# ~/.config/ghostty/config — minimal text surface. tmux/herdr own tabs, panes, sessions.
+font-family = JetBrainsMono Nerd Font
+font-size = 11
+window-padding-x = 10
+window-padding-y = 8
+window-decoration = false
+background-opacity = 0.92
+confirm-close-surface = false
+gtk-single-instance = false
+shell-integration-features = no-cursor,ssh-env,ssh-terminfo
+cursor-style = underline
+cursor-style-blink = false
+
+# No tab/split/new-window keybinds may exist: clear everything, re-add only these.
+keybind = clear
+keybind = ctrl+shift+c=copy_to_clipboard
+keybind = ctrl+shift+v=paste_from_clipboard
+keybind = ctrl+equal=increase_font_size:1
+keybind = ctrl+minus=decrease_font_size:1
+keybind = ctrl+zero=reset_font_size
+
+# Palette (.chezmoidata/palette.yaml -> term; mirrors the live kitty theme)
+background = {{ .palette.term.bg }}
+foreground = {{ .palette.term.fg }}
+selection-background = {{ .palette.term.sel }}
+selection-foreground = {{ .palette.term.cursor_text }}
+cursor-color = {{ .palette.term.fg }}
+cursor-text = {{ .palette.term.cursor_text }}
+{{- range $i, $c := .palette.term.ansi }}
+palette = {{ $i }}={{ $c }}
+{{- end }}

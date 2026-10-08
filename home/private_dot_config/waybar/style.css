@@ -1,0 +1,53 @@
+* {
+  font-family: "JetBrainsMono Nerd Font", monospace;
+  font-size: 13px;
+  min-height: 0;
+}
+
+window#waybar {
+  background: #282a36;
+  color: #f8f8f2;
+  border-bottom: 2px solid #44475a;
+}
+
+/* workspaces — flat, colored (no pill) */
+#workspaces button {
+  color: #6272a4;
+  padding: 0 8px;
+  background: transparent;
+  border: none;
+}
+#workspaces button.active { color: #bd93f9; }
+#workspaces button:hover  { color: #f8f8f2; background: #44475a; }
+
+/* pill treatment for the info modules */
+#clock,
+#custom-salah,
+#custom-tracking,
+#custom-project,
+#custom-kube,
+#custom-ctx,
+#wireplumber,
+#network {
+  background: #343746;
+  border-radius: 8px;
+  padding: 2px 12px;
+  margin: 4px 3px;
+}
+
+#clock            { color: #f8f8f2; font-weight: bold; }
+#custom-salah     { color: #8be9fd; }
+#custom-tracking.tracking-on  { color: #50fa7b; }
+#custom-tracking.tracking-off { color: #6272a4; }
+#custom-project   { color: #ffb86c; }
+#custom-kube.kube-up   { color: #8be9fd; }
+#custom-kube.kube-down { color: #ff5555; }
+#custom-kube.kube-none { color: #6272a4; }
+#custom-ctx.ctx-none     { color: #6272a4; }
+#custom-ctx.ctx-work     { color: #8be9fd; }
+#custom-ctx.ctx-lab      { color: #50fa7b; }
+#custom-ctx.ctx-agents   { color: #bd93f9; }
+#custom-ctx.ctx-personal { color: #ffb86c; }
+#wireplumber, #network   { color: #f8f8f2; }
+
+#tray { padding: 0 8px; margin: 4px 3px; }

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -uo pipefail
+export PATH="$HOME/.local/bin:$HOME/.nix-profile/bin:$PATH"
+mkdir -p "$HOME/.task" "$HOME/.cache/adhd" "$HOME/.local/share/adhd" "$HOME/.kube"
+touch "$HOME/.local/share/adhd/salah.log"
+[ -s "$HOME/.config/adhd/prayer-times.conf" ] || "$HOME/.local/bin/adhd-prayer-times.sh" || true
+[ -d "$HOME/walls/.git" ] || git clone --depth 1 https://github.com/snoorullah/walls.git "$HOME/walls" || echo "walls: clone later"
+exit 0

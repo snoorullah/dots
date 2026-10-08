@@ -1,0 +1,61 @@
+# ~/.zshrc — antidote (Nix) + pinned zimfw modules (~/.zsh_plugins.txt, chezmoi).
+export XDG_CONFIG_HOME="$HOME/.config"
+export LANG=en_US.UTF-8
+
+if [ -z "$SSH_AUTH_SOCK" ]; then
+    eval $(ssh-agent)
+fi
+
+# --- PATH additions (tool installers; ~/.local/bin + nix-profile come from .zshenv) ---
+export PNPM_HOME="{{ .chezmoi.homeDir }}/.local/share/pnpm"
+export BUN_INSTALL="$HOME/.bun"
+typeset -U path
+path=($path $PNPM_HOME(N-/) $BUN_INSTALL/bin(N-/) $HOME/.grok/bin(N-/) {{ .chezmoi.homeDir }}/.lmstudio/bin(N-/))
+fpath=(~/.grok/completions/zsh $fpath)
+
+zstyle ':zim:git' aliases-prefix 'g'                                     # omz-style gs, gc, gp…
+zstyle ':zim:completion' dumpfile "${XDG_CACHE_HOME:-$HOME/.cache}/zcompdump"
+zstyle ':antidote:bundle' use-friendly-names 'yes'
+source "$HOME/.nix-profile/share/antidote/antidote.zsh"
+antidote load "$HOME/.zsh_plugins.txt" "${XDG_CACHE_HOME:-$HOME/.cache}/zsh_plugins.zsh"
+bindkey -v; export KEYTIMEOUT=1
+bindkey '^F' autosuggest-accept   # accept zsh-autosuggestions with Ctrl-F
+
+source "$HOME/.config/zsh/aliases.zsh"
+[[ -r ~/.secrets ]] && source ~/.secrets  # personal secrets (gitignored)
+(( $+commands[kubectl] )) && { source <(kubectl completion zsh); compdef __start_kubectl k }
+(( $+commands[fzf] ))     && source <(fzf --zsh)
+autoload -U +X bashcompinit && bashcompinit
+(( $+commands[terraform] )) && complete -o nospace -C "$(command -v terraform)" terraform
+[ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
+[ -r /etc/profile.d/nix.sh ] && source /etc/profile.d/nix.sh
+eval "$(zoxide init zsh)"
+eval "$(starship init zsh)"
+
+# X11 display + xauth (GDM puts xauth under $XDG_RUNTIME_DIR/gdm)
+# Needed for xclip/clipboard-image paste in Claude Code, Electron apps, etc.
+if [ -z "$WAYLAND_DISPLAY" ]; then
+  for _xsock in /tmp/.X11-unix/X*; do
+    [ -S "$_xsock" ] && export DISPLAY=":${_xsock##*/X}" && break
+  done
+  unset _xsock
+  for _xauth in "/run/user/$(id -u)/gdm/Xauthority" "$HOME/.Xauthority"; do
+    [ -f "$_xauth" ] && export XAUTHORITY="$_xauth" && break
+  done
+  unset _xauth
+fi
+
+# Re-assert the PATH contract last: nix.sh or tool hooks must not outrank these two.
+typeset -U path PATH
+path=($HOME/.local/bin(N-/) $HOME/.nix-profile/bin(N-/) $path)
+
+# >>> shell history disabled 2026-09-22 >>>
+# Remove this block to re-enable history.
+unset HISTFILE
+HISTSIZE=0
+SAVEHIST=0
+setopt no_share_history
+setopt no_inc_append_history
+setopt no_append_history
+setopt no_extended_history
+# <<< shell history disabled 2026-09-22 <<<

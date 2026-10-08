@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# tw-tui — launch taskwarrior-tui against taskwarrior 3.x (task from the Nix profile).
+# taskwarrior-tui 0.27 REQUIRES taskwarrior 3.x; data lives in ~/.task/taskchampion.sqlite3 (migrated
+# from the old 2.6.2 flat-files 2026-07-18). the Nix profile is first in PATH so every `task` subprocess
+# taskwarrior-tui spawns is the 3.x binary — never /usr/bin's retired 2.6.2, never go-task.
+exec taskwarrior-tui "$@"

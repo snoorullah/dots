@@ -1,0 +1,100 @@
+[
+  {
+    "dir": "tpm",
+    "owner": "tmux-plugins",
+    "repo": "tpm",
+    "rev": "99469c4a9b1ccf77fade25842dc7bafbc8ce9946",
+    "hash": "sha256-hW8mfwB8F9ZkTQ72WQp/1fy8KL1IIYMZBtZYIwZdMQc="
+  },
+  {
+    "dir": "tmux-sensible",
+    "owner": "tmux-plugins",
+    "repo": "tmux-sensible",
+    "rev": "25cb91f42d020f675bb0a2ce3fbd3a5d96119efa",
+    "hash": "sha256-sw9g1Yzmv2fdZFLJSGhx1tatQ+TtjDYNZI5uny0+5Hg="
+  },
+  {
+    "dir": "tmux-resurrect",
+    "owner": "tmux-plugins",
+    "repo": "tmux-resurrect",
+    "rev": "cff343cf9e81983d3da0c8562b01616f12e8d548",
+    "hash": "sha256-FcSjYyWjXM1B+WmiK2bqUNJYtH7sJBUsY2IjSur5TjY="
+  },
+  {
+    "dir": "tmux-continuum",
+    "owner": "tmux-plugins",
+    "repo": "tmux-continuum",
+    "rev": "0698e8f4b17d6454c71bf5212895ec055c578da0",
+    "hash": "sha256-W71QyLwC/MXz3bcLR2aJeWcoXFI/A3itjpcWKAdVFJY="
+  },
+  {
+    "dir": "tmux-sessionx",
+    "owner": "omerxx",
+    "repo": "tmux-sessionx",
+    "rev": "628575be60646f5712e4c8c2f76683b03b072515",
+    "hash": "sha256-PwLydbmzS/YJqtMRpc19FpeJP3zfgzM8P14WYr2zdoA="
+  },
+  {
+    "dir": "tmux-project",
+    "owner": "sei40kr",
+    "repo": "tmux-project",
+    "rev": "5a1611f78ed0bc50177f5a4a2d3115ec6eae05e6",
+    "hash": "sha256-FKiNcckfsamGUdRZdxW7zzqgud5U+Fjn9Meg4pcFHUY="
+  },
+  {
+    "dir": "tmux-fzf",
+    "owner": "sainnhe",
+    "repo": "tmux-fzf",
+    "rev": "e5f427e9dcf180ca92e2f8af47ba07f644fd4585",
+    "hash": "sha256-VikPQHZMZroL77k+j1MSq9XwzOu35mYXYU9x2pqHDks="
+  },
+  {
+    "dir": "extrakto",
+    "owner": "laktak",
+    "repo": "extrakto",
+    "rev": "d1af77988081dae496fa4a1f5e5e6bc9ef66767f",
+    "hash": "sha256-GziFDuBXdfsnT6XLJK/f58/b4K0BjucnECFE0sSnz3w="
+  },
+  {
+    "dir": "tmux-yank",
+    "owner": "tmux-plugins",
+    "repo": "tmux-yank",
+    "rev": "acfd36e4fcba99f8310a7dfb432111c242fe7392",
+    "hash": "sha256-/5HPaoOx2U2d8lZZJo5dKmemu6hKgHJYq23hxkddXpA="
+  },
+  {
+    "dir": "tmux-prefix-highlight",
+    "owner": "tmux-plugins",
+    "repo": "tmux-prefix-highlight",
+    "rev": "06cbb4ecd3a0a918ce355c70dc56d79debd455c7",
+    "hash": "sha256-wkMm2Myxau24E0fbXINPuL2dc8E4ZYe5Pa6A0fWhiw4="
+  },
+  {
+    "dir": "tmux-command-palette",
+    "owner": "lost-melody",
+    "repo": "tmux-command-palette",
+    "rev": "82a65a8278158f2a84bf1e01f03970bd3f696562",
+    "hash": "sha256-MHO/6eU0gNd8sF8yjjcNEGOtmXGMSwql5lahZq3+kNc="
+  },
+  {
+    "dir": "tmux-task-monitor",
+    "owner": "YlanAllouche",
+    "repo": "tmux-task-monitor",
+    "rev": "e886288d848283a871fcc0777927e83f306a289b",
+    "hash": "sha256-ltZW7fVryXWAD0J0LzakRLnh9kX2WeiwTNzQPhe+t5I="
+  },
+  {
+    "dir": "tmux-notify",
+    "owner": "rickstaa",
+    "repo": "tmux-notify",
+    "rev": "b713320af05837c3b44e4d51167ff3062dbeae4b",
+    "hash": "sha256-wOmq2stWXAFmYrRuIqf9IPATYXJ+OFoYXnJdHUnJQxY="
+  },
+  {
+    "dir": "tmux-browser",
+    "owner": "ofirgall",
+    "repo": "tmux-browser",
+    "rev": "ad39cda15f9a6f43dc084baa7d5d4a5bd5c4ca5c",
+    "hash": "sha256-hWbXGtB29ojL0tNtR3vL9Rs76MRhGBwMuRxMyOxUtXw="
+  }
+]

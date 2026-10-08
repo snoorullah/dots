@@ -1,0 +1,45 @@
+name: ci
+on: [push, pull_request]
+# Ruling R26: the full home-manager closure (33-37 GB) does not fit a GitHub runner (~14 GB free).
+# CI therefore evaluates Nix but never builds the profile, and the distro matrix tests the chezmoi side only.
+# tests/overlap.sh needs a built activation package, so it is NOT run here (runs locally / at cutover).
+jobs:
+  nix-eval:
+    runs-on: ubuntu-latest
+    env:
+      USER: runner
+      HOME: /home/runner
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - run: nix flake show ./nix --impure
+      # evaluate only (drvPath), never build; no `nix flake check` (it builds the deps checks)
+      - run: nix eval --impure --raw ./nix#homeConfigurations.nvidia.activationPackage.drvPath
+      - run: nix eval --impure --raw ./nix#homeConfigurations.mesa.activationPackage.drvPath
+      - run: nix eval --raw ./nix#nixosConfigurations.nixos-laptop.config.system.build.toplevel.drvPath
+      # small in-repo derivation, no heavy closure
+      - run: nix build --impure ./nix#otter-launcher
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin
+      - run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - run: sudo apt-get install -y jq
+      - run: bash tests/placement.sh
+      - run: bash tests/lint.sh
+      - run: bash tests/extra-tools-dryrun.sh
+      - name: in-home.sh (sentinel mode)
+        run: |
+          d="$(mktemp -d)"
+          bash tests/render.sh tests/data-nvidia-tmux.toml "$d"
+          HOME="$d" bash tests/in-home.sh --sentinel
+  distro:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["ubuntu:24.04", "debian:12", "archlinux:latest", "fedora:41", "rockylinux:9"]
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker run --rm -v "$PWD:/src:ro" ${{ matrix.image }} bash /src/tests/distro-matrix.sh

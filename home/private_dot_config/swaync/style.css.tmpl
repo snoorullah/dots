@@ -1,0 +1,187 @@
+/* ~/.config/swaync/style.css — Dracula, ported from the previous notification daemon
+   (border-radius 14, 2px accent border, JetBrainsMono Nerd Font 11, urgency accents).
+   Palette comes from .chezmoidata/palette.yaml. */
+
+@define-color bg        {{ .palette.bg }};
+@define-color fg        {{ .palette.fg }};
+@define-color sel       {{ .palette.sel }};
+@define-color comment   {{ .palette.comment }};
+@define-color accent    {{ .palette.purple }};
+@define-color red       {{ .palette.red }};
+@define-color green     {{ .palette.green }};
+
+* {
+  font-family: "JetBrainsMono Nerd Font";
+  font-size: 11pt;
+  color: @fg;
+}
+
+/* ── Notification cards ── */
+.notification-row {
+  outline: none;
+  margin: 0;
+  padding: 0;
+}
+
+.notification-row .notification-background {
+  padding: 7px 7px;
+}
+
+.notification-row .notification-background .notification {
+  background: @bg;
+  border: 2px solid @accent;
+  border-radius: 14px;
+  padding: 0;
+  margin: 0;
+}
+
+.notification-row .notification-background .notification.low {
+  border-color: @comment;
+}
+
+.notification-row .notification-background .notification.normal {
+  border-color: @accent;
+}
+
+.notification-row .notification-background .notification.critical {
+  border-color: @red;
+}
+
+.notification-row .notification-background .notification .notification-default-action {
+  padding: 16px;
+  border-radius: 12px;
+  background: transparent;
+}
+
+.notification-row .notification-background .notification .notification-default-action:hover {
+  background: @sel;
+}
+
+/* app icon on the left, 48px */
+.notification-row .notification-background .notification .notification-default-action .notification-content .image {
+  -gtk-icon-size: 48px;
+  margin-right: 12px;
+}
+
+/* title (bold) / body / time hierarchy */
+.notification-row .notification-background .notification .notification-default-action .notification-content .text-box .summary {
+  font-weight: bold;
+  color: @fg;
+}
+
+.notification-row .notification-background .notification .notification-default-action .notification-content .text-box .time {
+  font-size: 9pt;
+  color: @comment;
+}
+
+.notification-row .notification-background .notification .notification-default-action .notification-content .text-box .body {
+  color: #c8c8d0;
+}
+
+.notification-row .notification-background .notification.low .notification-default-action .notification-content .text-box .body {
+  color: #bdbdc7;
+}
+
+.notification-row .notification-background .notification .notification-default-action .notification-content progressbar trough {
+  background: @sel;
+  border-radius: 6px;
+}
+
+.notification-row .notification-background .notification .notification-default-action .notification-content progressbar progress {
+  background: @accent;
+  border-radius: 6px;
+}
+
+.notification-row .notification-background .notification .notification-action > button {
+  background: @sel;
+  border: none;
+  border-radius: 10px;
+  margin: 4px;
+}
+
+.notification-row .notification-background .notification .notification-action > button:hover {
+  background: @accent;
+}
+
+.close-button {
+  background: @sel;
+  color: @fg;
+  border-radius: 100%;
+  min-width: 24px;
+  min-height: 24px;
+  margin: 6px;
+  padding: 0;
+}
+
+.close-button:hover {
+  background: @red;
+}
+
+/* ── Grouping ── */
+.notification-group-headers .notification-group-header {
+  color: @comment;
+  font-size: 9pt;
+}
+
+.notification-group-icon {
+  color: @comment;
+}
+
+/* ── Control center ── */
+.control-center {
+  background: @bg;
+  border: 2px solid @accent;
+  border-radius: 14px;
+  padding: 8px;
+}
+
+.control-center .widget-title {
+  margin: 8px;
+}
+
+.control-center .widget-title > label {
+  font-weight: bold;
+  color: @fg;
+}
+
+.control-center .widget-title > button {
+  background: @sel;
+  border: none;
+  border-radius: 10px;
+  padding: 4px 12px;
+}
+
+.control-center .widget-title > button:hover {
+  background: @accent;
+}
+
+.control-center .widget-dnd {
+  margin: 8px;
+}
+
+.control-center .widget-dnd > label {
+  color: @fg;
+}
+
+.control-center .widget-dnd > switch {
+  background: @sel;
+  border-radius: 12px;
+  border: none;
+}
+
+.control-center .widget-dnd > switch:checked {
+  background: @accent;
+}
+
+.control-center .widget-dnd > switch slider {
+  background: @fg;
+  border-radius: 12px;
+}
+
+.control-center .notification-row .notification-background .notification {
+  background: @sel;
+}
+
+.blank-window {
+  background: transparent;
+}

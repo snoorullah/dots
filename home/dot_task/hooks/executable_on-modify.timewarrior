@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Bridge taskwarrior start/stop → timewarrior intervals, tagged by project.
+# (taskwarrior runs hooks from data.location/hooks = ~/.task/hooks)
+read -r old; read -r new
+get(){ printf '%s' "$1" | python3 -c "import json,sys;d=json.load(sys.stdin);print(d.get('$2',''))"; }
+o_start=$(get "$old" start); n_start=$(get "$new" start)
+proj=$(get "$new" project); desc=$(get "$new" description)
+
+# task START → timew start. Build tags WITHOUT empty values (an empty tag makes
+# timewarrior throw "Internal error. Failed encode / decode check.").
+if [ -z "$o_start" ] && [ -n "$n_start" ]; then
+    tags=()
+    [ -n "$proj" ] && tags+=("$proj")
+    [ -n "$desc" ] && tags+=("$desc")
+    timew start "${tags[@]}" :quiet 2>/dev/null || true
+fi
+# task STOP → timew stop.
+if [ -n "$o_start" ] && [ -z "$n_start" ]; then
+    timew stop :quiet 2>/dev/null || true
+fi
+
+# Refresh the quickshell drawer's task snapshot after this change settles
+# (backgrounded so taskwarrior isn't re-entered while this hook is running).
+
+printf '%s\n' "$new"

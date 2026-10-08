@@ -1,0 +1,8 @@
+[Unit]
+Description=Hyprland polkit agent
+PartOf=graphical-session.target
+[Service]
+ExecStart=%h/.nix-profile/libexec/hyprpolkitagent
+Restart=on-failure
+[Install]
+WantedBy=graphical-session.target

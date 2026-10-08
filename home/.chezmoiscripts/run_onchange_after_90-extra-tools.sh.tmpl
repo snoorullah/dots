@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# pins: {{ include ".chezmoidata/extra-tools.yaml" | sha256sum }}
+# aether package: {{ include (joinPath .chezmoi.workingTree "nix/pkgs/aether.nix") | sha256sum }}
+# Installs the pinned extra tools that Nix does not own (npm/cargo/pipx/uv/grok) and the per-user Aether profile.
+# Pins live in .chezmoidata/extra-tools.yaml; the Aether rev is read from the Nix aether package ($out/share/aether/REV).
+# HyprCapture, hypr-kdeconnect-fix and argonaut are Nix packages. Runs last (90) so the Nix switch (before_10) and
+# userdata (22) are done first.
+# DOTS_DRY_RUN=1 prints every mutating command instead of executing it. No logins or secrets, ever.
+# Any failure OR skip exits non-zero at the end, so chezmoi re-runs this script on the next apply.
+set -uo pipefail
+
+DRY="${DOTS_DRY_RUN:-0}"
+BIN="$HOME/.local/bin"
+STATE="$HOME/.local/state/dots-extra-tools"
+NIXPROFILE="$HOME/.nix-profile"
+# Nix was installed earlier in this same chezmoi run (root layer), so this process may not have it on PATH yet.
+NIXDAEMON=/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+# shellcheck disable=SC1090
+if [ -e "$NIXDAEMON" ]; then . "$NIXDAEMON"; fi
+export PATH="$BIN:$NIXPROFILE/bin:/nix/var/nix/profiles/default/bin:$PATH"
+FAILED=(); SKIPPED=(); WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+
+log()  { printf '[extra-tools] %s\n' "$*"; }
+run()  { if [ "$DRY" = 1 ]; then printf '+ %s\n' "$*"; else "$@"; fi; }
+fail() { log "FAILED: $1"; FAILED+=("$1"); }
+skip() { log "skipped: $1 ($2)"; SKIPPED+=("$1"); }
+have() { [ "$DRY" = 1 ] || command -v "$1" >/dev/null 2>&1; }
+# marker_ok <name> <rev>: already installed at this pin?
+marker_ok() { [ "$(cat "$STATE/$1.rev" 2>/dev/null)" = "$2" ]; }
+marker_set() { run mkdir -p "$STATE"; if [ "$DRY" = 1 ]; then printf '+ echo %s > %s/%s.rev\n' "$2" "$STATE" "$1"; else printf '%s\n' "$2" > "$STATE/$1.rev"; fi; }
+
+# ── npm (prefix ~/.local) ──────────────────────────────────────────────
+npm_tool() { # name version [ignore-scripts]
+  local name="$1" ver="$2" flags=() have_ver
+  have_ver="$(sed -nE 's/^ *"version": *"([^"]+)".*/\1/p' "$HOME/.local/lib/node_modules/$name/package.json" 2>/dev/null | head -1)"
+  [ "$have_ver" = "$ver" ] && { log "ok: $name $ver"; return 0; }
+  have npm || { skip "$name" "npm not on PATH"; return 0; }
+  [ "${3:-}" = ignore ] && flags=(--ignore-scripts)
+  run npm install -g --prefix "$HOME/.local" "${flags[@]}" "$name@$ver" || fail "$name"
+}
+
+# ── cargo (root ~/.local) ──────────────────────────────────────────────
+CARGO=(cargo)
+if [ "$DRY" != 1 ] && ! cargo --version >/dev/null 2>&1; then
+  # rustup without a default toolchain: fall back to nixpkgs cargo
+  CARGO=(nix --extra-experimental-features "nix-command flakes" shell nixpkgs#cargo -c cargo)
+fi
+cargo_tool() { # crate version
+  grep -q "^\"$1 $2 " "$HOME/.local/.crates.toml" 2>/dev/null && { log "ok: $1 $2"; return 0; }
+  have "${CARGO[0]}" || { skip "$1" "no cargo or nix"; return 0; }
+  run "${CARGO[@]}" install --locked --root "$HOME/.local" --version "$2" "$1" || fail "$1"
+}
+
+# ── pipx (PIPX_BIN_DIR ~/.local/bin) ───────────────────────────────────
+pipx_tool() { # name version
+  export PIPX_BIN_DIR="$BIN"
+  [ -d "$HOME/.local/share/pipx" ] && pipx list --short 2>/dev/null | grep -qx "$1 $2" && { log "ok: $1 $2"; return 0; }
+  have pipx || { skip "$1" "pipx not on PATH"; return 0; }
+  run pipx install --force "$1==$2" || fail "$1"
+}
+
+# ── uv tool (UV_TOOL_BIN_DIR ~/.local/bin): tools pinned to a Python the machine may not have ──
+# `uv tool install --python X` downloads a managed CPython X when none is found (uv's default
+# python-downloads=automatic; uv 0.10.4 here, 0.12.22 in the Nix profile), so no python3.12 package is needed.
+# pipx can only do that from 1.5 (--fetch-missing-python, now --fetch-python=missing); Ubuntu 24.04's pipx is 1.4.3.
+uv_tool() { # name version python
+  export UV_TOOL_BIN_DIR="$BIN"
+  [ -d "${XDG_DATA_HOME:-$HOME/.local/share}/uv/tools/$1" ] && uv tool list 2>/dev/null | grep -qx "$1 v$2" && { log "ok: $1 $2"; return 0; }
+  have uv || { skip "$1" "uv not on PATH"; return 0; }
+  run uv tool install --force --python "$3" "$1==$2" || fail "$1"
+}
+
+# ── Grok CLI: vendor installer at a pinned version ─────────────────────
+# The installer script is NOT hash-pinned (the vendor publishes no checksum). Read at pin time (2026-10-07): it
+# appends a PATH block to ~/.zshrc/.bashrc/config.fish chosen from $SHELL and has no opt-out flag, so it is run with
+# SHELL=/bin/sh (no rc file is edited). It also symlinks grok/agent into ~/.local/bin when that is on PATH.
+grok_tool() { # version installer-url
+  "$HOME/.grok/bin/grok" --version 2>/dev/null | grep -qF "grok $1 " && { log "ok: grok $1"; return 0; }
+  log "running unverified vendor installer: $2 (version $1, SHELL=/bin/sh so no shell rc is edited)"
+  { run curl -fsSL -o "$WORK/grok-install.sh" "$2" && run env SHELL=/bin/sh bash "$WORK/grok-install.sh" "$1"; } || fail "grok"
+}
+
+# ── Aether per-user profile (mirrors overlay/install.sh at the pinned rev) ──
+# The Nix `aether` package owns the binary, desktop entry, icons and the autoconfig loader; this only does the
+# per-user parts: install.sh step 3 (profile, lines 181-208), step 4 (chrome symlink + user.js, 210-222) and
+# step 5 (seed aether.toml, 224-231). No aether.desktop and no ~/.local/bin/aether are created.
+# resolve_profile: print the path of the 'aether' Firefox profile (legacy ~/.mozilla first, then XDG), or nothing.
+resolve_profile() {
+  local moz
+  for moz in "$HOME/.mozilla/firefox" "${XDG_CONFIG_HOME:-$HOME/.config}/mozilla/firefox"; do
+    [ -f "$moz/profiles.ini" ] || continue
+    awk -F= -v name=aether -v moz="$moz" '
+      /^\[/{n=""; p=""; rel=1} $1=="Name"{n=$2} $1=="IsRelative"{rel=$2} $1=="Path"{p=$2}
+      n==name && p!="" {print (rel=="1" ? moz "/" p : p); found=1; exit} END{exit !found}' "$moz/profiles.ini" && return 0
+  done
+  return 0
+}
+aether_tool() { # the rev comes from the Nix package (single source: nix/pkgs/aether.nix)
+  local share="$NIXPROFILE/share/aether" ov rev profile_path cfg="${XDG_CONFIG_HOME:-$HOME/.config}/aether"
+  ov="$share/overlay"
+  if [ "$DRY" != 1 ] && [ ! -d "$ov" ]; then skip aether "Nix aether package not in $NIXPROFILE (run the nix switch first)"; return 0; fi
+  rev="$(cat "$share/REV" 2>/dev/null)"
+  if [ -z "$rev" ]; then
+    if [ "$DRY" = 1 ]; then rev="<rev from $share/REV>"; else skip aether "$share/REV missing (stale aether package?)"; return 0; fi
+  fi
+  marker_ok aether "$rev" && { log "ok: aether profile $rev"; return 0; }
+  profile_path="$(resolve_profile)"
+  if [ -z "$profile_path" ]; then
+    run "$share/firefox" -CreateProfile aether || { fail "aether (profile creation)"; return 0; }
+    profile_path="$(resolve_profile)"
+    [ "$DRY" = 1 ] && [ -z "$profile_path" ] && profile_path="<aether-profile>"
+  fi
+  [ -n "$profile_path" ] || { fail "aether (could not resolve profile path)"; return 0; }
+  if [ -e "$profile_path/chrome" ] && [ ! -L "$profile_path/chrome" ]; then fail "aether ($profile_path/chrome exists and is not a symlink)"; return 0; fi
+  run ln -sfn "$ov/chrome" "$profile_path/chrome"
+  if [ -f "$profile_path/user.js" ] && [ ! -f "$profile_path/user.js.pre-aether" ]; then run mv "$profile_path/user.js" "$profile_path/user.js.pre-aether"; fi
+  run cp "$ov/prefs/user.js" "$profile_path/user.js"
+  run mkdir -p "$cfg"
+  [ -f "$cfg/aether.toml" ] || run cp "$ov/config/aether.toml" "$cfg/aether.toml"
+  marker_set aether "$rev"
+}
+
+{{ range .extraTools.npm -}}
+npm_tool "{{ .name }}" "{{ .version }}"{{ if hasKey . "ignoreScripts" }} ignore{{ end }}
+{{ end -}}
+{{ range .extraTools.cargo -}}
+cargo_tool "{{ .crate }}" "{{ .version }}"
+{{ end -}}
+{{ range .extraTools.pipx -}}
+pipx_tool "{{ .name }}" "{{ .version }}"
+{{ end -}}
+{{ range .extraTools.uv -}}
+uv_tool "{{ .name }}" "{{ .version }}" "{{ .python }}"
+{{ end -}}
+grok_tool "{{ .extraTools.grok.version }}" "{{ .extraTools.grok.installerUrl }}"
+aether_tool
+
+[ ${#SKIPPED[@]} -eq 0 ] || log "skipped: ${SKIPPED[*]}"
+if [ ${#FAILED[@]} -gt 0 ]; then log "FAILED: ${FAILED[*]}"; fi
+if [ ${#FAILED[@]} -gt 0 ] || [ ${#SKIPPED[@]} -gt 0 ]; then exit 1; fi
+log "done"
+exit 0
