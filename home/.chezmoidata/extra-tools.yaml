@@ -4,8 +4,7 @@
 # `unpinned: true` marks a tool whose origin or version cannot be pinned; `reason` says why.
 # `personal: true` installs the tool on personal machines only (skipped when chezmoi data orgManaged = true).
 extraTools:
-  npm:   # npm install -g --prefix ~/.local. Node/npm is NOT in the Nix profile (nodejs_24 was removed, triage 2026-10-09):
-         # bring your own (asdf/system); without npm on PATH these are skipped and the script re-runs next apply.
+  npm:   # npm install -g --prefix ~/.local
     - { name: agent-browser, version: 0.27.1, source: "npm ls -g",
         readme: "https://github.com/vercel-labs/agent-browser (npm install -g agent-browser)" }
     - { name: dev-browser, version: 0.2.4, source: "npm ls -g",

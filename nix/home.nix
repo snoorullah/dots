@@ -85,7 +85,7 @@ in {
     lens minio-client molecule packer postgresql powershell qemu redis sqlite stern talhelper talosctl terraform
     # languages & toolchains
     bun check-jsonschema clang cmake deno go golangci-lint gopls go-tools llvm
-    lua luarocks (lib.lowPrio luajit) meson ninja pipx pnpm ruff rustup shellcheck shfmt uv yamllint
+    lua luarocks (lib.lowPrio luajit) meson ninja nodejs_24 pipx pnpm ruff rustup shellcheck shfmt uv yamllint
     # media
     loupe font-manager
     # office
