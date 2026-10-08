@@ -93,6 +93,11 @@ render "$org" run_onchange_after_24-systemd.sh.tmpl "$work/org-sysd.sh" && {
 }
 render "$per" run_onchange_after_24-systemd.sh.tmpl "$work/per-sysd.sh" && { grep -q 'enable --now onprem-kube-tunnel.service ovh-k8s-tunnel.service' "$work/per-sysd.sh" || bad "personal systemd script lost the OVH tunnel"; }
 [ ! -e "$out/.config/systemd/user/ovh-k8s-tunnel.service" ] || bad "OVH tunnel unit deployed on org machine"
+# the personal reverse tunnel: same rules as the OVH tunnel
+[ ! -e "$out/.config/systemd/user/reverse-tunnel.service" ] || bad "reverse tunnel unit deployed on org machine"
+grep -qE 'enable .*reverse-tunnel' "$work/org-sysd.sh" && bad "org systemd script enables the reverse tunnel"
+grep -q 'disable --now reverse-tunnel.service' "$work/org-sysd.sh" || bad "org systemd script does not stop a previously enabled reverse tunnel"
+grep -q 'enable --now reverse-tunnel.service' "$work/per-sysd.sh" || bad "personal systemd script lost the reverse tunnel"
 grep -qi ovh "$out/.config/dots-ops/config.toml" && bad "org config.toml names the ovh context"
 grep -q 'contexts = \["admin@onprem-s2a", "ovh"\]' "$perout/.config/dots-ops/config.toml" || bad "personal config.toml lost the ovh context"
 exit $fail

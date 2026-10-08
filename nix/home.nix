@@ -40,8 +40,8 @@ let
     (weechat.override { configure = { availablePlugins, ... }: { scripts = [ weechatScripts.wee-slack ]; }; })
     # media
     (gl blender) (gl mpv) (gl obs-studio) (gl kdePackages.kdenlive) (gl krita) (gl gimp3) (gl inkscape) (gl handbrake) cava
-    # secrets / remote access
-    age cloudflared sshpass
+    # secrets / remote access (+ triage add_dots_personal: autossh for reverse-tunnel.service, sshfs, qrencode, RealVNC)
+    age cloudflared sshpass autossh sshfs qrencode realvnc-vnc-viewer
   ] ++ lib.optional (gpu == "nvidia") cudaPackages.cudatoolkit);
 in {
   home.stateVersion = "25.11";

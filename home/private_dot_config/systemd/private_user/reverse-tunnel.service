@@ -1,0 +1,22 @@
+[Unit]
+Description=Reverse SSH tunnel (autossh): remote port 2222 -> this machine's sshd
+After=network-online.target
+Wants=network-online.target
+# secrets are copied by hand (never in this public repo); without the key the unit is skipped, not failed
+ConditionPathExists=%h/.ssh/id_rsa
+# an older system-level copy of this tunnel (/etc/systemd/system/reverse-tunnel.service) holds the same ports
+ConditionPathExists=!/etc/systemd/system/reverse-tunnel.service
+
+[Service]
+Type=simple
+ExecStart=%h/.nix-profile/bin/autossh -M 20000 -N \
+  -o ExitOnForwardFailure=yes \
+  -o ServerAliveInterval=30 \
+  -o ServerAliveCountMax=3 \
+  -R 2222:localhost:22 \
+  REMOTE_USER@REMOTE_HOST
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

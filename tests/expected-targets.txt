@@ -106,6 +106,9 @@ f all .config/systemd/user/dots-ops-relay.service
 f all .config/systemd/user/hyprpolkitagent.service
 f all .config/systemd/user/onprem-kube-tunnel.service
 f personal .config/systemd/user/ovh-k8s-tunnel.service
+f personal .config/systemd/user/reverse-tunnel.service
+f personal .local/bin/capture-window.py
+f personal .local/bin/capture-mirror.py
 f tmux .config/systemd/user/tmux.service
 f herdr .config/systemd/user/herdr.service
 f all .local/share/applications/excalidraw.desktop

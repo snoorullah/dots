@@ -76,3 +76,7 @@ taskchampion-sync-server
 bat
 bats
 yq
+autossh
+sshfs
+qrencode
+vncviewer
