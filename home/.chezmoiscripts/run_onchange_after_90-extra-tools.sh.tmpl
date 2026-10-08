@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # pins: {{ include ".chezmoidata/extra-tools.yaml" | sha256sum }}
+# orgManaged: {{ get . "orgManaged" | default false }}
 # aether package: {{ include (joinPath .chezmoi.workingTree "nix/pkgs/aether.nix") | sha256sum }}
 # Installs the pinned extra tools that Nix does not own (npm/cargo/pipx/uv/grok) and the per-user Aether profile.
 # Pins live in .chezmoidata/extra-tools.yaml; the Aether rev is read from the Nix aether package ($out/share/aether/REV).
@@ -121,17 +122,27 @@ aether_tool() { # the rev comes from the Nix package (single source: nix/pkgs/ae
   marker_set aether "$rev"
 }
 
+{{- /* `personal: true` tools are left out on orgManaged machines */}}
+{{- $org := get . "orgManaged" | default false }}
 {{ range .extraTools.npm -}}
+{{ if not (and $org (hasKey . "personal") .personal) -}}
 npm_tool "{{ .name }}" "{{ .version }}"{{ if hasKey . "ignoreScripts" }} ignore{{ end }}
 {{ end -}}
+{{ end -}}
 {{ range .extraTools.cargo -}}
+{{ if not (and $org (hasKey . "personal") .personal) -}}
 cargo_tool "{{ .crate }}" "{{ .version }}"
 {{ end -}}
+{{ end -}}
 {{ range .extraTools.pipx -}}
+{{ if not (and $org (hasKey . "personal") .personal) -}}
 pipx_tool "{{ .name }}" "{{ .version }}"
 {{ end -}}
+{{ end -}}
 {{ range .extraTools.uv -}}
+{{ if not (and $org (hasKey . "personal") .personal) -}}
 uv_tool "{{ .name }}" "{{ .version }}" "{{ .python }}"
+{{ end -}}
 {{ end -}}
 grok_tool "{{ .extraTools.grok.version }}" "{{ .extraTools.grok.installerUrl }}"
 aether_tool

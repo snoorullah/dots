@@ -31,6 +31,18 @@ let
   aether = gl (pkgs.aether.override {
     extraPolicies = awWatcher // { DisablePrivateBrowsing = true; PrivateBrowsingModeAvailability = 1; };
   });
+  # Personal machines only: everything here is left out on orgManaged machines (company IT owns them).
+  # run_onchange_before_10-nix exports DOTS_ORG_MANAGED=1 there and evaluates with --impure; NixOS and plain
+  # `nix eval` see no variable, so they get the personal set. This is the ONLY place that reads the variable.
+  personalOnly = lib.optionals (builtins.getEnv "DOTS_ORG_MANAGED" != "1") (with pkgs; [
+    # chat
+    (gl legcord) (gl beeper) (gl telegram-desktop) zapzap nchat tg
+    (weechat.override { configure = { availablePlugins, ... }: { scripts = [ weechatScripts.wee-slack ]; }; })
+    # media
+    (gl blender) (gl mpv) (gl obs-studio) (gl kdePackages.kdenlive) (gl krita) (gl gimp3) (gl inkscape) (gl handbrake) cava
+    # secrets / remote access
+    age cloudflared sshpass tailscale
+  ] ++ lib.optional (gpu == "nvidia") cudaPackages.cudatoolkit);
 in {
   home.stateVersion = "25.11";
   programs.home-manager.enable = true;
@@ -53,8 +65,6 @@ in {
     # --- owner picks (addendum) ---
     # browsers / chat / mail
     zen aether compat (gl google-chrome) brotab slack teams-for-linux thunderbird
-    (gl legcord) (gl beeper) (gl telegram-desktop) zapzap nchat tg
-    (weechat.override { configure = { availablePlugins, ... }: { scripts = [ weechatScripts.wee-slack ]; }; })
     # calendar / tasks / sync
     gcalcli gnome-calendar khal tasksh python3Packages.bugwarrior taskchampion-sync-server
     kdePackages.kdeconnect-kde hypr-kdeconnect-fix hyprcapture argonaut
@@ -77,22 +87,19 @@ in {
     bun check-jsonschema clang cmake deno go golangci-lint gopls go-tools llvm
     lua luarocks (lib.lowPrio luajit) meson ninja nodejs_24 pipx pnpm ruff rustup shellcheck shfmt uv yamllint
     # media
-    (gl blender) loupe (gl mpv)
-    (gl obs-studio) (gl kdePackages.kdenlive) (gl krita) (gl gimp3) (gl inkscape) (gl handbrake)
-    font-manager
+    loupe font-manager
     # office
     hoppscotch libreoffice-fresh
     # secrets
-    age cosign gnupg vault keepassxc kubeseal seahorse gnome-keyring sops step-cli
+    cosign gnupg vault keepassxc kubeseal seahorse gnome-keyring sops step-cli
     # security
     binwalk conftest hadolint syft testdisk tflint trivy
     # ssh & network
-    cloudflared iperf3 mosh nmap nettools sshpass traceroute whois wireguard-tools wireshark
+    iperf3 mosh nmap nettools traceroute whois wireguard-tools wireshark
     # TUIs
-    btop cava duf dust fastfetch lazydocker
+    btop duf dust fastfetch lazydocker
     # AI
     claude-code codex
-  ] ++ (if gpu == "nvidia" then [ pkgs.cudaPackages.cudatoolkit pkgs.ollama-cuda ] else [ pkgs.ollama ])
-    # orgManaged machines (run_onchange_before_10-nix exports DOTS_ORG_MANAGED=1 under --impure): no Tailscale
-    ++ lib.optional (builtins.getEnv "DOTS_ORG_MANAGED" != "1") pkgs.tailscale;
+  ] ++ (if gpu == "nvidia" then [ pkgs.ollama-cuda ] else [ pkgs.ollama ])
+    ++ personalOnly;
 }

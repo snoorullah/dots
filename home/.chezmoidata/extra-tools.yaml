@@ -2,6 +2,7 @@
 # Read by home/.chezmoiscripts/run_onchange_after_90-extra-tools.sh.tmpl.
 # Versions are the owner's live versions as of 2026-10-07 unless "source" says otherwise.
 # `unpinned: true` marks a tool whose origin or version cannot be pinned; `reason` says why.
+# `personal: true` installs the tool on personal machines only (skipped when chezmoi data orgManaged = true).
 extraTools:
   npm:   # npm install -g --prefix ~/.local
     - { name: agent-browser, version: 0.27.1, source: "npm ls -g",
@@ -20,7 +21,7 @@ extraTools:
     - { crate: tttui, version: 0.1.0, source: "~/.cargo/.crates.toml",
         readme: "https://github.com/ReidoBoss/tttui (cargo install tttui)" }
   pipx:   # PIPX_BIN_DIR=~/.local/bin pipx install name==version
-    - { name: ytm-player, version: 2.0.0, source: "pipx list --json",
+    - { name: ytm-player, version: 2.0.0, personal: true, source: "pipx list --json",
         readme: "https://github.com/peternaame-boop/ytm-player (pip install ytm-player; pipx used for isolation)" }
   uv:   # UV_TOOL_BIN_DIR=~/.local/bin uv tool install --python X name==version (uv fetches Python X if missing)
     - { name: syncall, version: 1.8.8, python: "3.12.5", source: "PyPI JSON API latest (not installed on this machine)",

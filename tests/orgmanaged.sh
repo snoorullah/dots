@@ -54,6 +54,10 @@ fi
 grep -q 'tailscaled.service' "$work/per-sys.sh" || bad "personal root script lost tailscaled"
 # nix: tailscale CLI gated by DOTS_ORG_MANAGED (read in nix/home.nix)
 grep -q 'getEnv "DOTS_ORG_MANAGED"' "$root/nix/home.nix" || bad "nix/home.nix does not read DOTS_ORG_MANAGED"
+# one gate, one list: personal-only packages live in `personalOnly` and nowhere else reads the variable
+grep -q 'personalOnly = lib.optionals (builtins.getEnv "DOTS_ORG_MANAGED" != "1")' "$root/nix/home.nix" || bad "nix/home.nix lacks the personalOnly list"
+[ "$(grep -c 'DOTS_ORG_MANAGED' "$root/nix/home.nix")" -le 2 ] || bad "nix/home.nix reads DOTS_ORG_MANAGED outside personalOnly"
+grep -qE '\+\+ personalOnly' "$root/nix/home.nix" || bad "personalOnly is not added to home.packages"
 grep -qE '^\s*(cloudflared|.*) tailscale ' "$root/nix/home.nix" && bad "tailscale is still unconditionally in home.packages"
 render "$org" run_onchange_before_10-nix.sh.tmpl "$work/org-nix.sh" && { grep -q 'export DOTS_ORG_MANAGED=1' "$work/org-nix.sh" || bad "org nix script lacks DOTS_ORG_MANAGED=1"; }
 render "$per" run_onchange_before_10-nix.sh.tmpl "$work/per-nix.sh" && { ! grep -q 'export DOTS_ORG_MANAGED=1' "$work/per-nix.sh" || bad "personal nix script exports DOTS_ORG_MANAGED"; }

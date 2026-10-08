@@ -40,6 +40,16 @@ for w in "${want[@]}"; do grep -qF -- "$w" <<<"$out" || { echo "EXTRA: missing i
 for bad in hyprpm hyprcapture kdeconnect argonaut --launcher-only "git " cmake aether.desktop ".local/bin/aether"; do
   ! grep -qF -- "$bad" <<<"$out" || { echo "EXTRA: unexpected '$bad' in dry-run output"; fail=1; }
 done
+# `personal: true` tools: rendered for personal machines (above), absent from the orgManaged render
+org="$work/extra-tools-org.sh"
+HOME="$work/home" chezmoi execute-template --source "$root/home" --config "$root/tests/data-workpc-ubuntu.toml" \
+  < "$root/home/.chezmoiscripts/run_onchange_after_90-extra-tools.sh.tmpl" > "$org" || { echo "EXTRA: org render failed"; fail=1; }
+bash -n "$org" || { echo "EXTRA: org bash -n failed"; fail=1; }
+for p in $(yq -r '.extraTools[] | select(type == "!!seq") | .[] | select(.personal == true) | (.name // .crate)' "$root/home/.chezmoidata/extra-tools.yaml"); do
+  grep -qF "\"$p\"" "$script" || { echo "EXTRA: personal tool $p missing from the personal render"; fail=1; }
+  ! grep -qF "\"$p\"" "$org" || { echo "EXTRA: personal tool $p rendered on an orgManaged machine"; fail=1; }
+done
+grep -q '^npm_tool "agent-browser"' "$org" || { echo "EXTRA: org render lost the all-machines tools"; fail=1; }
 # nothing executed: the throwaway HOME must stay empty
 if [ -n "$(find "$work/home" -mindepth 1 -print -quit)" ]; then echo "EXTRA: dry run touched HOME:"; find "$work/home" | head; fail=1; fi
 [ "$fail" = 0 ] && echo "extra-tools dryrun ok" || { echo "$out" | head -80; exit 1; }
