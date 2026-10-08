@@ -79,4 +79,3 @@ yq
 autossh
 sshfs
 qrencode
-vncviewer
