@@ -64,7 +64,7 @@ in {
 
     # --- owner picks (addendum) ---
     # browsers / chat / mail
-    zen aether compat (gl google-chrome) brotab slack teams-for-linux thunderbird
+    zen aether compat (gl google-chrome) (gl brave) brotab slack teams-for-linux thunderbird
     # calendar / tasks / sync
     gcalcli gnome-calendar khal tasksh python3Packages.bugwarrior taskchampion-sync-server
     kdePackages.kdeconnect-kde hypr-kdeconnect-fix hyprcapture argonaut
@@ -72,15 +72,19 @@ in {
     buildah skopeo dive
     # CLI utilities
     p7zip ast-grep buf doxygen ffmpeg glslang imagemagick ipmitool lm_sensors pandoc
-    qalculate-gtk restic yt-dlp zip unzip
+    qalculate-gtk restic yt-dlp zip unzip glow kcat grass-sass
+    python3Packages.trafilatura python3Packages.courlan python3Packages.htmldate
+    # disks, filesystems, boot media, hardware (triage add_dots_all)
+    exfatprogs hfsprogs mtools mtdutils lsscsi db cramfsswap ncompress arj syslinux iucode-tool rdma-core pahole
+    libguestfs-with-appliance guestfs-tools hivex
     # desktop
-    kdePackages.qtstyleplugin-kvantum pavucontrol kdePackages.qt6ct yad
+    kdePackages.qtstyleplugin-kvantum pavucontrol kdePackages.qt6ct yad wlogout swappy nwg-displays rofi
     # editors
     drawio obsidian vscode
     # git
     delta lazygit lefthook
     # kubernetes / cloud / IaC
-    actionlint ansible ansible-lint awscli2 cilium-cli crane crossplane-cli dbmate devpod distrobox
+    actionlint ansible ansible-lint awscli2 azure-cli cntb cilium-cli crane crossplane-cli dbmate devpod distrobox
     docker-client docker-compose kubernetes-helm kapp kbld kcl kind kubeconform kubectx kustomize
     lens minio-client molecule packer postgresql powershell qemu redis sqlite stern talhelper talosctl terraform
     # languages & toolchains
@@ -93,7 +97,7 @@ in {
     # secrets
     cosign gnupg vault keepassxc kubeseal seahorse gnome-keyring sops step-cli
     # security
-    binwalk conftest hadolint syft testdisk tflint trivy
+    binwalk conftest hadolint syft testdisk tflint trivy gitleaks scrub bpftrace bcc
     # ssh & network
     iperf3 mosh nmap nettools traceroute whois wireguard-tools wireshark
     # TUIs
