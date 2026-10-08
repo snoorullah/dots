@@ -274,9 +274,10 @@ What is off when `orgManaged = true`:
   `perf-mode` still works but reports "power profiles unavailable" unless `powerprofilesctl` is already there.
 - **Backups and self-updates.** `backup`, `backup-watch`, `backup-check`, `dots-update` and `pins-check`, their
   timers and `backup-excludes` are not deployed. The idle target does not pull them.
-- **Personal infrastructure.** No Tailscale (no distro package or installer, no `tailscaled` enable, and the Nix
-  `tailscale` CLI is left out through `DOTS_ORG_MANAGED=1`; `net-watch` only checks Tailscale if the binary
-  exists). The personal OVH tunnel (`ovh-k8s-tunnel.service`) is not deployed or enabled, and the `ovh` kube
+- **Personal infrastructure.** The Nix packages in `personalOnly` (nix/home.nix: chat and media apps, age,
+  cloudflared, sshpass, CUDA, ...) are left out through `DOTS_ORG_MANAGED=1`, and extra tools marked
+  `personal: true` are not installed. (Tailscale is not in the dotfiles on any profile; `net-watch` only checks
+  it if the binary exists.) The personal OVH tunnel (`ovh-k8s-tunnel.service`) is not deployed or enabled, and the `ovh` kube
   context is not in `k8s.contexts`. The company cluster tunnel stays.
 
 Kept (user level only, no root, no open ports): `disk-watch` (warn only), `disk-clean-user`, `net-watch`,
@@ -287,7 +288,7 @@ disables and deletes the dots-ops system units, the sudoers rule, the udev rule,
 `/usr/local/bin/dots-ops-{run,job}`, `/etc/dots-ops` and the `dots-ops` group. `/var/lib/dots-ops` (old status
 data) is left alone. The OVH tunnel is stopped and disabled. User files already deployed (backup jobs, timers) are
 not removed by chezmoi; disable them with `systemctl --user disable --now` and delete them by hand. Nothing
-already installed (Tailscale, packages) is uninstalled.
+already installed (packages) is uninstalled.
 
 ## How to disable a job
 

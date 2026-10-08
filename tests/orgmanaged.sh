@@ -51,14 +51,15 @@ if render "$org" run_once_before_00-system.sh.tmpl "$work/org-sys.sh" && render 
   else echo "ORG: host distro has no package lists; package assertions skipped"; fi
 fi
 
-grep -q 'tailscaled.service' "$work/per-sys.sh" || bad "personal root script lost tailscaled"
-# nix: tailscale CLI gated by DOTS_ORG_MANAGED (read in nix/home.nix)
+# Tailscale is out of the dotfiles entirely (triage dots_out): no package, installer or enable on any profile
+grep -qE 'tailscale(d)?( |\.service|\.com)' "$work/per-sys.sh" && bad "personal root script still installs/enables tailscale"
+grep -qw tailscale "$root/nix/home.nix" "$root/nix/hosts/nixos-laptop/configuration.nix" && bad "tailscale is still in the Nix config"
+# nix: personal-only packages gated by DOTS_ORG_MANAGED (read in nix/home.nix)
 grep -q 'getEnv "DOTS_ORG_MANAGED"' "$root/nix/home.nix" || bad "nix/home.nix does not read DOTS_ORG_MANAGED"
 # one gate, one list: personal-only packages live in `personalOnly` and nowhere else reads the variable
 grep -q 'personalOnly = lib.optionals (builtins.getEnv "DOTS_ORG_MANAGED" != "1")' "$root/nix/home.nix" || bad "nix/home.nix lacks the personalOnly list"
 [ "$(grep -c 'DOTS_ORG_MANAGED' "$root/nix/home.nix")" -le 2 ] || bad "nix/home.nix reads DOTS_ORG_MANAGED outside personalOnly"
 grep -qE '\+\+ personalOnly' "$root/nix/home.nix" || bad "personalOnly is not added to home.packages"
-grep -qE '^\s*(cloudflared|.*) tailscale ' "$root/nix/home.nix" && bad "tailscale is still unconditionally in home.packages"
 render "$org" run_onchange_before_10-nix.sh.tmpl "$work/org-nix.sh" && { grep -q 'export DOTS_ORG_MANAGED=1' "$work/org-nix.sh" || bad "org nix script lacks DOTS_ORG_MANAGED=1"; }
 render "$per" run_onchange_before_10-nix.sh.tmpl "$work/per-nix.sh" && { ! grep -q 'export DOTS_ORG_MANAGED=1' "$work/per-nix.sh" || bad "personal nix script exports DOTS_ORG_MANAGED"; }
 

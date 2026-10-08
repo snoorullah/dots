@@ -47,7 +47,6 @@ ghostty
 google-chrome-stable
 lazygit
 terraform
-tailscale
 claude
 codex
 ollama

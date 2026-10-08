@@ -41,7 +41,7 @@ let
     # media
     (gl blender) (gl mpv) (gl obs-studio) (gl kdePackages.kdenlive) (gl krita) (gl gimp3) (gl inkscape) (gl handbrake) cava
     # secrets / remote access
-    age cloudflared sshpass tailscale
+    age cloudflared sshpass
   ] ++ lib.optional (gpu == "nvidia") cudaPackages.cudatoolkit);
 in {
   home.stateVersion = "25.11";
@@ -85,7 +85,7 @@ in {
     lens minio-client molecule packer postgresql powershell qemu redis sqlite stern talhelper talosctl terraform
     # languages & toolchains
     bun check-jsonschema clang cmake deno go golangci-lint gopls go-tools llvm
-    lua luarocks (lib.lowPrio luajit) meson ninja nodejs_24 pipx pnpm ruff rustup shellcheck shfmt uv yamllint
+    lua luarocks (lib.lowPrio luajit) meson ninja pipx pnpm ruff rustup shellcheck shfmt uv yamllint
     # media
     loupe font-manager
     # office

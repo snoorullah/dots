@@ -28,7 +28,7 @@ KEYD_TAG=v2.6.0 KEYD_COMMIT=7c0aecb8bfd34dc8642bf4eefd2e59c89e61cec3   # github.
 {{- if eq $fam "arch" }}
 
 # ---- Arch family: package lists ----
-REQ=(pipewire pipewire-pulse wireplumber polkit hyprlock xdg-desktop-portal-gtk{{ if not $org }} tailscale{{ end }} wireshark-cli{{ if not $org }} pacman-contrib fwupd lynis ufw arch-audit{{ end }}{{ if eq .gpu "nvidia" }} nvidia-container-toolkit{{ end }})
+REQ=(pipewire pipewire-pulse wireplumber polkit hyprlock xdg-desktop-portal-gtk wireshark-cli{{ if not $org }} pacman-contrib fwupd lynis ufw arch-audit{{ end }}{{ if eq .gpu "nvidia" }} nvidia-container-toolkit{{ end }})
 FRESH=(docker)
 OPT=(keyd greetd greetd-tuigreet{{ if not $org }} power-profiles-daemon{{ end }})   # power-profiles-daemon: skipped when tlp is installed (they conflict)
 KEYD_BUILD_DEPS=(base-devel git)
@@ -129,10 +129,6 @@ curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-contai
 sudo apt-get update
 pkg_install nvidia-container-toolkit
 {{-   end }}
-{{- if not $org }}
-# tailscale daemon: no distro package, use the official installer (no `tailscale up`: auth is yours)
-command -v tailscaled >/dev/null || curl -fsSL https://tailscale.com/install.sh | sh
-{{- end }}
 {{- else }}
 
 # ---- Fedora / RHEL family ----
@@ -167,10 +163,6 @@ fi
 curl -fsSL https://nvidia.github.io/libnvidia-container/stable/rpm/nvidia-container-toolkit.repo | sudo tee /etc/yum.repos.d/nvidia-container-toolkit.repo >/dev/null
 pkg_install nvidia-container-toolkit
 {{-   end }}
-{{- if not $org }}
-# tailscale daemon: official installer sets up the dnf repo (no `tailscale up`: auth is yours)
-command -v tailscaled >/dev/null || curl -fsSL https://tailscale.com/install.sh | sh
-{{- end }}
 {{- end }}
 
 # ---- all families ----
@@ -247,9 +239,6 @@ if command -v dockerd >/dev/null || command -v docker >/dev/null; then
   fi
 {{- end }}
 fi
-{{- if not $org }}
-sudo systemctl enable --now tailscaled.service
-{{- end }}
 getent group wireshark >/dev/null || sudo groupadd -r wireshark
 sudo usermod -aG wireshark "$me"
 echo "log out and back in for the docker and wireshark groups to apply"

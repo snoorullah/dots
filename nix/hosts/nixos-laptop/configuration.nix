@@ -114,8 +114,7 @@ let user = "devsupreme"; in
   virtualisation.docker.enable = true;
   hardware.nvidia-container-toolkit.enable = true;   # NVIDIA host: CDI for `docker run --gpus`
 
-  # ── Network / capture ── (`tailscale up` is the owner's step)
-  services.tailscale.enable = true;
+  # ── Network / capture ──
   programs.wireshark.enable = true;                  # dumpcap wrapper; user is in the wireshark group above
 
   # Minimal system-wide tooling; everything else is in the home layer.
