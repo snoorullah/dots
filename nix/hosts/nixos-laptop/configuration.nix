@@ -115,7 +115,12 @@ let user = "devsupreme"; in
   hardware.nvidia-container-toolkit.enable = true;   # NVIDIA host: CDI for `docker run --gpus`
 
   # ── Network / capture ──
+  services.openssh.enable = true;                    # inbound ssh; dots-ops.nix makes it key-only once keys exist
   programs.wireshark.enable = true;                  # dumpcap wrapper; user is in the wireshark group above
+
+  # ── Host services ── (thermald: this laptop is Intel, see hardware-configuration.nix kvm-intel)
+  services.thermald.enable = true;
+  zramSwap = { enable = true; algorithm = "zstd"; memoryPercent = 50; memoryMax = 16 * 1024 * 1024 * 1024; priority = 100; };
 
   # Minimal system-wide tooling; everything else is in the home layer.
   environment.systemPackages = with pkgs; [ git vim wget chezmoi ];

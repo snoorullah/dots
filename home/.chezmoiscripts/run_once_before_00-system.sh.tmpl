@@ -5,6 +5,7 @@
 #         resolves them in a dry run inside each distro container)
 #   FRESH installed only when the feature is absent (Docker): must also resolve on a fresh machine
 #   OPT   installed one by one, and only when the distro has the package (no name can drop the rest)
+#   HW    optional host services (seatd, zram swap generator; thermald on Intel CPUs only), installed like OPT
 # DOTS_PKG_LIST=1 prints the lists and exits before anything is touched (no sudo, no network).
 set -euo pipefail
 {{- $id := .chezmoi.osRelease.id }}
@@ -28,35 +29,38 @@ KEYD_TAG=v2.6.0 KEYD_COMMIT=7c0aecb8bfd34dc8642bf4eefd2e59c89e61cec3   # github.
 {{- if eq $fam "arch" }}
 
 # ---- Arch family: package lists ----
-REQ=(pipewire pipewire-pulse wireplumber polkit hyprlock xdg-desktop-portal-gtk wireshark-cli{{ if not $org }} pacman-contrib fwupd lynis ufw arch-audit{{ end }}{{ if eq .gpu "nvidia" }} nvidia-container-toolkit{{ end }})
+REQ=(pipewire pipewire-pulse wireplumber polkit hyprlock xdg-desktop-portal-gtk wireshark-cli openssh{{ if not $org }} pacman-contrib fwupd lynis ufw arch-audit{{ end }}{{ if eq .gpu "nvidia" }} nvidia-container-toolkit{{ end }})
 FRESH=(docker)
 OPT=(keyd greetd greetd-tuigreet{{ if not $org }} power-profiles-daemon{{ end }})   # power-profiles-daemon: skipped when tlp is installed (they conflict)
 KEYD_BUILD_DEPS=(base-devel git)
+HW=(seatd zram-generator)
 avail()       { pacman -Si "$1" >/dev/null 2>&1; }
 pkg_install() { sudo pacman -S --needed --noconfirm "$@"; }
 {{- else if eq $fam "debian" }}
 
 # ---- Debian / Ubuntu family: package lists ----
-REQ=(pipewire pipewire-pulse wireplumber xdg-desktop-portal-gtk curl gpg ca-certificates wireshark-common{{ if not $org }} unattended-upgrades fwupd lynis ufw{{ end }})
+REQ=(pipewire pipewire-pulse wireplumber xdg-desktop-portal-gtk curl gpg ca-certificates wireshark-common openssh-server{{ if not $org }} unattended-upgrades fwupd lynis ufw{{ end }})
 FRESH=(docker.io)
 OPT=(keyd greetd tuigreet polkitd pkexec policykit-1 hyprlock{{ if not $org }} power-profiles-daemon{{ end }}{{ if eq $id "ubuntu" }} software-properties-common{{ end }})   # power-profiles-daemon: not with tlp
 KEYD_BUILD_DEPS=(build-essential git)
+HW=(seatd systemd-zram-generator)
 avail()       { [ -n "$(apt-cache madison "$1" 2>/dev/null)" ]; }
 pkg_install() { sudo DEBIAN_FRONTEND=noninteractive apt-get install -y "$@"; }
 {{- else }}
 
 # ---- Fedora / RHEL family: package lists ----
-REQ=(pipewire wireplumber polkit xdg-desktop-portal-gtk wireshark-cli{{ if not $org }} dnf-plugins-core fwupd firewalld{{ if eq $id "fedora" }} lynis tuned-ppd{{ end }}{{ end }})   # tuned-ppd (powerprofilesctl; RHEL-likes: OPT); firewalld: preinstalled on Fedora/RHEL (no-op), its preset enables it
+REQ=(pipewire wireplumber polkit xdg-desktop-portal-gtk wireshark-cli openssh-server{{ if not $org }} dnf-plugins-core fwupd firewalld{{ if eq $id "fedora" }} lynis tuned-ppd{{ end }}{{ end }})   # tuned-ppd (powerprofilesctl; RHEL-likes: OPT); firewalld: preinstalled on Fedora/RHEL (no-op), its preset enables it
 FRESH=({{ if eq $id "fedora" }}moby-engine{{ end }})   # RHEL-likes: docker-ce from Docker's repo (added at install time)
 OPT=(keyd greetd tuigreet hyprlock{{ if ne $id "fedora" }} epel-release{{ if not $org }} lynis tuned-ppd{{ end }}{{ end }})   # lynis: EPEL on RHEL-likes
 KEYD_BUILD_DEPS=(gcc make git)
+HW=(seatd zram-generator)
 avail()       { dnf info "$1" >/dev/null 2>&1; }
 pkg_install() { sudo dnf install -y "$@"; }
 {{- end }}
 
 if [ "${DOTS_PKG_LIST:-0}" = 1 ]; then
   echo "required: ${REQ[*]} ${FRESH[*]}"
-  echo "optional: ${OPT[*]}"
+  echo "optional: ${OPT[*]} ${HW[*]} thermald"
   exit 0
 fi
 
@@ -238,6 +242,25 @@ if command -v dockerd >/dev/null || command -v docker >/dev/null; then
     if [ "$before" != "$after" ]; then sudo systemctl restart docker.service; else echo "docker: nvidia runtime already configured; no restart" >&2; fi
   fi
 {{- end }}
+fi
+# OpenSSH server (in REQ): Debian/Ubuntu enable it on install; elsewhere enable it here. dots-ops ssh-harden
+# hardens it (key-only) once you have authorized keys.
+for u in ssh.service sshd.service; do
+  if systemctl cat "$u" >/dev/null 2>&1; then sudo systemctl enable --now "$u"; break; fi
+done
+# Host services: seatd, the zram swap generator and (Intel CPUs only) thermald; each skipped where not packaged.
+opt_install "${HW[@]}" || true
+if grep -q GenuineIntel /proc/cpuinfo; then opt_install thermald || true; else echo "thermald: not an Intel CPU; skipped" >&2; fi
+systemctl cat seatd.service >/dev/null 2>&1 && sudo systemctl enable --now seatd.service
+getent group seat >/dev/null && sudo usermod -aG seat "$me"   # Arch/Fedora seatd socket group (Debian's uses video)
+systemctl cat thermald.service >/dev/null 2>&1 && sudo systemctl enable --now thermald.service
+# zram: write the config only when none exists (an existing /etc/systemd/zram-generator.conf is never replaced)
+if [ -x /usr/lib/systemd/system-generators/zram-generator ] || [ -x /lib/systemd/system-generators/zram-generator ]; then
+  if [ ! -e /etc/systemd/zram-generator.conf ]; then
+    sudo install -Dm644 {{ joinPath .chezmoi.workingTree "system/zram/zram-generator.conf" | quote }} /etc/systemd/zram-generator.conf
+    sudo systemctl daemon-reload
+    sudo systemctl start systemd-zram-setup@zram0.service || echo "zram: zram0 starts on next boot" >&2
+  fi
 fi
 getent group wireshark >/dev/null || sudo groupadd -r wireshark
 sudo usermod -aG wireshark "$me"
