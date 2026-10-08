@@ -1,5 +1,5 @@
 [data]
-  gpu = "nixos"
+  gpu = "mesa"
   multiplexer = "tmux"
   timetrack = false
-  orgManaged = false
+  orgManaged = true

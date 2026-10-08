@@ -2,3 +2,4 @@
   gpu = "nvidia"
   multiplexer = "tmux"
   timetrack = false
+  orgManaged = false

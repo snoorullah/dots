@@ -255,3 +255,10 @@ bad_pod() { printf '{"items":[{"metadata":{"namespace":"app","name":"%s"},"statu
   grep -q '^OnCalendar=hourly' "$T/dots-ops-containers.timer"; grep -q '^Persistent=true' "$T/dots-ops-containers.timer"
   for j in net-watch k8s-health containers; do grep -q "^Unit=dots-ops@$j.service" "$T/dots-ops-$j.timer"; done
 }
+@test "org: containers-prune prunes images but never asks for the root volumes action (even > 10 GB)" {
+  export OPS_ROOT_ENABLED=0
+  STUB_DF_OUT="$(dfout 4GB 8000MB 1.5GB)\n" runjob "$UJ/containers-prune.sh"
+  grep -q 'docker image prune -f' "$STUB_LOG"
+  [ ! -e "$OPS_STATE/pending/containers-prune.json" ]
+  [ "$(ustate containers-prune status)" = ok ]
+}

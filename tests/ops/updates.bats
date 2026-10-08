@@ -442,7 +442,7 @@ lockprobe() {   # a package-manager stub that records whether the pkg lock is he
   grep -q 'enable --now dots-ops-dots-update.timer' "$R/home/.chezmoiscripts/run_onchange_after_24-systemd.sh.tmpl"
 }
 @test "R59 dots-update and backup-check are pulled by the idle target" {
-  t="$R/home/private_dot_config/systemd/private_user/dots-ops-idle.target"
+  t="$R/home/private_dot_config/systemd/private_user/dots-ops-idle.target.tmpl"
   grep -q '^Wants=.*dots-ops@dots-update.service' "$t"; grep -q '^Wants=.*dots-ops@backup-check.service' "$t"
   grep -q '^Wants=.*dots-ops@backup.service' "$t"
 }

@@ -24,7 +24,7 @@ export PATH="$HOME/.local/bin:$PATH"
 # Shim lspci so the container deterministically looks GPU-less (what GitHub runners are anyway).
 mkdir -p ~/shim; printf '#!/bin/sh\necho "00:02.0 VGA compatible controller: Intel Corporation Generic"\n' > ~/shim/lspci; chmod +x ~/shim/lspci
 # repo root carries .chezmoiroot=home, so --source is the repo root; the prompt key is the prompt text
-PATH="$HOME/shim:$PATH" chezmoi init --apply --force --no-tty --source ~/dots --exclude=scripts --promptChoice Multiplexer=tmux
+PATH="$HOME/shim:$PATH" chezmoi init --apply --force --no-tty --source ~/dots --exclude=scripts --promptChoice Multiplexer=tmux --promptBool "Org-managed machine (Intune/company IT owns security, patching, backups)?=false"
 ! grep -q stale ~/.config/waybar/config.jsonc || { echo "FAIL stale waybar config survived"; exit 1; }
 test ! -e ~/.secrets || { echo "FAIL ~/.secrets created by the repo (secrets are hand-copied, never in it)"; exit 1; }
 test -f ~/.config/hypr/hyprland.lua || { echo "FAIL hyprland.lua not rendered"; exit 1; }

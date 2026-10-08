@@ -150,3 +150,33 @@ EOF
   OPS_IDLE_FLAG=/nonexistent OPS_POWER_DIR="$BATS_TEST_TMPDIR" bash "$BIN/executable_dots-ops" run h --now
   [ -e "$BATS_TEST_TMPDIR/heavy" ]
 }
+
+# ---- orgManaged: [root] enabled = false -> user code never calls sudo ----
+@test "org: idle-start / idle-end make no sudo call and set no warn (flag and idle target still work)" {
+  stubs; export OPS_ROOT_ENABLED=0 OPS_SUDO="$BATS_TEST_TMPDIR/sudo-called"
+  printf '#!/bin/sh\necho called >> %s/sudo.log\nexit 1\n' "$BATS_TEST_TMPDIR" > "$OPS_SUDO"; chmod +x "$OPS_SUDO"
+  run bash "$BIN/executable_dots-ops" idle-start; [ "$status" -eq 0 ]; [ -e "$OPS_IDLE_FLAG" ]
+  run bash "$BIN/executable_dots-ops" idle-end; [ "$status" -eq 0 ]; [ ! -e "$OPS_IDLE_FLAG" ]
+  [ ! -e "$BATS_TEST_TMPDIR/sudo.log" ]
+  [ ! -e "$OPS_STATE/state/system.json" ]
+  ! grep -q 'root runner refused' "$OPS_STATE/log.jsonl" 2>/dev/null
+  grep -qx 'systemctl --user restart --no-block dots-ops-idle.target' "$BATS_TEST_TMPDIR/calls.log"
+}
+@test "org: config.toml [root] enabled = false is what turns it off" {
+  stubs; printf '[disk]\nwarn = 70\n[root]\nenabled = false\n' > "$OPS_CONFIG"
+  run bash "$BIN/executable_dots-ops" idle-start; [ "$status" -eq 0 ]
+  [[ $output != *SUDO* ]]
+  printf '[root]\nenabled = true\n' > "$OPS_CONFIG"
+  run bash "$BIN/executable_dots-ops" idle-start; [[ $output == *"SUDO /x/runner system idle-run"* ]]
+}
+@test "org: run <rootjob> prints the disabled message and exits 2, no sudo" {
+  stubs; export OPS_ROOT_ENABLED=0
+  run --separate-stderr bash "$BIN/executable_dots-ops" run updates-sec --now
+  [ "$status" -eq 2 ]; [[ $stderr == *"root jobs are disabled on this machine (orgManaged)"* ]]; [[ $output != *SUDO* ]]
+  run --separate-stderr bash "$BIN/executable_dots-ops" run updates-sec
+  [ "$status" -eq 2 ]
+}
+@test "org: a user job still runs with run --now when root is off" {
+  export OPS_ROOT_ENABLED=0 OPS_IDLE_FLAG=/nonexistent OPS_POWER_DIR="$BATS_TEST_TMPDIR"
+  bash "$BIN/executable_dots-ops" run h --now; [ -e "$BATS_TEST_TMPDIR/heavy" ]
+}

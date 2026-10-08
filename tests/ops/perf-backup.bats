@@ -283,7 +283,7 @@ perf() { run --separate-stderr bash "$CLI" perf-mode "$@"; }
 @test "R65 backup-check is ordered after backup (idle target starts both)" {
   f="$R/home/private_dot_config/systemd/private_user/dots-ops@backup-check.service.d/after-backup.conf"
   grep -qx 'After=dots-ops@backup.service' "$f"
-  grep -q 'dots-ops@backup-check.service' "$R/home/private_dot_config/systemd/private_user/dots-ops-idle.target"
+  grep -q 'dots-ops@backup-check.service' "$R/home/private_dot_config/systemd/private_user/dots-ops-idle.target.tmpl"
 }
 
 # ---- wiring ----

@@ -302,3 +302,12 @@ ATA_OK='{"smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"name"
   grep -q 'dots-ops@disk-clean-system.service' "$S/dots-ops-system-idle.target"
   grep -q 'dots-ops-disk-watch.timer' "$R/home/.chezmoiscripts/run_onchange_after_24-systemd.sh.tmpl"
 }
+
+@test "org: disk-watch at 91% warns, starts disk-clean-user, makes no root call" {
+  export OPS_ROOT_ENABLED=0
+  dw 'ext4 500000000000 91% / rw\n'
+  [ "$(ustate disk-watch status)" = warn ]
+  grep -q 'disk-clean-user' "$STUB_LOG"
+  ! grep -q 'sudo' "$STUB_LOG"
+  ! grep -q 'run-now' "$STUB_LOG"
+}

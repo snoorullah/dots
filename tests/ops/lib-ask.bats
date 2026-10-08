@@ -156,3 +156,21 @@ uistub() {   # systemd-run stub on PATH that records the UI relaunch
   [[ $output == *"j ⟂ ask ⟂ Apply? ⟂ now ⟂ $(ops_pending_token j)"* ]]
   srow=$(grep '^s ' <<< "$output"); [[ $srow == "s ⟂ warn ⟂ w ⟂ "* ]]; [ "$(grep -o ' ⟂ ' <<< "$srow" | wc -l)" -eq 3 ]
 }
+
+@test "ops_root_enabled: config [root] enabled, env override, default true, root context true" {
+  export OPS_CONFIG="$BATS_TEST_TMPDIR/c.toml"; unset OPS_ROOT_ENABLED
+  run ops_root_enabled; [ "$status" -eq 0 ]                       # no config
+  printf '[disk]\nwarn = 1\n[root]\nenabled = false\n[x]\nenabled = true\n' > "$OPS_CONFIG"
+  run ops_root_enabled; [ "$status" -eq 1 ]
+  printf '[x]\nenabled = false\n[root]\nenabled = true\n' > "$OPS_CONFIG"
+  run ops_root_enabled; [ "$status" -eq 0 ]                       # only [root] counts
+  OPS_ROOT_ENABLED=0 run ops_root_enabled; [ "$status" -eq 1 ]
+  printf '[root]\nenabled = false\n' > "$OPS_CONFIG"
+  OPS_IS_ROOT=1 run ops_root_enabled; [ "$status" -eq 0 ]
+}
+@test "org: a root: action is dropped by ops_dispatch when root is off (no sudo)" {
+  export OPS_ROOT_ENABLED=0 OPS_SUDO="$BATS_TEST_TMPDIR/sudo"
+  printf '#!/bin/sh\ntouch %s/sudo-ran\n' "$BATS_TEST_TMPDIR" > "$OPS_SUDO"; chmod +x "$OPS_SUDO"
+  run ops_dispatch "root:containers-prune volumes"; [ "$status" -eq 0 ]
+  [ ! -e "$BATS_TEST_TMPDIR/sudo-ran" ]
+}

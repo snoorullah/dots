@@ -27,6 +27,7 @@ jobs:
       - run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - run: sudo apt-get install -y jq
       - run: bash tests/placement.sh
+      - run: bash tests/orgmanaged.sh
       - run: bash tests/lint.sh
       - run: bash tests/extra-tools-dryrun.sh
       - name: in-home.sh (sentinel mode)
