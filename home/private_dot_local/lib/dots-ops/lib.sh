@@ -162,6 +162,15 @@ if [ -z "${OPS_RUNNER:-}" ]; then   # R1: NixOS puts the runner in the system pr
   if [ -x /run/current-system/sw/bin/dots-ops-run ]; then OPS_RUNNER=/run/current-system/sw/bin/dots-ops-run
   else OPS_RUNNER=/usr/local/bin/dots-ops-run; fi
 fi
+ops_root_enabled() {   # 0 = this machine has the dots-ops root side. orgManaged machines (company IT owns it) render [root] enabled = false;
+  # user code must then make no sudo call at all. Missing/unreadable config = enabled (the original behaviour). OPS_ROOT_ENABLED=0|1 overrides.
+  [ "$OPS_IS_ROOT" != 1 ] || return 0
+  local v="${OPS_ROOT_ENABLED:-}"
+  if [ -z "$v" ]; then
+    v=$(sed -n '/^\[root\]/,/^\[/{s/^enabled[[:space:]]*=[[:space:]]*//p;}' "${OPS_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/dots-ops/config.toml}" 2>/dev/null | head -n 1)
+  fi
+  case $v in false|0|no) return 1 ;; *) return 0 ;; esac
+}
 if [ "$OPS_IS_ROOT" = 1 ]; then   # R3: root has no XDG_RUNTIME_DIR; the flag lives in /run/dots-ops
   : "${OPS_IDLE_FLAG:=/run/dots-ops/idle}"
 else
@@ -227,6 +236,7 @@ ops_dispatch() {   # job action-string: run a user:/root: action; returns its rc
   case $act in
     user:*) bash -c "${act#user:}" || rc=$? ;;
     root:*)
+      if ! ops_root_enabled; then ops_log system warn "root action dropped (root side disabled, orgManaged): $act"; return 0; fi
       local ra sudo_cmd
       read -ra ra <<< "${act#root:}"
       read -ra sudo_cmd <<< "$OPS_SUDO"

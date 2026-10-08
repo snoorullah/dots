@@ -23,3 +23,19 @@ README.md
 .config/systemd/user/timetrack-*
 .config/timetrack
 {{- end }}
+
+{{- /* orgManaged: company IT owns security, patching and backups (docs/dots-ops.md). `get` keeps older configs without the key working. */}}
+{{- if get . "orgManaged" | default false }}
+.local/lib/dots-ops/jobs/backup.sh
+.local/lib/dots-ops/jobs/backup-watch.sh
+.local/lib/dots-ops/jobs/backup-check.sh
+.local/lib/dots-ops/jobs/pins-check.sh
+.local/lib/dots-ops/jobs/dots-update.sh
+.config/dots-ops/backup-excludes
+.config/systemd/user/dots-ops-backup-watch.timer
+.config/systemd/user/dots-ops-backup-check.timer
+.config/systemd/user/dots-ops@backup-check.service.d
+.config/systemd/user/dots-ops-pins-check.timer
+.config/systemd/user/dots-ops-dots-update.timer
+.config/systemd/user/ovh-k8s-tunnel.service
+{{- end }}

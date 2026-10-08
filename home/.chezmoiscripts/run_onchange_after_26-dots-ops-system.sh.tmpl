@@ -3,7 +3,38 @@
 # Installs the root side of dots-ops as root-owned copies (root never runs files from the user's tree).
 # NixOS: nix/hosts/nixos-laptop/dots-ops.nix does this instead.
 set -euo pipefail
+{{- $org := get . "orgManaged" | default false }}
 {{- if ne .gpu "nixos" }}
+{{- if $org }}
+# orgManaged: company IT owns this machine's security, patching and backups, so dots-ops installs NO root side
+# (no runner, no sudoers rule, no dots-ops group, no system units/timers, no udev rule, no /etc/dots-ops).
+# If an earlier apply did install it, take it all out again. Nothing is touched (and sudo is not called) when
+# there is nothing to remove. /var/lib/dots-ops (old status/log data) is deliberately left alone: it is inert
+# data, remove it by hand if you want it gone.
+present=0
+for p in /usr/local/lib/dots-ops /usr/local/bin/dots-ops-run /usr/local/bin/dots-ops-job /etc/dots-ops \
+         /etc/sudoers.d/dots-ops /etc/systemd/system/dots-ops* /etc/udev/rules.d/*dots-ops*; do
+  [ -e "$p" ] && { present=1; break; }
+done
+getent group dots-ops >/dev/null 2>&1 && present=1
+[ "$present" = 1 ] || exit 0
+echo "dots-ops: orgManaged machine; removing the previously installed root side" >&2
+# stop whatever fires first, then delete the files
+for u in /etc/systemd/system/dots-ops*; do
+  [ -e "$u" ] || continue
+  b=${u##*/}
+  case $b in *.service|*.timer|*.path|*.target) sudo systemctl disable --now "$b" 2>/dev/null || true ;; esac
+  sudo rm -rf "$u"
+done
+sudo systemctl stop dots-ops-reboot-scheduled.timer dots-ops-reboot-scheduled.service 2>/dev/null || true
+sudo rm -f /etc/sudoers.d/dots-ops
+sudo rm -f /etc/udev/rules.d/*dots-ops*
+sudo rm -rf /usr/local/lib/dots-ops /etc/dots-ops
+sudo rm -f /usr/local/bin/dots-ops-run /usr/local/bin/dots-ops-job
+if getent group dots-ops >/dev/null 2>&1; then sudo groupdel dots-ops || true; fi
+sudo systemctl daemon-reload || true
+sudo udevadm control --reload 2>/dev/null || true
+{{- else }}
 W={{ .chezmoi.workingTree | quote }}
 me="${USER:-$(id -un)}"
 # The sudo rule trusts /usr/local/bin and /usr/local/lib: refuse if anyone but root can write there.
@@ -65,5 +96,6 @@ for t in "$W"/system/dots-ops/units/*.timer "$W"/system/dots-ops/units/*.path; d
 done
 # check firewall + sshd right after an install/change: both only ask (or no-op); neither applies anything unapproved
 sudo systemctl start --no-block dots-ops@firewall.service dots-ops@ssh-harden.service
+{{- end }}
 {{- end }}
 exit 0

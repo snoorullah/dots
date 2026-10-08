@@ -8,6 +8,8 @@
 # DOTS_PKG_LIST=1 prints the lists and exits before anything is touched (no sudo, no network).
 set -euo pipefail
 {{- $id := .chezmoi.osRelease.id }}
+{{- /* orgManaged: company IT owns security/patching/backups; the packages that exist only for dots-ops root jobs are not installed */}}
+{{- $org := get . "orgManaged" | default false }}
 {{- $like := get .chezmoi.osRelease "idLike" | default "" }}
 {{- if eq $id "nixos" }}
 exit 0
@@ -26,27 +28,27 @@ KEYD_TAG=v2.6.0 KEYD_COMMIT=7c0aecb8bfd34dc8642bf4eefd2e59c89e61cec3   # github.
 {{- if eq $fam "arch" }}
 
 # ---- Arch family: package lists ----
-REQ=(pipewire pipewire-pulse wireplumber polkit hyprlock xdg-desktop-portal-gtk tailscale wireshark-cli pacman-contrib fwupd lynis ufw arch-audit{{ if eq .gpu "nvidia" }} nvidia-container-toolkit{{ end }})
+REQ=(pipewire pipewire-pulse wireplumber polkit hyprlock xdg-desktop-portal-gtk{{ if not $org }} tailscale{{ end }} wireshark-cli{{ if not $org }} pacman-contrib fwupd lynis ufw arch-audit{{ end }}{{ if eq .gpu "nvidia" }} nvidia-container-toolkit{{ end }})
 FRESH=(docker)
-OPT=(keyd greetd greetd-tuigreet power-profiles-daemon)   # power-profiles-daemon: skipped when tlp is installed (they conflict)
+OPT=(keyd greetd greetd-tuigreet{{ if not $org }} power-profiles-daemon{{ end }})   # power-profiles-daemon: skipped when tlp is installed (they conflict)
 KEYD_BUILD_DEPS=(base-devel git)
 avail()       { pacman -Si "$1" >/dev/null 2>&1; }
 pkg_install() { sudo pacman -S --needed --noconfirm "$@"; }
 {{- else if eq $fam "debian" }}
 
 # ---- Debian / Ubuntu family: package lists ----
-REQ=(pipewire pipewire-pulse wireplumber xdg-desktop-portal-gtk curl gpg ca-certificates wireshark-common unattended-upgrades fwupd lynis ufw)
+REQ=(pipewire pipewire-pulse wireplumber xdg-desktop-portal-gtk curl gpg ca-certificates wireshark-common{{ if not $org }} unattended-upgrades fwupd lynis ufw{{ end }})
 FRESH=(docker.io)
-OPT=(keyd greetd tuigreet polkitd pkexec policykit-1 hyprlock power-profiles-daemon{{ if eq $id "ubuntu" }} software-properties-common{{ end }})   # power-profiles-daemon: not with tlp
+OPT=(keyd greetd tuigreet polkitd pkexec policykit-1 hyprlock{{ if not $org }} power-profiles-daemon{{ end }}{{ if eq $id "ubuntu" }} software-properties-common{{ end }})   # power-profiles-daemon: not with tlp
 KEYD_BUILD_DEPS=(build-essential git)
 avail()       { [ -n "$(apt-cache madison "$1" 2>/dev/null)" ]; }
 pkg_install() { sudo DEBIAN_FRONTEND=noninteractive apt-get install -y "$@"; }
 {{- else }}
 
 # ---- Fedora / RHEL family: package lists ----
-REQ=(pipewire wireplumber polkit xdg-desktop-portal-gtk wireshark-cli dnf-plugins-core fwupd firewalld{{ if eq $id "fedora" }} lynis tuned-ppd{{ end }})   # tuned-ppd (powerprofilesctl; RHEL-likes: OPT); firewalld: preinstalled on Fedora/RHEL (no-op), its preset enables it
+REQ=(pipewire wireplumber polkit xdg-desktop-portal-gtk wireshark-cli{{ if not $org }} dnf-plugins-core fwupd firewalld{{ if eq $id "fedora" }} lynis tuned-ppd{{ end }}{{ end }})   # tuned-ppd (powerprofilesctl; RHEL-likes: OPT); firewalld: preinstalled on Fedora/RHEL (no-op), its preset enables it
 FRESH=({{ if eq $id "fedora" }}moby-engine{{ end }})   # RHEL-likes: docker-ce from Docker's repo (added at install time)
-OPT=(keyd greetd tuigreet hyprlock{{ if ne $id "fedora" }} epel-release lynis tuned-ppd{{ end }})   # lynis: EPEL on RHEL-likes
+OPT=(keyd greetd tuigreet hyprlock{{ if ne $id "fedora" }} epel-release{{ if not $org }} lynis tuned-ppd{{ end }}{{ end }})   # lynis: EPEL on RHEL-likes
 KEYD_BUILD_DEPS=(gcc make git)
 avail()       { dnf info "$1" >/dev/null 2>&1; }
 pkg_install() { sudo dnf install -y "$@"; }
@@ -80,8 +82,10 @@ pacman -Qq nvidia-utils >/dev/null 2>&1 || pkg_install nvidia-open-dkms nvidia-u
 [ -e /etc/pam.d/hyprlock ] || printf 'auth include system-login\n' | sudo tee /etc/pam.d/hyprlock >/dev/null
 if [ "$DOCKER_PRESENT" = 0 ]; then pkg_install "${FRESH[@]}"; else echo "docker: already installed, not touching it" >&2; fi
 opt_install greetd greetd-tuigreet || true   # greetd is configured below only if tuigreet ended up installed
+{{- if not $org }}
 # R63: powerprofilesctl for dots-ops power-profile/perf-mode; tlp and power-profiles-daemon conflict, tlp wins
 if command -v tlp >/dev/null; then echo "power-profiles-daemon: tlp is installed (they conflict); skipped" >&2; else opt_install power-profiles-daemon || true; fi
+{{- end }}
 {{- else if eq $fam "debian" }}
 
 # ---- Debian / Ubuntu family ----
@@ -91,8 +95,10 @@ echo 'wireshark-common wireshark-common/install-setuid boolean true' | sudo debc
 pkg_install "${REQ[@]}"
 sudo DEBIAN_FRONTEND=noninteractive dpkg-reconfigure -f noninteractive wireshark-common   # applies it if already installed
 if avail polkitd; then opt_install polkitd pkexec || true; else opt_install policykit-1 || true; fi
+{{- if not $org }}
 # R63: powerprofilesctl for dots-ops power-profile/perf-mode; tlp and power-profiles-daemon conflict, tlp wins
 if command -v tlp >/dev/null; then echo "power-profiles-daemon: tlp is installed (they conflict); skipped" >&2; else opt_install power-profiles-daemon || true; fi
+{{- end }}
 # greetd's postinst enables greetd.service itself, so greetd is installed ONLY together with tuigreet
 # (tuigreet has no apt package on noble/bookworm; then greetd is not installed at all).
 if avail tuigreet && avail greetd; then pkg_install greetd tuigreet; else echo "greetd: tuigreet not packaged here; greetd not installed" >&2; fi
@@ -123,8 +129,10 @@ curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-contai
 sudo apt-get update
 pkg_install nvidia-container-toolkit
 {{-   end }}
+{{- if not $org }}
 # tailscale daemon: no distro package, use the official installer (no `tailscale up`: auth is yours)
 command -v tailscaled >/dev/null || curl -fsSL https://tailscale.com/install.sh | sh
+{{- end }}
 {{- else }}
 
 # ---- Fedora / RHEL family ----
@@ -133,7 +141,7 @@ command -v tailscaled >/dev/null || curl -fsSL https://tailscale.com/install.sh 
 rpm -q epel-release >/dev/null 2>&1 || opt_install epel-release || true
 {{-   end }}
 pkg_install "${REQ[@]}"
-{{-   if ne $id "fedora" }}
+{{-   if and (ne $id "fedora") (not $org) }}
 opt_install lynis || true   # dots-ops audit reports n/a without it
 {{-   end }}
 opt_install greetd tuigreet || true   # greetd is configured below only if tuigreet ended up installed
@@ -159,8 +167,10 @@ fi
 curl -fsSL https://nvidia.github.io/libnvidia-container/stable/rpm/nvidia-container-toolkit.repo | sudo tee /etc/yum.repos.d/nvidia-container-toolkit.repo >/dev/null
 pkg_install nvidia-container-toolkit
 {{-   end }}
+{{- if not $org }}
 # tailscale daemon: official installer sets up the dnf repo (no `tailscale up`: auth is yours)
 command -v tailscaled >/dev/null || curl -fsSL https://tailscale.com/install.sh | sh
+{{- end }}
 {{- end }}
 
 # ---- all families ----
@@ -237,7 +247,9 @@ if command -v dockerd >/dev/null || command -v docker >/dev/null; then
   fi
 {{- end }}
 fi
+{{- if not $org }}
 sudo systemctl enable --now tailscaled.service
+{{- end }}
 getent group wireshark >/dev/null || sudo groupadd -r wireshark
 sudo usermod -aG wireshark "$me"
 echo "log out and back in for the docker and wireshark groups to apply"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # units hash: {{ output "sh" "-c" (printf "cd %s/private_dot_config/systemd/private_user && find . -type f | LC_ALL=C sort | xargs cat | sha256sum" .chezmoi.sourceDir) | trim }}
-# data: multiplexer={{ .multiplexer }} timetrack={{ .timetrack }}
+# data: multiplexer={{ .multiplexer }} timetrack={{ .timetrack }} orgManaged={{ get . "orgManaged" | default false }}
 set -uo pipefail
 if ! systemctl --user show-environment >/dev/null 2>&1; then
   echo "systemd: no user manager reachable (ssh without a session?); skipping unit enable" >&2
@@ -9,13 +9,21 @@ fi
 systemctl --user daemon-reload
 systemctl --user enable --now adhd-prayer-times.timer adhd-salah-schedule.timer aw-server.service
 # kube tunnels: always enabled; each unit's ConditionPathExists skips it until its hand-copied secret exists
+{{- if get . "orgManaged" | default false }}
+# orgManaged: the company cluster tunnel stays; the personal OVH tunnel does not exist here (stop it if an earlier apply enabled it)
+systemctl --user enable --now onprem-kube-tunnel.service
+systemctl --user disable --now ovh-k8s-tunnel.service 2>/dev/null || true
+{{- else }}
 systemctl --user enable --now onprem-kube-tunnel.service ovh-k8s-tunnel.service
+{{- end }}
 systemctl --user enable --now dots-ops-fallback.timer
 systemctl --user enable --now dots-ops-disk-watch.timer
-systemctl --user enable --now dots-ops-dots-update.timer
 systemctl --user enable --now dots-ops-net-watch.timer dots-ops-containers.timer dots-ops-k8s-health.timer
+{{- if not (get . "orgManaged" | default false) }}
+systemctl --user enable --now dots-ops-dots-update.timer
 systemctl --user enable --now dots-ops-backup-watch.timer dots-ops-backup-check.timer
 systemctl --user enable --now dots-ops-pins-check.timer
+{{- end }}
 systemctl --user enable --now dots-ops-relay.path dots-ops-relay.service
 {{- if .timetrack }}
 systemctl --user enable --now awatcher.service timetrack-logind.service timetrack-rollup.timer timetrack-sync.timer

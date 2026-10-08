@@ -251,6 +251,44 @@ mkdir -p /tmp/mnt && restic mount /tmp/mnt            # browse snapshots like a 
 
 Never restore over your live home without looking first. Restore to a temp target and copy what you need.
 
+## Org-managed machines
+
+A work PC enrolled in Intune (or any company-managed device) has its security, patching and backups owned by
+company IT, and a compliance policy that may flag extra firewall, ssh, sudo or update tooling. On such a machine
+set `orgManaged` and dots-ops manages nothing IT owns.
+
+Set it with the `chezmoi init` prompt ("Org-managed machine ...?"), or put `orgManaged = true` under `[data]` in
+`~/.config/chezmoi/chezmoi.toml` and run `chezmoi apply`.
+
+What is off when `orgManaged = true`:
+
+- **The whole root side.** The installer installs nothing: no `/usr/local/lib/dots-ops`, no `dots-ops-run`, no
+  sudoers rule, no `dots-ops` group, no system units or timers, no udev rule, no `/etc/dots-ops`. So there is no
+  firewall management, ssh hardening, lynis audit, update check/security/full upgrade, firmware, reboot ask,
+  SMART/TRIM/system clean or power-profile job. The user side never calls `sudo` (`[root] enabled = false` in
+  `~/.config/dots-ops/config.toml`): idle-start/idle-end skip the root runner silently, `disk-watch` only warns,
+  `containers-prune` prunes dangling images but never offers the root volumes prune, and
+  `dots-ops run <rootjob>` prints "root jobs are disabled on this machine (orgManaged)" and exits 2.
+- **Root-layer packages added for dots-ops** (unattended-upgrades, fwupd, lynis, ufw, firewalld, dnf-plugins-core,
+  pacman-contrib, arch-audit, power-profiles-daemon, tuned-ppd) are not installed. The desktop's own packages are.
+  `perf-mode` still works but reports "power profiles unavailable" unless `powerprofilesctl` is already there.
+- **Backups and self-updates.** `backup`, `backup-watch`, `backup-check`, `dots-update` and `pins-check`, their
+  timers and `backup-excludes` are not deployed. The idle target does not pull them.
+- **Personal infrastructure.** No Tailscale (no distro package or installer, no `tailscaled` enable, and the Nix
+  `tailscale` CLI is left out through `DOTS_ORG_MANAGED=1`; `net-watch` only checks Tailscale if the binary
+  exists). The personal OVH tunnel (`ovh-k8s-tunnel.service`) is not deployed or enabled, and the `ovh` kube
+  context is not in `k8s.contexts`. The company cluster tunnel stays.
+
+Kept (user level only, no root, no open ports): `disk-watch` (warn only), `disk-clean-user`, `net-watch`,
+`containers`, `containers-prune`, `k8s-health`, `perf-mode`, the relay, the Waybar module and `dots-ops status`.
+
+Switching an existing machine to `orgManaged` removes the root side on the next `chezmoi apply`: the installer
+disables and deletes the dots-ops system units, the sudoers rule, the udev rule, `/usr/local/lib/dots-ops`,
+`/usr/local/bin/dots-ops-{run,job}`, `/etc/dots-ops` and the `dots-ops` group. `/var/lib/dots-ops` (old status
+data) is left alone. The OVH tunnel is stopped and disabled. User files already deployed (backup jobs, timers) are
+not removed by chezmoi; disable them with `systemctl --user disable --now` and delete them by hand. Nothing
+already installed (Tailscale, packages) is uninstalled.
+
 ## How to disable a job
 
 - User job: set it in `~/.config/dots-ops/config.toml` (edit the chezmoi source, then `chezmoi apply`):

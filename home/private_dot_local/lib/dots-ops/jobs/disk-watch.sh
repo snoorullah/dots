@@ -26,6 +26,7 @@ job_main() {
   ops_run systemd-run --user --no-block --collect --setenv=OPS_FORCE=1 \
     -p "ExecStopPost=$HOME/.local/bin/dots-ops-job --report-failure disk-clean-user" "$HOME/.local/bin/dots-ops-job" disk-clean-user \
     || ops_log disk-watch warn "could not start disk-clean-user"
+  ops_root_enabled || return 0   # orgManaged: warn only, no root clean
   read -ra sudo_cmd <<< "$OPS_SUDO"
   ops_run "${sudo_cmd[@]}" "$OPS_RUNNER" disk-clean-system run-now \
     || ops_log disk-watch warn "sudo disk-clean-system run-now refused or failed; skipped"

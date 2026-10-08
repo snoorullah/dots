@@ -113,3 +113,4 @@ After the first apply, dots-ops keeps the machine tidy: disk cleanup, updates, b
 cluster health, one Waybar icon, and approvals for anything risky. The installer adds you to the `dots-ops` group,
 so log out and back in once. Backups need `RESTIC_REPOSITORY` and `RESTIC_PASSWORD` in your hand-copied `~/.secrets`.
 See [dots-ops.md](dots-ops.md) for how it works and the cutover fire drill.
+On a company-managed (Intune) machine answer yes to the "Org-managed machine" prompt: see [Org-managed machines](dots-ops.md#org-managed-machines).

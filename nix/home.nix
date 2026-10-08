@@ -87,10 +87,12 @@ in {
     # security
     binwalk conftest hadolint syft testdisk tflint trivy
     # ssh & network
-    cloudflared iperf3 mosh nmap nettools sshpass tailscale traceroute whois wireguard-tools wireshark
+    cloudflared iperf3 mosh nmap nettools sshpass traceroute whois wireguard-tools wireshark
     # TUIs
     btop cava duf dust fastfetch lazydocker
     # AI
     claude-code codex
-  ] ++ (if gpu == "nvidia" then [ pkgs.cudaPackages.cudatoolkit pkgs.ollama-cuda ] else [ pkgs.ollama ]);
+  ] ++ (if gpu == "nvidia" then [ pkgs.cudaPackages.cudatoolkit pkgs.ollama-cuda ] else [ pkgs.ollama ])
+    # orgManaged machines (run_onchange_before_10-nix exports DOTS_ORG_MANAGED=1 under --impure): no Tailscale
+    ++ lib.optional (builtins.getEnv "DOTS_ORG_MANAGED" != "1") pkgs.tailscale;
 }

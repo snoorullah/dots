@@ -19,6 +19,7 @@ logind_hint() {   # true|false — best effort SetIdleHint on our logind session
 }
 idle_runner() {   # system idle-run|idle-end — R60: a refused sudo is visible (Waybar), not just a log line; success clears it
   local rc=0
+  ops_root_enabled || return 0   # orgManaged: no root side exists; no sudo call, no warn
   sudo_runner system "$1" || rc=$?
   if [ "$rc" -ne 0 ]; then
     ops_state system warn "root runner refused (rc=$rc): log out/in or check /etc/sudoers.d/dots-ops"
@@ -161,6 +162,7 @@ case "${1:-}" in
       if [ "$now" = 1 ]; then OPS_FORCE=1 exec bash "$(job_bin)" "$job"
       else exec systemctl --user start --no-block "dots-ops@$job.service"; fi
     else                                       # root job (R4)
+      ops_root_enabled || { echo "dots-ops: root jobs are disabled on this machine (orgManaged)" >&2; exit 2; }
       act=run; [ "$now" = 1 ] && act=run-now
       sudo_runner "$job" "$act"; rc=$?
       if [ "$rc" -ne 0 ]; then
