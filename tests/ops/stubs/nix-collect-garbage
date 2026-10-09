@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "nix-collect-garbage $*" >> "${STUB_LOG:-/dev/null}"

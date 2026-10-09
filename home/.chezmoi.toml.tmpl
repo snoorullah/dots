@@ -5,9 +5,12 @@
 {{-   if regexMatch "(?i)nvidia" (output "lspci") -}}{{ $gpu = "nvidia" }}{{- end -}}
 {{- end -}}
 {{- $mux := promptChoiceOnce . "multiplexer" "Multiplexer" (list "tmux" "herdr") "tmux" -}}
+{{- /* true on a company-managed machine (Intune): dots-ops then installs no root side and skips backup/update/pins jobs */}}
+{{- $org := promptBoolOnce . "orgManaged" "Org-managed machine (Intune/company IT owns security, patching, backups)?" false -}}
 sourceDir = {{ .chezmoi.sourceDir | quote }}
 # No secrets in this repo (public), not even encrypted: ~/.secrets, ~/.kube/* and ssh keys are copied by hand.
 [data]
   gpu = {{ $gpu | quote }}
   multiplexer = {{ $mux | quote }}
+  orgManaged = {{ $org }}
   timetrack = {{ get . "timetrack" | default false }}   # opt-in kept across re-init (set true in chezmoi.toml)

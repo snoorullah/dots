@@ -2,3 +2,4 @@
   gpu = "nvidia"
   multiplexer = "herdr"
   timetrack = false
+  orgManaged = false

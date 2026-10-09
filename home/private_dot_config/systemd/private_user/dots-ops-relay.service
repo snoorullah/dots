@@ -1,0 +1,10 @@
+[Unit]
+Description=dots-ops: copy root job status/asks into user state
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/dots-ops relay
+
+[Install]
+# also runs once at login, to catch up on anything root wrote while logged out
+WantedBy=default.target

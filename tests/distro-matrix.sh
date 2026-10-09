@@ -24,7 +24,7 @@ export PATH="$HOME/.local/bin:$PATH"
 # Shim lspci so the container deterministically looks GPU-less (what GitHub runners are anyway).
 mkdir -p ~/shim; printf '#!/bin/sh\necho "00:02.0 VGA compatible controller: Intel Corporation Generic"\n' > ~/shim/lspci; chmod +x ~/shim/lspci
 # repo root carries .chezmoiroot=home, so --source is the repo root; the prompt key is the prompt text
-PATH="$HOME/shim:$PATH" chezmoi init --apply --force --no-tty --source ~/dots --exclude=scripts --promptChoice Multiplexer=tmux
+PATH="$HOME/shim:$PATH" chezmoi init --apply --force --no-tty --source ~/dots --exclude=scripts --promptChoice Multiplexer=tmux --promptBool "Org-managed machine (Intune/company IT owns security, patching, backups)?=false"
 ! grep -q stale ~/.config/waybar/config.jsonc || { echo "FAIL stale waybar config survived"; exit 1; }
 test ! -e ~/.secrets || { echo "FAIL ~/.secrets created by the repo (secrets are hand-copied, never in it)"; exit 1; }
 test -f ~/.config/hypr/hyprland.lua || { echo "FAIL hyprland.lua not rendered"; exit 1; }
@@ -35,8 +35,25 @@ for f in ~/dots/home/.chezmoiscripts/*.tmpl; do
   bash -n /tmp/rendered.sh || { echo "FAIL bash -n $f"; exit 1; }
   echo "script ok: $(basename "$f")"
 done
+# dots-ops root installer (never executed): must render for this family (gpu=mesa, so the non-NixOS branch), parse,
+# carry a real content hash (find|sha256sum ran in this distro) and still install the runner, units and sudoers rule.
+chezmoi execute-template < ~/dots/home/.chezmoiscripts/run_onchange_after_26-dots-ops-system.sh.tmpl > /tmp/dots-ops-install.sh
+bash -n /tmp/dots-ops-install.sh || { echo "FAIL bash -n dots-ops installer"; exit 1; }
+grep -qE '^# dots-ops system install hash: [0-9a-f]{64}( +-)?$' /tmp/dots-ops-install.sh || { echo "FAIL dots-ops installer: no content hash rendered"; exit 1; }
+for needle in '/usr/local/bin/dots-ops-run' 'visudo -cf' '/etc/sudoers.d/dots-ops' 'groupadd --system dots-ops'; do
+  grep -qF -- "$needle" /tmp/dots-ops-install.sh || { echo "FAIL dots-ops installer: missing '$needle'"; exit 1; }
+done
+echo "dots-ops installer ok (rendered + bash -n)"
 chezmoi execute-template < ~/dots/home/.chezmoiscripts/run_once_before_00-system.sh.tmpl > /tmp/root-system.sh
 DOTS_PKG_LIST=1 bash /tmp/root-system.sh > /tmp/dots-pkgs.txt || { echo "FAIL root script DOTS_PKG_LIST mode"; exit 1; }
+# sshd: never enabled directly; the baseline helper (drop-in, sshd -t, authorized_keys guard) does it
+grep -qF "bash \"$HOME/dots/system/sshd/baseline.sh\"" /tmp/root-system.sh || { echo "FAIL root script does not run system/sshd/baseline.sh"; exit 1; }
+grep -qF 'AUTH_KEYS="$HOME/.ssh/authorized_keys"' /tmp/root-system.sh || { echo "FAIL root script: no authorized_keys guard input"; exit 1; }
+! grep -qE 'enable --now "?\$u"?|enable --now (ssh|sshd)\.' /tmp/root-system.sh || { echo "FAIL root script enables sshd outside the baseline helper"; exit 1; }
+for needle in '40-dots-baseline.conf' '-t -f "$SSHD_CONFIG"' 'has_key' 'stop_sshd' 'sshd_config\.d/\*\.conf'; do
+  grep -qF -- "$needle" ~/dots/system/sshd/baseline.sh || { echo "FAIL sshd baseline helper lacks '$needle'"; exit 1; }
+done
+echo "sshd baseline wired (drop-in + sshd -t + authorized_keys guard)"
 cat /tmp/dots-pkgs.txt
 bash ~/dots/tests/in-home.sh --sentinel
 echo "distro-matrix (chezmoi side): PASS"

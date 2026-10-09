@@ -1,0 +1,16 @@
+[Unit]
+# Personal machines only: not deployed on orgManaged machines (.chezmoiignore) and never enabled there
+# (run_onchange_after_24-systemd). Window titles are captured raw.
+Description=capture-window: Hyprland focus stream -> ~/capture/<host>/window/YYYY-MM-DD.jsonl
+After=graphical-session.target
+
+[Service]
+Type=simple
+# days of window files to keep; older YYYY-MM-DD.jsonl files are pruned once a day (0 = keep everything)
+Environment=CAPTURE_RETENTION_DAYS=365
+ExecStart=%h/.local/bin/capture-window.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

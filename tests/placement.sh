@@ -5,10 +5,16 @@ root="$(git rev-parse --show-toplevel)"; fail=0
 for data in "$root"/tests/data-*.toml; do
   out="$(mktemp -d)"; bash "$root/tests/render.sh" "$data" "$out" || { echo "RENDER-FAIL $data"; fail=1; continue; }
   mux=$(sed -nE 's/ *multiplexer = "(.*)"/\1/p' "$data"); gpu=$(sed -nE 's/ *gpu = "(.*)"/\1/p' "$data")
+  org=$(sed -nE 's/ *orgManaged = (true|false)/\1/p' "$data"); [ "$org" = true ] || org=false
   while read -r mode tag path; do
     case "$mode" in ""|\#*) continue ;; esac
-    [ "$tag" = all ] || [ "$tag" = "$mux" ] || continue
     f="$out/$path"
+    # selectors: all | <multiplexer> | personal (only when orgManaged = false; must be ABSENT on org machines)
+    if [ "$tag" = personal ] && [ "$org" = true ]; then
+      [ ! -e "$f" ] || { echo "PRESENT-ON-ORG[$gpu/$mux] $path (orgManaged must not deploy it)"; fail=1; }
+      continue
+    fi
+    [ "$tag" = all ] || [ "$tag" = personal ] || [ "$tag" = "$mux" ] || continue
     [ -e "$f" ] || { echo "MISSING[$gpu/$mux] $path"; fail=1; continue; }
     [ "$mode" != x ] || [ -x "$f" ] || { echo "NOT-EXEC[$gpu/$mux] $path"; fail=1; }
   done < "$root/tests/expected-targets.txt"

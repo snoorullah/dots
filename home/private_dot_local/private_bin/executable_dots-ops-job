@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Run one dots-ops job: lock, enabled check, idle/AC gate for heavy jobs, then job_main.
+set -uo pipefail
+if [ "$EUID" = 0 ]; then   # R2/R17: root never loads user-writable code or env-supplied paths
+  LIB=/usr/local/lib/dots-ops/lib.sh
+  OPS_JOBS_DIR=/usr/local/lib/dots-ops/jobs; OPS_CONFIG=/etc/dots-ops/config.toml
+else LIB="${OPS_LIB:-$HOME/.local/lib/dots-ops/lib.sh}"; [ -f "$LIB" ] || LIB=/usr/local/lib/dots-ops/lib.sh; fi
+source "$LIB"
+: "${OPS_JOBS_DIR:=$( [ "$OPS_IS_ROOT" = 1 ] && echo /usr/local/lib/dots-ops/jobs || echo "$HOME/.local/lib/dots-ops/jobs")}"
+: "${OPS_CONFIG:=$( [ "$OPS_IS_ROOT" = 1 ] && echo /etc/dots-ops/config.toml || echo "${XDG_CONFIG_HOME:-$HOME/.config}/dots-ops/config.toml")}"
+ops_cfg() { local v; v=$(yq -p toml -oy ".$1" "$OPS_CONFIG" 2>/dev/null); if [ -n "$v" ] && [ "$v" != null ]; then echo "$v"; else echo "$2"; fi; }
+[ "${1:-}" = --lib-only ] && return 0 2>/dev/null
+if [ "${1:-}" = --report-failure ]; then   # R57: ExecStopPost=dots-ops-job --report-failure <job | job-action act>
+  [[ ${2:-} =~ ^[a-z0-9][a-z0-9-]*$ && ${2:-} != ask-* ]] && { [ $# -eq 2 ] || { [ $# -eq 3 ] && [ "$3" = act ]; }; } \
+    || { echo "usage: dots-ops-job --report-failure <name> [act]" >&2; exit 2; }
+  ops_report_unit "$2" "${3:-}"; exit 0
+fi
+job=${1:?usage: dots-ops-job <job>}
+[[ $job =~ ^[a-z0-9-]+$ ]] || { echo "bad job name" >&2; exit 2; }
+[ "$(ops_cfg "jobs.$job.enabled" true)" = true ] || { ops_log "$job" info "disabled in config"; exit 0; }
+[ -f "$OPS_JOBS_DIR/$job.sh" ] || { ops_log "$job" fail "no such job"; exit 2; }
+if [ "$EUID" = 0 ] && ! ops_file_trusted "$OPS_JOBS_DIR" "$OPS_JOBS_DIR/$job.sh"; then   # R20: root runs root-owned code only
+  ops_log "$job" fail "refused: job file not root-owned or writable by others"; exit 2
+fi
+OPS_HEAVY=0; source "$OPS_JOBS_DIR/$job.sh"
+ops_lock "$job"
+if [ "$OPS_HEAVY" = 1 ] && [ "${OPS_FORCE:-0}" != 1 ] && ! ops_idle_ok; then
+  ops_log "$job" info "skipped: not idle/AC"; exit 0
+fi
+[ "$OPS_IS_ROOT" = 1 ] || ops_flush_queue
+job_main

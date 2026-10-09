@@ -1,0 +1,9 @@
+#!/bin/sh
+# stub systemctl: records; is-enabled -> $STUB_FSTRIM_ENABLED (1 = enabled); list-unit-files -> unit listed if STUB_FSTRIM_UNIT=1
+echo "systemctl $*" >> "${STUB_LOG:-/dev/null}"
+case " $* " in
+  *" is-enabled "*) [ "${STUB_FSTRIM_ENABLED:-0}" = 1 ] && { echo enabled; exit 0; }; echo disabled; exit 1 ;;
+  *" list-unit-files "*) [ "${STUB_FSTRIM_UNIT:-0}" = 1 ] && echo "fstrim.timer disabled enabled"; exit 0 ;;
+esac
+[ -z "${STUB_SYSTEMCTL_FAIL:-}" ] || exit 1
+exit 0

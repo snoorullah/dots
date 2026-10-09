@@ -1,0 +1,2 @@
+# dots-ops: re-pick the power profile when the AC adapter is plugged or unplugged (NixOS rewrites the systemctl path to the store)
+SUBSYSTEM=="power_supply", ATTR{type}=="Mains", ACTION=="change", RUN+="/usr/bin/systemctl start --no-block dots-ops@power-profile.service"

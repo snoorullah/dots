@@ -1,0 +1,5 @@
+#!/bin/sh
+# stub pacman: logs; STUB_PACMAN_FAIL=<msg> fails
+echo "pacman $*" >> "${STUB_LOG:-/dev/null}"
+[ -z "${STUB_PACMAN_FAIL:-}" ] || { printf '%b\n' "$STUB_PACMAN_FAIL"; exit 1; }
+exit 0

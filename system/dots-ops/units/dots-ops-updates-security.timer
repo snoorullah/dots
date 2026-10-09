@@ -1,0 +1,10 @@
+[Unit]
+Description=dots-ops automatic security updates (daily 04:00)
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+Unit=dots-ops@updates-security.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# agent-browser with a project's screenshot/download dirs and a default session name.
+# Project-specific values are NOT in this public repo: they come from ${XDG_CONFIG_HOME:-~/.config}/pi-fleet/config.sh
+# (hand-copied, docs/install.md), sourced as bash:
+#   AB_PROJECT_DIR=/path/to/project     screenshots in $AB_PROJECT_DIR/tmp/agent-browser (+ /downloads)  (required)
+#   AB_SESSION=name                     default --session                                  (optional, default: smoke)
+#   AB_ARGS=--no-sandbox                default AGENT_BROWSER_ARGS; opt-in, never set here  (optional)
+# Variables already in the environment (AGENT_BROWSER_*) still win over the config, as before.
+set -euo pipefail
+
+cfg="${XDG_CONFIG_HOME:-$HOME/.config}/pi-fleet/config.sh"
+if [[ ! -r "$cfg" ]]; then
+  echo "pnats-agent-browser: $cfg not found; it sets AB_PROJECT_DIR (hand-copied, see docs/install.md)" >&2
+  exit 1
+fi
+AB_PROJECT_DIR=""; AB_SESSION=""; AB_ARGS=""
+# shellcheck source=/dev/null
+. "$cfg"
+[[ -n "$AB_PROJECT_DIR" ]] || { echo "pnats-agent-browser: $cfg must set AB_PROJECT_DIR" >&2; exit 1; }
+
+# --no-sandbox only when the config (AB_ARGS) or the caller (AGENT_BROWSER_ARGS) asks for it
+if [[ -n "${AGENT_BROWSER_ARGS:-$AB_ARGS}" ]]; then export AGENT_BROWSER_ARGS="${AGENT_BROWSER_ARGS:-$AB_ARGS}"; fi
+export AGENT_BROWSER_SCREENSHOT_DIR="${AGENT_BROWSER_SCREENSHOT_DIR:-$AB_PROJECT_DIR/tmp/agent-browser}"
+export AGENT_BROWSER_DOWNLOAD_PATH="${AGENT_BROWSER_DOWNLOAD_PATH:-$AB_PROJECT_DIR/tmp/agent-browser/downloads}"
+export AGENT_BROWSER_MAX_OUTPUT="${AGENT_BROWSER_MAX_OUTPUT:-12000}"
+
+exec agent-browser --session "${AGENT_BROWSER_SESSION:-${AB_SESSION:-smoke}}" "$@"

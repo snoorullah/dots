@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # pins: {{ include ".chezmoidata/extra-tools.yaml" | sha256sum }}
+# orgManaged: {{ get . "orgManaged" | default false }}
 # aether package: {{ include (joinPath .chezmoi.workingTree "nix/pkgs/aether.nix") | sha256sum }}
-# Installs the pinned extra tools that Nix does not own (npm/cargo/pipx/uv/grok) and the per-user Aether profile.
+# Installs the pinned extra tools that Nix does not own (npm/cargo/pipx/uv/go/grok) and the per-user Aether profile.
 # Pins live in .chezmoidata/extra-tools.yaml; the Aether rev is read from the Nix aether package ($out/share/aether/REV).
 # HyprCapture, hypr-kdeconnect-fix and argonaut are Nix packages. Runs last (90) so the Nix switch (before_10) and
 # userdata (22) are done first.
@@ -30,14 +31,37 @@ have() { [ "$DRY" = 1 ] || command -v "$1" >/dev/null 2>&1; }
 marker_ok() { [ "$(cat "$STATE/$1.rev" 2>/dev/null)" = "$2" ]; }
 marker_set() { run mkdir -p "$STATE"; if [ "$DRY" = 1 ]; then printf '+ echo %s > %s/%s.rev\n' "$2" "$STATE" "$1"; else printf '%s\n' "$2" > "$STATE/$1.rev"; fi; }
 
+# exclude_bins (extra-tools.yaml): commands a tool links into ~/.local/bin that would shadow another tool of the same
+# name (claude-code-tools' `vault` vs HashiCorp vault from Nix). drop_bins <tool-dir> <bin>...: after the install
+# (and on every run, so an earlier link goes too), remove ~/.local/bin/<bin> ONLY when it is a symlink into this
+# tool's own install dir; a real file or a link anywhere else is left alone. npm/pipx/uv link their commands; cargo
+# and go write real binaries, so exclude_bins is not supported for them.
+drop_bins() {
+  local dir="$1" b t; shift
+  dir="$(readlink -f "$dir" 2>/dev/null || printf '%s' "$dir")"
+  for b in "$@"; do
+    if [ "$DRY" = 1 ]; then run rm -f "$BIN/$b"; continue; fi
+    [ -L "$BIN/$b" ] || continue
+    t="$(readlink -f "$BIN/$b" 2>/dev/null)" || t="$(readlink "$BIN/$b")"
+    case "$t" in
+      "$dir"/*) run rm -f "$BIN/$b" && log "excluded: removed $BIN/$b (would shadow another $b)" ;;
+      *) log "exclude_bins: kept $BIN/$b, it is not a link into $dir" ;;
+    esac
+  done
+}
+
 # ── npm (prefix ~/.local) ──────────────────────────────────────────────
-npm_tool() { # name version [ignore-scripts]
+npm_tool() { # name version [ignore|""] [exclude-bin...]
   local name="$1" ver="$2" flags=() have_ver
-  have_ver="$(sed -nE 's/^ *"version": *"([^"]+)".*/\1/p' "$HOME/.local/lib/node_modules/$name/package.json" 2>/dev/null | head -1)"
-  [ "$have_ver" = "$ver" ] && { log "ok: $name $ver"; return 0; }
-  have npm || { skip "$name" "npm not on PATH"; return 0; }
   [ "${3:-}" = ignore ] && flags=(--ignore-scripts)
-  run npm install -g --prefix "$HOME/.local" "${flags[@]}" "$name@$ver" || fail "$name"
+  shift 2; [ $# -gt 0 ] && shift
+  have_ver="$(sed -nE 's/^ *"version": *"([^"]+)".*/\1/p' "$HOME/.local/lib/node_modules/$name/package.json" 2>/dev/null | head -1)"
+  if [ "$have_ver" = "$ver" ]; then log "ok: $name $ver"
+  else
+    have npm || { skip "$name" "npm not on PATH"; return 0; }
+    run npm install -g --prefix "$HOME/.local" "${flags[@]}" "$name@$ver" || { fail "$name"; return 0; }
+  fi
+  [ $# -eq 0 ] || drop_bins "$HOME/.local/lib/node_modules/$name" "$@"
 }
 
 # ── cargo (root ~/.local) ──────────────────────────────────────────────
@@ -53,22 +77,44 @@ cargo_tool() { # crate version
 }
 
 # ── pipx (PIPX_BIN_DIR ~/.local/bin) ───────────────────────────────────
-pipx_tool() { # name version
+pipx_tool() { # name version [exclude-bin...]
+  local name="$1" ver="$2"; shift 2
   export PIPX_BIN_DIR="$BIN"
-  [ -d "$HOME/.local/share/pipx" ] && pipx list --short 2>/dev/null | grep -qx "$1 $2" && { log "ok: $1 $2"; return 0; }
-  have pipx || { skip "$1" "pipx not on PATH"; return 0; }
-  run pipx install --force "$1==$2" || fail "$1"
+  if [ -d "$HOME/.local/share/pipx" ] && pipx list --short 2>/dev/null | grep -qx "$name $ver"; then log "ok: $name $ver"
+  else
+    have pipx || { skip "$name" "pipx not on PATH"; return 0; }
+    run pipx install --force "$name==$ver" || { fail "$name"; return 0; }
+  fi
+  [ $# -eq 0 ] || drop_bins "${PIPX_HOME:-$HOME/.local/share/pipx}/venvs/$name" "$@"
 }
 
 # ── uv tool (UV_TOOL_BIN_DIR ~/.local/bin): tools pinned to a Python the machine may not have ──
 # `uv tool install --python X` downloads a managed CPython X when none is found (uv's default
 # python-downloads=automatic; uv 0.10.4 here, 0.12.22 in the Nix profile), so no python3.12 package is needed.
 # pipx can only do that from 1.5 (--fetch-missing-python, now --fetch-python=missing); Ubuntu 24.04's pipx is 1.4.3.
-uv_tool() { # name version python
+uv_tool() { # name version python [exclude-bin...]
+  local name="$1" ver="$2" py="$3" tools="${UV_TOOL_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/uv/tools}"; shift 3
   export UV_TOOL_BIN_DIR="$BIN"
-  [ -d "${XDG_DATA_HOME:-$HOME/.local/share}/uv/tools/$1" ] && uv tool list 2>/dev/null | grep -qx "$1 v$2" && { log "ok: $1 $2"; return 0; }
-  have uv || { skip "$1" "uv not on PATH"; return 0; }
-  run uv tool install --force --python "$3" "$1==$2" || fail "$1"
+  if [ -d "$tools/$name" ] && uv tool list 2>/dev/null | grep -qx "$name v$ver"; then log "ok: $name $ver"
+  else
+    have uv || { skip "$name" "uv not on PATH"; return 0; }
+    run uv tool install --force --python "$py" "$name==$ver" || { fail "$name"; return 0; }
+  fi
+  [ $# -eq 0 ] || drop_bins "$tools/$name" "$@"
+}
+
+# ── go install (GOBIN ~/.local/bin) ────────────────────────────────────
+# Module downloads are verified against sum.golang.org. GOTOOLCHAIN=auto lets go fetch the toolchain a module's
+# go.mod asks for (nixpkgs' go defaults to local). No go on PATH: fall back to nixpkgs go, like cargo above.
+GO=(go)
+if [ "$DRY" != 1 ] && ! go version >/dev/null 2>&1; then
+  GO=(nix --extra-experimental-features "nix-command flakes" shell nixpkgs#go -c go)
+fi
+go_tool() { # package version binary
+  # only ask go about an existing binary: running go at all writes ~/.config/go/telemetry (and a dry run must not touch HOME)
+  [ -x "$BIN/$3" ] && [ "$(GOTELEMETRY=off "${GO[@]}" version -m "$BIN/$3" 2>/dev/null | awk '$1 == "mod" {print $3; exit}')" = "$2" ] && { log "ok: $3 $2"; return 0; }
+  have "${GO[0]}" || { skip "$3" "no go or nix"; return 0; }
+  run env GOBIN="$BIN" GOTOOLCHAIN=auto GOTELEMETRY=off "${GO[@]}" install "$1@$2" || fail "$3"
 }
 
 # ── Grok CLI: vendor installer at a pinned version ─────────────────────
@@ -121,17 +167,34 @@ aether_tool() { # the rev comes from the Nix package (single source: nix/pkgs/ae
   marker_set aether "$rev"
 }
 
+{{- /* `personal: true` tools are left out on orgManaged machines */}}
+{{- $org := get . "orgManaged" | default false }}
 {{ range .extraTools.npm -}}
-npm_tool "{{ .name }}" "{{ .version }}"{{ if hasKey . "ignoreScripts" }} ignore{{ end }}
+{{ if not (and $org (hasKey . "personal") .personal) -}}
+npm_tool "{{ .name }}" "{{ .version }}"{{ if hasKey . "ignoreScripts" }} ignore{{ else if hasKey . "exclude_bins" }} ""{{ end }}{{ if hasKey . "exclude_bins" }}{{ range .exclude_bins }} {{ . | quote }}{{ end }}{{ end }}
+{{ end -}}
 {{ end -}}
 {{ range .extraTools.cargo -}}
+{{ if not (and $org (hasKey . "personal") .personal) -}}
+{{ if hasKey . "exclude_bins" }}{{ fail (printf "extra-tools.yaml: exclude_bins is not supported for cargo (%s)" .crate) }}{{ end -}}
 cargo_tool "{{ .crate }}" "{{ .version }}"
 {{ end -}}
+{{ end -}}
 {{ range .extraTools.pipx -}}
-pipx_tool "{{ .name }}" "{{ .version }}"
+{{ if not (and $org (hasKey . "personal") .personal) -}}
+pipx_tool "{{ .name }}" "{{ .version }}"{{ if hasKey . "exclude_bins" }}{{ range .exclude_bins }} {{ . | quote }}{{ end }}{{ end }}
+{{ end -}}
 {{ end -}}
 {{ range .extraTools.uv -}}
-uv_tool "{{ .name }}" "{{ .version }}" "{{ .python }}"
+{{ if not (and $org (hasKey . "personal") .personal) -}}
+uv_tool "{{ .name }}" "{{ .version }}" "{{ .python }}"{{ if hasKey . "exclude_bins" }}{{ range .exclude_bins }} {{ . | quote }}{{ end }}{{ end }}
+{{ end -}}
+{{ end -}}
+{{ range .extraTools.go -}}
+{{ if not (and $org (hasKey . "personal") .personal) -}}
+{{ if hasKey . "exclude_bins" }}{{ fail (printf "extra-tools.yaml: exclude_bins is not supported for go (%s)" .bin) }}{{ end -}}
+go_tool "{{ .package }}" "{{ .version }}" "{{ .bin }}"
+{{ end -}}
 {{ end -}}
 grok_tool "{{ .extraTools.grok.version }}" "{{ .extraTools.grok.installerUrl }}"
 aether_tool

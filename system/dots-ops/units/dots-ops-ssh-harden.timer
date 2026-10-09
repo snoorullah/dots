@@ -1,0 +1,11 @@
+[Unit]
+Description=dots-ops sshd hardening check (daily, and 5 min after boot; only asks or no-ops)
+
+[Timer]
+OnCalendar=daily
+OnBootSec=5min
+Persistent=true
+Unit=dots-ops@ssh-harden.service
+
+[Install]
+WantedBy=timers.target

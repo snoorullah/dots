@@ -1,0 +1,10 @@
+# restic --exclude-file for dots-ops backups. restic matches these against absolute paths: a leading '*/' (any
+# directory) keeps them independent of the home directory; a pattern without a slash matches that name anywhere.
+*/.cache
+*/.local/share/Trash
+*/.nix-profile
+node_modules
+*/.cargo/registry
+*/go/pkg
+*/Downloads/*.iso
+*/walls/.git

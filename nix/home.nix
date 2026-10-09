@@ -31,6 +31,18 @@ let
   aether = gl (pkgs.aether.override {
     extraPolicies = awWatcher // { DisablePrivateBrowsing = true; PrivateBrowsingModeAvailability = 1; };
   });
+  # Personal machines only: everything here is left out on orgManaged machines (company IT owns them).
+  # run_onchange_before_10-nix exports DOTS_ORG_MANAGED=1 there and evaluates with --impure; NixOS and plain
+  # `nix eval` see no variable, so they get the personal set. This is the ONLY place that reads the variable.
+  personalOnly = lib.optionals (builtins.getEnv "DOTS_ORG_MANAGED" != "1") (with pkgs; [
+    # chat
+    (gl legcord) (gl beeper) (gl telegram-desktop) zapzap nchat tg
+    (weechat.override { configure = { availablePlugins, ... }: { scripts = [ weechatScripts.wee-slack ]; }; })
+    # media
+    (gl blender) (gl mpv) (gl obs-studio) (gl kdePackages.kdenlive) (gl krita) (gl gimp3) (gl inkscape) (gl handbrake) cava
+    # secrets / remote access (+ triage add_dots_personal: autossh for reverse-tunnel.service, sshfs, qrencode)
+    age cloudflared sshpass autossh sshfs qrencode
+  ] ++ lib.optional (gpu == "nvidia") cudaPackages.cudatoolkit);
 in {
   home.stateVersion = "25.11";
   programs.home-manager.enable = true;
@@ -46,15 +58,13 @@ in {
     (lib.hiPrio taskwarrior3) timewarrior taskwarrior-tui aw-server-rust awatcher dotsAdhanPython timetrack
     zsh antidote starship zoxide fzf eza bat ripgrep jq gh neovim git chezmoi
     tmux dotsTmuxPluginFarm inputs.herdr.packages.${pkgs.system}.default
-    kubectl k9s openssh
+    kubectl k9s openssh bats yq-go
     nerd-fonts.jetbrains-mono nerd-fonts.fantasque-sans-mono victor-mono material-symbols noto-fonts noto-fonts-color-emoji
     kdePackages.breeze kdePackages.breeze-icons
 
     # --- owner picks (addendum) ---
     # browsers / chat / mail
-    zen aether compat (gl google-chrome) brotab slack teams-for-linux thunderbird
-    (gl legcord) (gl beeper) (gl telegram-desktop) zapzap nchat tg
-    (weechat.override { configure = { availablePlugins, ... }: { scripts = [ weechatScripts.wee-slack ]; }; })
+    zen aether compat (gl google-chrome) (gl brave) brotab slack teams-for-linux thunderbird
     # calendar / tasks / sync
     gcalcli gnome-calendar khal tasksh python3Packages.bugwarrior taskchampion-sync-server
     kdePackages.kdeconnect-kde hypr-kdeconnect-fix hyprcapture argonaut
@@ -62,35 +72,38 @@ in {
     buildah skopeo dive
     # CLI utilities
     p7zip ast-grep buf doxygen ffmpeg glslang imagemagick ipmitool lm_sensors pandoc
-    qalculate-gtk restic yt-dlp zip unzip
+    qalculate-gtk restic yt-dlp zip unzip glow kcat grass-sass
+    python3Packages.trafilatura python3Packages.courlan python3Packages.htmldate
+    # disks, filesystems, boot media, hardware (triage add_dots_all)
+    exfatprogs hfsprogs mtools mtdutils lsscsi db cramfsswap ncompress arj syslinux iucode-tool rdma-core pahole
+    libguestfs-with-appliance guestfs-tools hivex
     # desktop
-    kdePackages.qtstyleplugin-kvantum pavucontrol kdePackages.qt6ct yad
+    kdePackages.qtstyleplugin-kvantum pavucontrol kdePackages.qt6ct yad wlogout swappy nwg-displays rofi
     # editors
     drawio obsidian vscode
     # git
     delta lazygit lefthook
     # kubernetes / cloud / IaC
-    actionlint ansible ansible-lint awscli2 cilium-cli crane crossplane-cli dbmate devpod distrobox
+    actionlint ansible ansible-lint awscli2 azure-cli cntb cilium-cli crane crossplane-cli dbmate devpod distrobox
     docker-client docker-compose kubernetes-helm kapp kbld kcl kind kubeconform kubectx kustomize
     lens minio-client molecule packer postgresql powershell qemu redis sqlite stern talhelper talosctl terraform
     # languages & toolchains
     bun check-jsonschema clang cmake deno go golangci-lint gopls go-tools llvm
     lua luarocks (lib.lowPrio luajit) meson ninja nodejs_24 pipx pnpm ruff rustup shellcheck shfmt uv yamllint
     # media
-    (gl blender) loupe (gl mpv)
-    (gl obs-studio) (gl kdePackages.kdenlive) (gl krita) (gl gimp3) (gl inkscape) (gl handbrake)
-    font-manager
+    loupe font-manager
     # office
     hoppscotch libreoffice-fresh
     # secrets
-    age cosign gnupg vault keepassxc kubeseal seahorse gnome-keyring sops step-cli
+    cosign gnupg vault keepassxc kubeseal seahorse gnome-keyring sops step-cli
     # security
-    binwalk conftest hadolint syft testdisk tflint trivy
+    binwalk conftest hadolint syft testdisk tflint trivy gitleaks scrub bpftrace bcc
     # ssh & network
-    cloudflared iperf3 mosh nmap nettools sshpass tailscale traceroute whois wireguard-tools wireshark
+    iperf3 mosh nmap nettools traceroute whois wireguard-tools wireshark
     # TUIs
-    btop cava duf dust fastfetch lazydocker
+    btop duf dust fastfetch lazydocker
     # AI
     claude-code codex
-  ] ++ (if gpu == "nvidia" then [ pkgs.cudaPackages.cudatoolkit pkgs.ollama-cuda ] else [ pkgs.ollama ]);
+  ] ++ (if gpu == "nvidia" then [ pkgs.ollama-cuda ] else [ pkgs.ollama ])
+    ++ personalOnly;
 }

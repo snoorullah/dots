@@ -1,0 +1,4 @@
+{{- $org := get . "orgManaged" | default false -}}
+[Unit]
+Description=dots-ops heavy jobs (machine idle)
+Wants=dots-ops@disk-clean-user.service{{ if not $org }} dots-ops@backup.service{{ end }} dots-ops@containers-prune.service{{ if not $org }} dots-ops@backup-check.service dots-ops@dots-update.service{{ end }}

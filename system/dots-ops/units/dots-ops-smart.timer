@@ -1,0 +1,10 @@
+[Unit]
+Description=dots-ops SMART check (daily)
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+Unit=dots-ops@smart.service
+
+[Install]
+WantedBy=timers.target

@@ -26,6 +26,7 @@ window#waybar {
 #custom-tracking,
 #custom-project,
 #custom-kube,
+#custom-ops,
 #custom-ctx,
 #wireplumber,
 #network {
@@ -43,6 +44,9 @@ window#waybar {
 #custom-kube.kube-up   { color: #8be9fd; }
 #custom-kube.kube-down { color: #ff5555; }
 #custom-kube.kube-none { color: #6272a4; }
+#custom-ops.ok   { color: #50fa7b; }
+#custom-ops.warn { color: #ffb86c; }
+#custom-ops.fail { color: #ff5555; }
 #custom-ctx.ctx-none     { color: #6272a4; }
 #custom-ctx.ctx-work     { color: #8be9fd; }
 #custom-ctx.ctx-lab      { color: #50fa7b; }

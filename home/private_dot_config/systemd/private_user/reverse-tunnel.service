@@ -1,0 +1,38 @@
+[Unit]
+Description=Reverse SSH tunnel (autossh): a port on a remote host -> this machine's sshd
+After=network-online.target
+Wants=network-online.target
+# The remote host is a hand-copied secret (never in this public repo): ~/.config/reverse-tunnel.env, mode 0600, with
+#   REMOTE=user@host        (required)
+#   REMOTE_PORT=2222        LOCAL_PORT=22        IDENTITY=~/.ssh/id_ed25519   (optional, these are the defaults;
+#                                                                              IDENTITY as an absolute path, no ~ or $HOME)
+# Without the file the unit is skipped, not failed. The remote host key must already be in ~/.ssh/known_hosts
+# (StrictHostKeyChecking=yes): seed it once with `ssh -i <IDENTITY> <REMOTE> true` and check the fingerprint.
+ConditionPathExists=%h/.config/reverse-tunnel.env
+# an older system-level copy of this tunnel (/etc/systemd/system/reverse-tunnel.service) holds the same ports
+ConditionPathExists=!/etc/systemd/system/reverse-tunnel.service
+
+[Service]
+Type=simple
+# defaults; the env file overrides them (EnvironmentFile= wins over Environment=)
+Environment=REMOTE_PORT=2222 LOCAL_PORT=22 IDENTITY=%h/.ssh/id_ed25519
+# -M 0: no autossh monitor port; ssh's ServerAlive* detects a dead link and autossh restarts it.
+# AUTOSSH_GATETIME=0: keep retrying even if the very first connection fails (e.g. at boot before the network is up).
+Environment=AUTOSSH_GATETIME=0
+EnvironmentFile=-%h/.config/reverse-tunnel.env
+# REMOTE unset or empty: skip (ExecCondition exit 1), do not crash-loop
+ExecCondition=/bin/sh -c 'test -n "$REMOTE" && test -r "$IDENTITY"'
+ExecStart=%h/.nix-profile/bin/autossh -M 0 -N \
+  -o ExitOnForwardFailure=yes \
+  -o ServerAliveInterval=30 \
+  -o ServerAliveCountMax=3 \
+  -o StrictHostKeyChecking=yes \
+  -o IdentitiesOnly=yes \
+  -i ${IDENTITY} \
+  -R ${REMOTE_PORT}:localhost:${LOCAL_PORT} \
+  ${REMOTE}
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

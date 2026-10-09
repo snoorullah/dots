@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# test stub: last arg is the URL; map it to $PINS_FIXTURES/$PINS_FIXTURE_SET/<sanitized-url>.json
+url="${*: -1}"; [ "${PINS_FIXTURE_SET:-}" = offline ] && exit 7
+f="$PINS_FIXTURES/$PINS_FIXTURE_SET/$(printf '%s' "$url" | sed 's|https://||; s|[/@%]|_|g').json"
+[ -f "$f" ] && cat "$f" || exit 22

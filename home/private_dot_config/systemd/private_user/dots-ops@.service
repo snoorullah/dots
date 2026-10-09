@@ -1,0 +1,11 @@
+[Unit]
+Description=dots-ops job %i
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/dots-ops-job %i
+# R57: a crash, kill or timeout never reaches the job's own ops_state; report it (no-op on success)
+ExecStopPost=%h/.local/bin/dots-ops-job --report-failure %i
+TimeoutStartSec=2h
+Nice=10
+IOSchedulingClass=idle

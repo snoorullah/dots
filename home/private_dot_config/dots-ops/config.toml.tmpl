@@ -1,0 +1,16 @@
+[disk]
+warn = 85
+crit = 95
+[backup]
+keep_daily = 7
+keep_weekly = 4
+keep_monthly = 6
+max_age_hours = 48
+[k8s]
+contexts = ["admin@onprem-s2a"{{ if not (get . "orgManaged" | default false) }}, "ovh"{{ end }}]
+[jobs.k8s-health]
+enabled = true
+# Root side of dots-ops (sudo runner, system units). false on an orgManaged machine: company IT owns that layer,
+# so user code never calls sudo. Set orgManaged in ~/.config/chezmoi/chezmoi.toml rather than editing this.
+[root]
+enabled = {{ not (get . "orgManaged" | default false) }}

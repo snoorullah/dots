@@ -7,7 +7,8 @@
 #   cp /mnt/etc/nixos/hardware-configuration.nix hosts/laptop/
 let user = "devsupreme"; in
 {
-  imports = [ ./hardware-configuration.nix ];
+  imports = [ ./hardware-configuration.nix ./dots-ops.nix ];
+  dots-ops.owner = user;   # /etc/dots-ops/owner + the sshd hardening keys guard (dots-ops.nix)
 
   # ── Boot ──
   boot.loader.systemd-boot.enable = true;
@@ -105,7 +106,7 @@ let user = "devsupreme"; in
   users.users.${user} = {
     isNormalUser = true;
     description = user;
-    extraGroups = [ "wheel" "networkmanager" "video" "audio" "docker" "wireshark" ];
+    extraGroups = [ "wheel" "networkmanager" "video" "audio" "docker" "wireshark" "dots-ops" ];   # dots-ops: sudo -n runner (dots-ops.nix)
     shell = pkgs.zsh;
   };
 
@@ -113,9 +114,24 @@ let user = "devsupreme"; in
   virtualisation.docker.enable = true;
   hardware.nvidia-container-toolkit.enable = true;   # NVIDIA host: CDI for `docker run --gpus`
 
-  # ── Network / capture ── (`tailscale up` is the owner's step)
-  services.tailscale.enable = true;
+  # ── Network / capture ──
+  # inbound ssh, key-only from the start (same baseline as system/sshd/40-dots-baseline.conf on other distros).
+  # Port 22 is opened by dots-ops' firewall.json (dots-ops.nix -> networking.firewall), not by the openssh module,
+  # so the firewall has one source of truth on every distro; drop the 22 rule there and sshd is local-only.
+  services.openssh = {
+    enable = true;
+    openFirewall = lib.mkDefault false;
+    settings = {
+      PasswordAuthentication = lib.mkDefault false;
+      KbdInteractiveAuthentication = lib.mkDefault false;
+      PermitRootLogin = lib.mkDefault "no";
+    };
+  };
   programs.wireshark.enable = true;                  # dumpcap wrapper; user is in the wireshark group above
+
+  # ── Host services ── (thermald: this laptop is Intel, see hardware-configuration.nix kvm-intel)
+  services.thermald.enable = true;
+  zramSwap = { enable = true; algorithm = "zstd"; memoryPercent = 50; memoryMax = 16 * 1024 * 1024 * 1024; priority = 100; };
 
   # Minimal system-wide tooling; everything else is in the home layer.
   environment.systemPackages = with pkgs; [ git vim wget chezmoi ];

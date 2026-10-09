@@ -1,0 +1,237 @@
+#!/usr/bin/env bash
+# dots-ops CLI. Later tasks add: status, waybar (T5), perf-mode (T10), pins-bump (T11).
+set -uo pipefail
+if [ "$EUID" = 0 ]; then LIB=/usr/local/lib/dots-ops/lib.sh
+else LIB="${OPS_LIB:-$HOME/.local/lib/dots-ops/lib.sh}"; [ -f "$LIB" ] || LIB=/usr/local/lib/dots-ops/lib.sh; fi
+source "$LIB"
+: "${OPS_JOBS_DIR:=$HOME/.local/lib/dots-ops/jobs}"
+here=$(dirname "$(readlink -f "$0")")
+usage() { echo "usage: dots-ops run <job> [--now] | answer <job> <approve|alt|skip|snooze> [token] | idle-start [--fallback] | idle-end [--fallback] | perf-mode [on|off|toggle] | pins-bump | relay | waybar | status" >&2; exit 2; }
+
+sudo_runner() {   # R8: sudo -n only; returns the runner rc (callers decide if it is fatal)
+  local sc; read -ra sc <<< "$OPS_SUDO"
+  "${sc[@]}" "$OPS_RUNNER" "$@" || { local rc=$?; ops_log system warn "sudo runner failed (rc=$rc): $*"; return "$rc"; }
+}
+logind_hint() {   # true|false — best effort SetIdleHint on our logind session (hypridle runs us inside the session)
+  busctl call org.freedesktop.login1 /org/freedesktop/login1/session/auto org.freedesktop.login1.Session SetIdleHint b "$1" \
+    >/dev/null 2>&1 || ops_log system info "could not set the logind idle hint ($1)"
+  return 0
+}
+idle_runner() {   # system idle-run|idle-end — R60: a refused sudo is visible (Waybar), not just a log line; success clears it
+  local rc=0
+  ops_root_enabled || return 0   # orgManaged: no root side exists; no sudo call, no warn
+  sudo_runner system "$1" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    ops_state system warn "root runner refused (rc=$rc): log out/in or check /etc/sudoers.d/dots-ops"
+  elif [ "$(jq -r '.status // "ok"' "$OPS_STATE/state/system.json" 2>/dev/null || echo ok)" != ok ]; then
+    ops_state system ok "root runner reachable again"
+  fi
+  return 0
+}
+relay() {   # root → user: /var/lib/dots-ops/<job>.json → ops_state; ask-<job>.json → ops_ask (user context only)
+  [ "$OPS_IS_ROOT" != 1 ] || { echo "dots-ops relay runs as the desktop user, not root" >&2; exit 2; }
+  local f base st sum changed seen ask_sum q act alt altl asked p job
+  mkdir -p "$OPS_STATE/relayed"
+  for f in "$OPS_ROOT_STATE"/*.json; do
+    [ -f "$f" ] || continue
+    base=$(basename "$f" .json)
+    if [[ $base =~ ^ask-([a-z0-9][a-z0-9-]*)$ ]]; then   # pending root approval
+      job=${BASH_REMATCH[1]}
+      ask_sum=$(sha256sum < "$f" | cut -d' ' -f1)
+      [ "$(cat "$OPS_STATE/relayed/ask-$job" 2>/dev/null)" = "$ask_sum" ] && continue   # already asked
+      q=$(jq -er '.question | strings' "$f" 2>/dev/null) && act=$(jq -er '.action | strings' "$f" 2>/dev/null) \
+        || { ops_log "$job" warn "relay: unreadable ask file"; continue; }
+      alt=$(jq -r '.alt_action // "" | strings' "$f" 2>/dev/null)
+      altl=$(jq -r '.alt_label // "" | strings' "$f" 2>/dev/null)
+      asked=$(jq -r '.asked // 0' "$f" 2>/dev/null); [[ $asked =~ ^[0-9]+$ ]] || asked=0
+      if [ $(( $(ops_now) - asked )) -ge 86400 ]; then   # R21: a stale ask (root job stopped asking) is dropped
+        ops_log "$job" info "relay: dropped stale root ask (asked $asked)"
+        echo "$ask_sum" > "$OPS_STATE/relayed/ask-$job"; continue
+      fi
+      if [[ $act != root:* ]] || { [ -n "$alt" ] && [[ $alt != root:* ]]; }; then   # root may only ask for root actions
+        ops_log "$job" warn "relay: ignored non-root action in ask file"; continue
+      fi
+      # R48: a live pending showing another question/action than the newest root ask is replaced, never kept —
+      # otherwise ops_ask returns early and the owner would approve text they never saw for the root's new ask
+      p="$OPS_STATE/pending/$job.json"
+      if [ -f "$p" ] && [ "$(jq -r '.action // "" | strings' "$p" 2>/dev/null)" = "${act}" ] \
+           && [ "$(jq -r '.question // "" | strings' "$p" 2>/dev/null)" = "$q" ] \
+           && [ "$(jq -r '.alt_action // "" | strings' "$p" 2>/dev/null)" = "$alt" ]; then :
+      elif [ -f "$p" ] && [[ $(jq -r '.action // "" | strings' "$p" 2>/dev/null) == root:* ]]; then
+        ops_toast_close "$job"   # R54: the old toast must not stay clickable (its token is stale anyway)
+        rm -f "$p"; ops_log "$job" info "relay: pending replaced by a changed root ask"
+      fi
+      if [ -n "$alt" ]; then ops_ask "$job" "$q" "$act" "$alt" "$altl"; else ops_ask "$job" "$q" "$act"; fi
+      echo "$ask_sum" > "$OPS_STATE/relayed/ask-$job"
+      continue
+    fi
+    [[ $base =~ ^[a-z0-9][a-z0-9-]*$ ]] || continue
+    st=$(jq -r '.status // ""' "$f" 2>/dev/null); sum=$(jq -r '.summary // ""' "$f" 2>/dev/null)
+    changed=$(jq -r '.changed // 0' "$f" 2>/dev/null)
+    case $st in ok|warn|fail) ;; *) continue ;; esac
+    [[ $changed =~ ^[0-9]+$ ]] || continue
+    seen=$(cat "$OPS_STATE/relayed/$base" 2>/dev/null || echo 0)
+    [[ $seen =~ ^[0-9]+$ ]] || seen=0
+    [ "$changed" -gt "$seen" ] || continue
+    if [ -f "$OPS_JOBS_DIR/$base.sh" ]; then   # R22: a user job owns this name; never overwrite its status
+      ops_log "$base" warn "relay: root status skipped (name collides with user job)"
+      echo "$changed" > "$OPS_STATE/relayed/$base"; continue
+    fi
+    ops_state "$base" "$st" "$sum"
+    echo "$changed" > "$OPS_STATE/relayed/$base"
+  done
+  # R48: a root ask that disappeared (withdrawn, applied, refused) withdraws the user's pending for it
+  if [ -d "$OPS_ROOT_STATE" ]; then
+    local gone=0
+    for f in "$OPS_STATE"/relayed/ask-*; do
+      [ -f "$f" ] || continue
+      job=${f##*/relayed/ask-}
+      [[ $job =~ ^[a-z0-9][a-z0-9-]*$ ]] || continue
+      [ -e "$OPS_ROOT_STATE/ask-$job.json" ] && continue
+      p="$OPS_STATE/pending/$job.json"
+      if [ -f "$p" ] && [[ $(jq -r '.action // "" | strings' "$p" 2>/dev/null) == root:* ]]; then
+        ops_toast_close "$job"
+        rm -f "$p"; ops_log "$job" info "relay: root ask withdrawn; pending removed"; gone=1
+      fi
+      rm -f "$f"
+    done
+    [ "$gone" = 0 ] || ops_signal   # the Waybar ask count drops
+  fi
+  return 0
+}
+pins_cfg() { local v c="${OPS_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/dots-ops/config.toml}"; v=$(yq -p toml -oy ".$1" "$c" 2>/dev/null); if [ -n "$v" ] && [ "$v" != null ]; then echo "$v"; else echo "$2"; fi; }
+pins_set_version() {   # file key name from to — format-preserving edit of one flow-map entry (yq -i would reflow the file)
+  PK=$2 PN=$3 PF=$4 PT=$5 perl -0777 -i -pe '
+    $n += s/(\{\s*\Q$ENV{PK}\E:\s*"?\Q$ENV{PN}\E"?\s*,\s*version:\s*)\Q$ENV{PF}\E(?=\s*[,}])/$1$ENV{PT}/;
+    END { $? = ($n == 1 ? 0 : 1) }' "$1"
+}
+pins_bump() {   # user context: git/gh run as the owner. Always branch pins/<date>[-n]; never touches main/master.
+  [ "$OPS_IS_ROOT" != 1 ] || { echo "dots-ops pins-bump runs as the owner, not root" >&2; exit 2; }
+  : "${OPS_DOTS_REPO:=$(git -C "$(chezmoi source-path 2>/dev/null)" rev-parse --show-toplevel 2>/dev/null)}"
+  local c="$OPS_STATE/pins-candidates.json" wt="$OPS_STATE/pins-wt" br br0 n base body="" url kind name from to key y
+  local files=(home/.chezmoidata/extra-tools.yaml nix/flake.lock)
+  bump_drop() { ops_run git -C "$OPS_DOTS_REPO" worktree remove --force "$wt"; ops_run git -C "$OPS_DOTS_REPO" branch -D "$br" >/dev/null; }   # nothing pushed yet: drop worktree and local branch
+  bump_fail() { ops_state pins-check fail "$1"; echo "dots-ops pins-bump: $1" >&2; exit 1; }
+  [ -n "$OPS_DOTS_REPO" ] && git -C "$OPS_DOTS_REPO" rev-parse --git-dir >/dev/null 2>&1 || bump_fail "no dots git repo (set OPS_DOTS_REPO)"
+  [ -s "$c" ] && jq -e 'type == "array"' "$c" >/dev/null 2>&1 || bump_fail "no pins-candidates.json; run: dots-ops run pins-check --now"
+  [ -z "$(git -C "$OPS_DOTS_REPO" status --porcelain -- "${files[@]}" 2>/dev/null)" ] \
+    || bump_fail "uncommitted changes in ${files[*]}; commit or stash them first"
+  [ ! -e "$wt" ] || bump_fail "stale worktree $wt; remove it with: git -C $OPS_DOTS_REPO worktree remove --force $wt"
+  base=$(git -C "$OPS_DOTS_REPO" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/main)
+  ops_run git -C "$OPS_DOTS_REPO" fetch -q origin || bump_fail "git fetch failed"
+  br0="pins/$(date +%Y%m%d)"; br=$br0; n=1   # never reuse a branch: remote or local
+  while git -C "$OPS_DOTS_REPO" ls-remote --exit-code --heads origin "$br" >/dev/null 2>&1 \
+     || git -C "$OPS_DOTS_REPO" show-ref --verify --quiet "refs/heads/$br"; do n=$((n + 1)); br="$br0-$n"; done
+  ops_run git -C "$OPS_DOTS_REPO" worktree add -b "$br" "$wt" "$base" || bump_fail "worktree add failed"
+  y="$wt/home/.chezmoidata/extra-tools.yaml"; body="Automated by dots-ops pins-check."$'\n'
+  while IFS=$'\t' read -r kind name from to; do
+    [[ $name =~ ^[A-Za-z0-9@/._-]+$ && $from =~ ^[A-Za-z0-9._+-]+$ && $to =~ ^[A-Za-z0-9._+-]+$ ]] || { bump_drop; bump_fail "refusing odd pin $kind $name $from $to"; }
+    case $kind in npm|pipx) key=name ;; cargo) key=crate ;; *) continue ;; esac
+    ops_run pins_set_version "$y" "$key" "$name" "$from" "$to" || { ops_run git -C "$OPS_DOTS_REPO" worktree remove --force "$wt"; bump_fail "could not edit $kind $name in extra-tools.yaml (unexpected layout); branch $br kept locally"; }
+    body+="- $kind $name $from -> $to"$'\n'
+  done < <(jq -r '.[]|select(.auto)|[.kind,.name,.from,.to]|@tsv' "$c")
+  body+=$(jq -r '.[]|select(.auto|not)|"- manual: \(.kind) \(.name) \(.from) -> \(.to) (check requires_python)"' "$c")
+  # R51: the lock moves only when it is older than the same threshold pins-check warns on
+  local lock_age lock_days lock_max
+  lock_age=$(jq -r '.nodes.nixpkgs.locked.lastModified // 0' "$OPS_DOTS_REPO/nix/flake.lock" 2>/dev/null || echo 0)
+  [[ $lock_age =~ ^[0-9]+$ ]] || lock_age=0
+  lock_days=0; [ "$lock_age" -eq 0 ] || lock_days=$(( ( $(date +%s) - lock_age ) / 86400 ))
+  lock_max=${OPS_LOCK_MAX_DAYS:-$(pins_cfg pins.lock_max_days 30)}
+  if [ "$lock_days" -gt "$lock_max" ]; then
+    body+=$'\n'"- nixpkgs lock was $lock_days days old: nix flake update"
+    ops_run nix flake update --flake "$wt/nix" || { ops_run git -C "$OPS_DOTS_REPO" worktree remove --force "$wt"; bump_fail "nix flake update failed; branch $br kept locally"; }
+  fi
+  ops_run bash -c "cd '$wt' && tests/extra-tools-dryrun.sh" \
+    || { ops_run git -C "$OPS_DOTS_REPO" worktree remove --force "$wt"; bump_fail "bump broke extra-tools dryrun; branch $br kept locally"; }
+  ops_run git -C "$wt" commit -qam "chore(pins): bump pinned tools and nixpkgs" || { bump_drop; bump_fail "commit failed (nothing changed?)"; }
+  ops_run git -C "$wt" push -q -u origin "$br" || bump_fail "push of $br failed; worktree $wt kept"
+  url=$(ops_run gh pr create --repo "$(git -C "$OPS_DOTS_REPO" remote get-url origin)" --base "${base#origin/}" --head "$br" \
+        --title "chore(pins): $(date +%F) bumps" --body "$body") || bump_fail "gh pr create failed; branch $br is pushed"
+  ops_run git -C "$OPS_DOTS_REPO" worktree remove "$wt"
+  printf '%s\n' "$body"
+  printf '%s\n' "$url"
+  ops_state pins-check ok "bump PR opened: ${url:-n/a}"
+}
+job_bin() { local b="$here/dots-ops-job"; [ -e "$b" ] || b="$here/executable_dots-ops-job"; echo "$b"; }
+valid_job() { [[ ${1:-} =~ ^[a-z0-9-]+$ ]] || { echo "bad job name" >&2; exit 2; }; }
+
+case "${1:-}" in
+  run)
+    job=${2:-}; valid_job "$job"; now=0; [ "${3:-}" = --now ] && now=1
+    if [ -f "$OPS_JOBS_DIR/$job.sh" ]; then   # user job
+      if [ "$now" = 1 ]; then OPS_FORCE=1 exec bash "$(job_bin)" "$job"
+      else exec systemctl --user start --no-block "dots-ops@$job.service"; fi
+    else                                       # root job (R4)
+      ops_root_enabled || { echo "dots-ops: root jobs are disabled on this machine (orgManaged)" >&2; exit 2; }
+      act=run; [ "$now" = 1 ] && act=run-now
+      sudo_runner "$job" "$act"; rc=$?
+      if [ "$rc" -ne 0 ]; then
+        echo "dots-ops: $job $act failed (rc=$rc); sudo refused or runner error" >&2
+        ops_state "$job" warn "run failed (rc=$rc)"; exit "$rc"
+      fi
+    fi ;;
+  answer)   # optional token (R54): the pending's content hash as shown; empty = none (CLI by hand)
+    [ $# -eq 3 ] || [ $# -eq 4 ] || usage
+    case $3 in approve|alt|skip|snooze) ;; *) usage ;; esac
+    [ -z "${4:-}" ] || [[ $4 =~ ^[0-9a-f]{64}$ ]] || usage
+    valid_job "$2"; ops_answer "$2" "$3" "${4:-}" ;;
+  idle-start)
+    if [ "${2:-}" = --fallback ]; then   # R15: only when on AC and nobody is using the machine
+      # R58: and logind agrees the user has been idle >= 15 min (a resume into active work is not idle, locked or not)
+      if ops_on_ac && { pgrep -x hyprlock >/dev/null 2>&1 || ! loginctl list-sessions --no-legend 2>/dev/null | grep -q .; } \
+         && ops_logind_idle; then
+        systemd-run --user --on-active=2h "$(readlink -f "$0")" idle-end --fallback >/dev/null 2>&1 || ops_log system warn "could not schedule idle-end"
+      else
+        ops_log system info "fallback skipped: not on AC, not locked, or logind not idle for 15 min"; exit 0
+      fi
+    else   # hypridle's 15-min idle: tell logind too (R58: the fallback trusts logind's IdleHint, which hypridle may not set)
+      logind_hint true
+    fi
+    mkdir -p "$(dirname "$OPS_IDLE_FLAG")"; touch "$OPS_IDLE_FLAG"
+    systemctl --user restart --no-block dots-ops-idle.target || ops_log system warn "idle target failed to start"   # R14
+    idle_runner idle-run ;;
+  idle-end)   # --fallback: the end of the fallback window, not user input — the idle hint stays as it is
+    [ "${2:-}" = --fallback ] || logind_hint false
+    rm -f "$OPS_IDLE_FLAG"
+    systemctl --user stop --no-block dots-ops-idle.target || true
+    idle_runner idle-end ;;   # R3
+  perf-mode)   # on: performance profile + DND; off: back to the AC/battery default + DND off. State: $OPS_STATE/perf-mode
+    [ $# -le 2 ] || usage
+    want=${2:-toggle}; cur=$(cat "$OPS_STATE/perf-mode" 2>/dev/null || echo off)
+    case $want in on|off) ;; toggle) if [ "$cur" = on ]; then want=off; else want=on; fi ;; *) usage ;; esac
+    ppd=1; command -v powerprofilesctl >/dev/null || ppd=0
+    if [ "$want" = on ]; then profile=performance
+    else profile=$(ops_default_profile); fi   # R63: the power-profile job's rule (laptop AC/battery, desktop balanced)
+    note="profile $profile"
+    if [ "$ppd" = 1 ]; then ops_run powerprofilesctl set "$profile" || note="could not set profile $profile"
+    else note="power profiles unavailable"; fi
+    mkdir -p "$OPS_STATE"
+    [ "${DOTS_OPS_DRY_RUN:-0}" = 1 ] || printf '%s\n' "$want" > "$OPS_STATE/perf-mode"
+    if [ "$want" = on ]; then   # tell the owner first: DND would swallow the notification
+      ops_notify low "dots-ops: performance mode on" "$note; do-not-disturb on"
+      ops_run swaync-client -dn || true
+    else
+      ops_run swaync-client -df || true
+      ops_notify low "dots-ops: performance mode off" "$note; do-not-disturb off"
+    fi
+    ops_log perf-mode info "$want ($note)" ;;
+  pins-bump) pins_bump ;;   # user: approval action of pins-check, or by hand
+  relay) relay ;;
+  waybar) ops_waybar_json ;;
+  status)
+    self=$(readlink -f "$0")
+    command -v fzf >/dev/null || { echo "dots-ops: fzf not found" >&2; exit 1; }
+    reload="reload($self _lines)"
+    # field 5 = the ask's token (R54), hidden; an approve of an ask that changed meanwhile is ignored and re-shown
+    ops_status_lines | fzf --delimiter ' ⟂ ' --with-nth=1..4 --no-sort --reverse \
+      --header 'enter: log · ctrl-a: approve · ctrl-s: snooze · ctrl-k: skip · ctrl-r: run now' \
+      --bind "enter:execute($self _log {1} | ${PAGER:-less -R})" \
+      --bind "ctrl-a:execute-silent($self answer {1} approve {5})+$reload" \
+      --bind "ctrl-s:execute-silent($self answer {1} snooze {5})+$reload" \
+      --bind "ctrl-k:execute-silent($self answer {1} skip {5})+$reload" \
+      --bind "ctrl-r:execute-silent($self run {1} --now)+$reload" || true ;;
+  _lines) ops_status_lines ;;   # internal: fzf reload source
+  _log) valid_job "${2:-}"   # internal: last 50 log lines of one job
+    tail -n 5000 "$OPS_STATE/log.jsonl" 2>/dev/null | jq -r --arg j "$2" 'select(.job==$j) | "\(.t) \(.level) \(.msg)"' | tail -n 50 ;;
+  *) usage ;;
+esac

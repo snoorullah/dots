@@ -1,0 +1,5 @@
+[data]
+  gpu = "mesa"
+  multiplexer = "tmux"
+  timetrack = false
+  orgManaged = true

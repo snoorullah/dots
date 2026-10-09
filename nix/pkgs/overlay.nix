@@ -18,6 +18,9 @@ final: prev: {
       checkFlagsArray+=("ARGS=-E in-place-editor")
     '';
   });
+  # kcat: its optional Avro support (libserdes -> avro-c++ 1.12.0) fails to build at the pinned nixpkgs; plain Kafka
+  # produce/consume does not need it. Drop this once avro-c++ builds again.
+  kcat = prev.kcat.overrideAttrs (o: { buildInputs = final.lib.filter (d: (d.pname or "") != "libserdes") o.buildInputs; });
   dotsAdhanPython = final.python3.withPackages (ps: [ (final.callPackage ./adhanpy.nix { python3Packages = ps; }) ]);
   # tmux plugins pinned by tools/pin-tmux-plugins.sh; ~/.config/tmux/plugins -> ~/.nix-profile/share/tmux-plugins
   # tmux-thumbs is the exception: it needs a compiled binary, so it comes prebuilt from nixpkgs.

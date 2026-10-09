@@ -1,0 +1,10 @@
+[Unit]
+Description=dots-ops TRIM check (weekly)
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+Unit=dots-ops@trim.service
+
+[Install]
+WantedBy=timers.target

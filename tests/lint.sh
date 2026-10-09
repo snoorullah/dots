@@ -9,6 +9,13 @@ grep -q "^keybind = clear" "$out/.config/ghostty/config" || { echo "LINT: ghostt
 for f in .config/environment.d/10-dots-path.conf .config/hypr/hyprland.lua; do
   grep -q '/usr/sbin' "$out/$f" || { echo "LINT: $f (nvidia render) PATH lacks /usr/sbin"; exit 1; }
 done
+# public repo: company/project identifiers live in the hand-copied ~/.config/pi-fleet/config.sh, not in the scripts (I2)
+for f in .local/bin/pi-fleet-monitor .local/bin/pnats-agent-browser .local/bin/pi-watch; do
+  [ -f "$out/$f" ] || { echo "LINT: $f not rendered"; exit 1; }
+  if grep -iE 'pnow|kaarbaaz|code42|proficient|websleak|contabo|qwen36|litellm/' "$out/$f"; then echo "LINT: $f names a company/project (move it to pi-fleet/config.sh)"; exit 1; fi
+  grep -q 'pi-fleet/config.sh' "$out/$f" || [ "$f" = .local/bin/pi-watch ] || { echo "LINT: $f does not read pi-fleet/config.sh"; exit 1; }
+done
+if grep -v '^[[:space:]]*#' "$out/.local/bin/pnats-agent-browser" | grep -q -- '--no-sandbox'; then echo "LINT: pnats-agent-browser defaults to --no-sandbox (must be opt-in via config)"; exit 1; fi
 nixos="$(mktemp -d)"
 bash "$root/tests/render.sh" "$root/tests/data-nixos-tmux.toml" "$nixos" || { echo "LINT: nixos render failed"; exit 1; }
 if grep -rIlE "$pat" "$nixos"; then echo "LINT: files above (nixos render) contain forbidden patterns"; exit 1; fi

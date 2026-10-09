@@ -1,0 +1,3 @@
+#!/bin/sh
+# stub lsblk -dno NAME,TYPE: prints $STUB_LSBLK
+printf '%b' "${STUB_LSBLK:-}"

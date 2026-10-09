@@ -2,3 +2,4 @@
   gpu = "nixos"
   multiplexer = "tmux"
   timetrack = false
+  orgManaged = false

@@ -1,0 +1,4 @@
+#!/bin/sh
+echo "docker $*" >> "${STUB_LOG:-/dev/null}"
+# STUB_DOCKER_OUT overrides the output (printf %b)
+printf '%b' "${STUB_DOCKER_OUT:-Deleted Volumes:\nabc\n\nTotal reclaimed space: 1.5GB\n}"

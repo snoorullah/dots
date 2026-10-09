@@ -2,6 +2,9 @@
 # Read by home/.chezmoiscripts/run_onchange_after_90-extra-tools.sh.tmpl.
 # Versions are the owner's live versions as of 2026-10-07 unless "source" says otherwise.
 # `unpinned: true` marks a tool whose origin or version cannot be pinned; `reason` says why.
+# `personal: true` installs the tool on personal machines only (skipped when chezmoi data orgManaged = true).
+# `exclude_bins: [cmd, ...]` (npm/pipx/uv only): after install, ~/.local/bin/<cmd> is removed when it is a link into
+# that tool's own install dir, so the tool cannot shadow another command of the same name.
 extraTools:
   npm:   # npm install -g --prefix ~/.local
     - { name: agent-browser, version: 0.27.1, source: "npm ls -g",
@@ -14,17 +17,52 @@ extraTools:
         readme: "https://github.com/badlogic/pi-mono (packages/mom has no install line; plain npm global)" }
     - { name: "@tmustier/pi-usage-extension", version: 0.9.4, source: "npm ls -g",
         readme: "https://github.com/tmustier/pi-extensions (README offers `pi install git:...`; owner has the npm package, so npm is used)" }
+    # triage add_dots_all (2026-10-09): versions from `npm ls -g` on the owner's machine; none is in nixpkgs
+    - { name: claude-mem, version: 13.3.0, source: "npm ls -g",
+        readme: "https://github.com/thedotmack/claude-mem (npm install -g claude-mem)" }
+    - { name: figma-cli, version: 1.0.0, source: "npm ls -g",
+        readme: "https://github.com/unic/figma-cli (npm install -g figma-cli; command: figma)" }
+    - { name: vercel, version: 50.42.0, source: "npm ls -g",
+        readme: "https://github.com/vercel/vercel (npm install -g vercel)" }
+    - { name: nx, version: 22.6.5, source: "dpkg nx 22.6.5-1ppa1~noble1 (ppa:nrwl/nx packages the npm nx at this version)",
+        readme: "https://github.com/nrwl/nx (npm install -g nx)" }
   cargo:   # cargo install --locked --root ~/.local --version X
     - { crate: linear-cli, version: 0.3.28, source: "~/.cargo/.crates.toml",
         readme: "https://github.com/nesszer/linear-cli (cargo install linear-cli)" }
     - { crate: tttui, version: 0.1.0, source: "~/.cargo/.crates.toml",
         readme: "https://github.com/ReidoBoss/tttui (cargo install tttui)" }
+    - { crate: yaml-validator-cli, version: 0.1.1, source: "cargo install --list",
+        readme: "https://github.com/MathiasPius/yaml-validator (cargo install yaml-validator-cli)" }
   pipx:   # PIPX_BIN_DIR=~/.local/bin pipx install name==version
-    - { name: ytm-player, version: 2.0.0, source: "pipx list --json",
+    - { name: ytm-player, version: 2.0.0, personal: true, source: "pipx list --json",
         readme: "https://github.com/peternaame-boop/ytm-player (pip install ytm-player; pipx used for isolation)" }
+    - { name: cli-anything-hub, version: 0.3.0, source: "pipx list --short",
+        readme: "https://github.com/HKUDS/CLI-Anything (pip install cli-anything-hub; command: cli-hub)" }
+    - { name: schemathesis, version: 4.19.0, source: "pipx list --short (not in nixpkgs)",
+        readme: "https://github.com/schemathesis/schemathesis (pipx install schemathesis)" }
+    - { name: semgrep, version: 1.159.0, source: "pipx list --short (nixpkgs semgrep 1.172.0 fails its pyjwt runtime-deps check at the pinned rev)",
+        readme: "https://github.com/semgrep/semgrep (pipx install semgrep)" }
   uv:   # UV_TOOL_BIN_DIR=~/.local/bin uv tool install --python X name==version (uv fetches Python X if missing)
     - { name: syncall, version: 1.8.8, python: "3.12.5", source: "PyPI JSON API latest (not installed on this machine)",
         readme: "https://github.com/bergercookie/syncall (pip install syncall; requires_python <=3.12.5,>=3.8.1 — pin 3.12.5 exactly, a bare 3.12 resolves to a newer patch)" }
+    - { name: claude-code-tools, version: 1.12.0, python: "3.14.3", source: "uv tool list --show-python",
+        exclude_bins: [vault], exclude_why: "its vault command would shadow HashiCorp vault (Nix)",
+        readme: "https://github.com/pchalasani/claude-code-tools (uv tool install claude-code-tools; tmux-cli, aichat, msg, ... and a `vault` command)" }
+  go:   # GOBIN=~/.local/bin GOTOOLCHAIN=auto go install package@version (module checksums via sum.golang.org)
+    # versions from `go version -m` on the owner's binaries; a commit pseudo-version where the owner built a commit.
+    # pins-check does not track this kind (bump by hand).
+    - { package: mvdan.cc/sh/v3/cmd/gosh, version: v3.12.0, bin: gosh, source: "go version -m ~/go/bin/gosh",
+        readme: "https://github.com/mvdan/sh (go install mvdan.cc/sh/v3/cmd/gosh@latest); nixpkgs `gosh` is a different tool" }
+    - { package: github.com/alchemmist/lazy-tmux/cmd/lazy-tmux, version: v0.2.0, bin: lazy-tmux, source: "go version -m ~/.local/bin/lazy-tmux",
+        readme: "https://github.com/alchemmist/lazy-tmux (go install github.com/alchemmist/lazy-tmux/cmd/lazy-tmux@latest)" }
+    - { package: github.com/pyrod3v/gitman/cmd/gitman, version: v1.2.1-0.20250212142239-5b2bd5927b4b, bin: gitman,
+        source: "go version -m ~/go/bin/gitman: (devel) build of vcs.revision 5b2bd5927b4b, unmodified",
+        readme: "https://github.com/pyrod3v/gitman (go install github.com/pyrod3v/gitman/cmd/gitman@latest)" }
+    - { package: github.com/peltho/tufw/cmd/tufw, version: v0.2.4, bin: tufw, source: "dpkg tufw 0.2.4 (owner installed the release .deb)",
+        readme: "https://github.com/peltho/tufw (release .deb, or go install github.com/peltho/tufw/cmd/tufw); run it with sudo" }
+    - { package: github.com/slackapi/slack-cli, version: v0.0.0-20260911210516-fcb07820d230, bin: slack-cli,
+        source: "go version -m ~/.slack/bin/slack (reports v4.8.0); installed as slack-cli so it does not shadow the Slack app",
+        readme: "https://github.com/slackapi/slack-cli (vendor installer puts it in ~/.slack/bin/slack; nixpkgs slack-cli is an unrelated tool)" }
   # argonaut, HyprCapture and hypr-kdeconnect-fix are Nix packages now (nix/pkgs/overlay.nix, nix/home.nix; R25).
   grok:   # vendor installer (~/.grok/docs/user-guide/01-getting-started.md; https://docs.x.ai/build/overview.md)
     version: 1.0.41

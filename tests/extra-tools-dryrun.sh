@@ -26,6 +26,21 @@ want=(
   "install --locked --root $h/.local --version 0.1.0 tttui"
   "pipx install --force ytm-player=="
   "uv tool install --force --python 3.12.5 syncall==1.8.8"
+  "npm install -g --prefix $h/.local claude-mem@13.3.0"
+  "npm install -g --prefix $h/.local figma-cli@1.0.0"
+  "npm install -g --prefix $h/.local vercel@50.42.0"
+  "npm install -g --prefix $h/.local nx@22.6.5"
+  "install --locked --root $h/.local --version 0.1.1 yaml-validator-cli"
+  "pipx install --force cli-anything-hub==0.3.0"
+  "pipx install --force schemathesis==4.19.0"
+  "pipx install --force semgrep==1.159.0"
+  "uv tool install --force --python 3.14.3 claude-code-tools==1.12.0"
+  "rm -f $h/.local/bin/vault"
+  "env GOBIN=$h/.local/bin GOTOOLCHAIN=auto GOTELEMETRY=off go install mvdan.cc/sh/v3/cmd/gosh@v3.12.0"
+  "go install github.com/alchemmist/lazy-tmux/cmd/lazy-tmux@v0.2.0"
+  "go install github.com/pyrod3v/gitman/cmd/gitman@v1.2.1-0.20250212142239-5b2bd5927b4b"
+  "go install github.com/peltho/tufw/cmd/tufw@v0.2.4"
+  "go install github.com/slackapi/slack-cli@v0.0.0-20260911210516-fcb07820d230"
   "<rev from $h/.nix-profile/share/aether/REV>"
   "running unverified vendor installer"
   "env SHELL=/bin/sh bash "
@@ -40,6 +55,34 @@ for w in "${want[@]}"; do grep -qF -- "$w" <<<"$out" || { echo "EXTRA: missing i
 for bad in hyprpm hyprcapture kdeconnect argonaut --launcher-only "git " cmake aether.desktop ".local/bin/aether"; do
   ! grep -qF -- "$bad" <<<"$out" || { echo "EXTRA: unexpected '$bad' in dry-run output"; fail=1; }
 done
+# `personal: true` tools: rendered for personal machines (above), absent from the orgManaged render
+org="$work/extra-tools-org.sh"
+HOME="$work/home" chezmoi execute-template --source "$root/home" --config "$root/tests/data-workpc-ubuntu.toml" \
+  < "$root/home/.chezmoiscripts/run_onchange_after_90-extra-tools.sh.tmpl" > "$org" || { echo "EXTRA: org render failed"; fail=1; }
+bash -n "$org" || { echo "EXTRA: org bash -n failed"; fail=1; }
+for p in $(yq -r '.extraTools[] | select(type == "!!seq") | .[] | select(.personal == true) | (.name // .crate)' "$root/home/.chezmoidata/extra-tools.yaml"); do
+  grep -qF "\"$p\"" "$script" || { echo "EXTRA: personal tool $p missing from the personal render"; fail=1; }
+  ! grep -qF "\"$p\"" "$org" || { echo "EXTRA: personal tool $p rendered on an orgManaged machine"; fail=1; }
+done
+grep -q '^npm_tool "agent-browser"' "$org" || { echo "EXTRA: org render lost the all-machines tools"; fail=1; }
+# exclude_bins (I4): the uv tool's vault link is removed right after its install, and only that tool's
+grep -A1 -F 'uv tool install --force --python 3.14.3 claude-code-tools==' <<<"$out" | grep -qF "rm -f $h/.local/bin/vault" \
+  || { echo "EXTRA: vault link not removed right after the claude-code-tools install"; fail=1; }
+[ "$(grep -cF 'rm -f ' <<<"$out")" = 1 ] || { echo "EXTRA: rm -f for a tool without exclude_bins"; fail=1; }
+# drop_bins for real (extracted from the render): removes only a symlink into the tool's dir
+db="$work/drop"; mkdir -p "$db/bin" "$db/tools/t/bin" "$db/other"
+touch "$db/tools/t/bin/vault" "$db/tools/t/bin/keep" "$db/other/vault2"
+ln -s "$db/tools/t/bin/vault" "$db/bin/vault"; ln -s "$db/tools/t/bin/keep" "$db/bin/keep"
+ln -s "$db/other/vault2" "$db/bin/vault2"; echo real > "$db/bin/vault3"
+( DRY=0 BIN="$db/bin"
+  log() { :; }; run() { "$@"; }
+  eval "$(sed -n '/^drop_bins() {/,/^}/p' "$script")"
+  drop_bins "$db/tools/t" vault vault2 vault3 missing )
+[ ! -e "$db/bin/vault" ] && [ ! -L "$db/bin/vault" ] || { echo "EXTRA: drop_bins kept the tool's own vault link"; fail=1; }
+[ -L "$db/bin/keep" ] || { echo "EXTRA: drop_bins removed a link it was not asked to"; fail=1; }
+[ -L "$db/bin/vault2" ] || { echo "EXTRA: drop_bins removed a link into another dir"; fail=1; }
+[ -f "$db/bin/vault3" ] || { echo "EXTRA: drop_bins removed a real file"; fail=1; }
+rm -rf "$db"
 # nothing executed: the throwaway HOME must stay empty
 if [ -n "$(find "$work/home" -mindepth 1 -print -quit)" ]; then echo "EXTRA: dry run touched HOME:"; find "$work/home" | head; fail=1; fi
 [ "$fail" = 0 ] && echo "extra-tools dryrun ok" || { echo "$out" | head -80; exit 1; }

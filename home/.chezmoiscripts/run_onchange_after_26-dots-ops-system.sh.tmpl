@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# dots-ops system install hash: {{ output "sh" "-c" (printf "cd %s && find system/dots-ops home/private_dot_local/lib/dots-ops/lib.sh home/private_dot_local/private_bin/executable_dots-ops-job -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum" (quote .chezmoi.workingTree)) | trim }}
+# Installs the root side of dots-ops as root-owned copies (root never runs files from the user's tree).
+# NixOS: nix/hosts/nixos-laptop/dots-ops.nix does this instead.
+set -euo pipefail
+{{- $org := get . "orgManaged" | default false }}
+{{- if ne .gpu "nixos" }}
+{{- if $org }}
+# orgManaged: company IT owns this machine's security, patching and backups, so dots-ops installs NO root side
+# (no runner, no sudoers rule, no dots-ops group, no system units/timers, no udev rule, no /etc/dots-ops).
+# If an earlier apply did install it, take it all out again. Nothing is touched (and sudo is not called) when
+# there is nothing to remove. /var/lib/dots-ops (old status/log data) is deliberately left alone: it is inert
+# data, remove it by hand if you want it gone.
+present=0
+for p in /usr/local/lib/dots-ops /usr/local/bin/dots-ops-run /usr/local/bin/dots-ops-job /etc/dots-ops \
+         /etc/sudoers.d/dots-ops /etc/systemd/system/dots-ops* /etc/udev/rules.d/*dots-ops*; do
+  [ -e "$p" ] && { present=1; break; }
+done
+getent group dots-ops >/dev/null 2>&1 && present=1
+[ "$present" = 1 ] || exit 0
+echo "dots-ops: orgManaged machine; removing the previously installed root side" >&2
+# stop whatever fires first, then delete the files
+for u in /etc/systemd/system/dots-ops*; do
+  [ -e "$u" ] || continue
+  b=${u##*/}
+  case $b in *.service|*.timer|*.path|*.target) sudo systemctl disable --now "$b" 2>/dev/null || true ;; esac
+  sudo rm -rf "$u"
+done
+sudo systemctl stop dots-ops-reboot-scheduled.timer dots-ops-reboot-scheduled.service 2>/dev/null || true
+sudo rm -f /etc/sudoers.d/dots-ops
+sudo rm -f /etc/udev/rules.d/*dots-ops*
+sudo rm -rf /usr/local/lib/dots-ops /etc/dots-ops
+sudo rm -f /usr/local/bin/dots-ops-run /usr/local/bin/dots-ops-job
+if getent group dots-ops >/dev/null 2>&1; then sudo groupdel dots-ops || true; fi
+sudo systemctl daemon-reload || true
+sudo udevadm control --reload 2>/dev/null || true
+{{- else }}
+W={{ .chezmoi.workingTree | quote }}
+me="${USER:-$(id -un)}"
+# The sudo rule trusts /usr/local/bin and /usr/local/lib: refuse if anyone but root can write there.
+for d in /usr/local /usr/local/bin /usr/local/lib; do
+  if [ -e "$d" ] && { [ "$(stat -Lc %u "$d")" != 0 ] || [ $(( 0$(stat -Lc %a "$d") & 022 )) != 0 ]; }; then
+    echo "dots-ops: $d is not root-owned/0755; not installing the root side" >&2; exit 1
+  fi
+done
+# root jobs need jq from the system (never the user's Nix profile)
+if ! PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin command -v jq >/dev/null; then
+  if command -v pacman >/dev/null; then sudo pacman -S --needed --noconfirm jq
+  elif command -v apt-get >/dev/null; then sudo DEBIAN_FRONTEND=noninteractive apt-get install -y jq
+  elif command -v dnf >/dev/null; then sudo dnf install -y jq
+  else echo "dots-ops: install jq system-wide for root jobs" >&2; fi
+fi
+# R20: a symlink in the source tree would make root install whatever it points at (possibly user-writable)
+if [ -n "$(find "$W/system/dots-ops" -type l)" ]; then
+  echo "dots-ops: symlinks under system/dots-ops; refusing to install:" >&2; find "$W/system/dots-ops" -type l >&2; exit 1
+fi
+L=/usr/local/lib/dots-ops
+# jobs/actions are replaced wholesale so a job or action removed from the repo stops being allow-listed
+sudo rm -rf "$L/jobs" "$L/actions" "$L/sshd"
+sudo install -d -m 755 "$L" "$L/jobs" "$L/actions" "$L/sshd" /etc/dots-ops /var/lib/dots-ops
+sudo install -m 644 "$W/home/private_dot_local/lib/dots-ops/lib.sh" "$L/lib.sh"
+sudo install -m 755 "$W/home/private_dot_local/private_bin/executable_dots-ops-job" /usr/local/bin/dots-ops-job
+sudo install -m 755 "$W/system/dots-ops/bin/dots-ops-run" /usr/local/bin/dots-ops-run
+[ -d "$W/system/dots-ops/jobs" ] && sudo cp -r --no-preserve=ownership,mode "$W/system/dots-ops/jobs/." "$L/jobs/"
+[ -d "$W/system/dots-ops/actions" ] && sudo cp -r --no-preserve=ownership,mode "$W/system/dots-ops/actions/." "$L/actions/"
+# security domain (Task 9): declarative firewall rules (R39) and the sshd drop-in; root jobs read only these copies
+sudo install -m 644 "$W/system/dots-ops/firewall.json" "$L/firewall.json"
+sudo install -m 644 "$W/system/dots-ops/sshd/50-dots.conf" "$L/sshd/50-dots.conf"
+# R40: the owner whose ~/.ssh/authorized_keys guards ssh-harden (root resolves the home with getent, never env)
+printf '%s\n' "$me" | sudo install -m 644 -o root -g root /dev/stdin /etc/dots-ops/owner
+sudo chown -R root:root "$L" /var/lib/dots-ops /usr/local/bin/dots-ops-run /usr/local/bin/dots-ops-job
+sudo chmod -R go-w "$L"; sudo chmod 755 /var/lib/dots-ops
+# R63: a dots-ops unit that left the repo must not keep firing: disable it, then remove its file (transient units
+# such as dots-ops-act-*/dots-ops-reboot-scheduled live in /run, not here)
+for u in /etc/systemd/system/dots-ops*; do
+  [ -f "$u" ] || continue
+  b=${u##*/}
+  [ -e "$W/system/dots-ops/units/$b" ] && continue
+  case $b in *.service|*.timer|*.path|*.target) ;; *) continue ;; esac
+  sudo systemctl disable --now "$b" 2>/dev/null || true
+  sudo rm -f "/etc/systemd/system/$b"
+  echo "dots-ops: removed stale unit $b"
+done
+sudo install -m 644 "$W/system/dots-ops/units/"* /etc/systemd/system/
+if [ -d "$W/system/dots-ops/udev" ]; then sudo install -m 644 "$W/system/dots-ops/udev/"* /etc/udev/rules.d/; fi
+tmp=$(mktemp); cp "$W/system/dots-ops/sudoers" "$tmp"
+if sudo visudo -cf "$tmp"; then sudo install -m 440 -o root -g root "$tmp" /etc/sudoers.d/dots-ops
+else echo "dots-ops: sudoers rule failed visudo; not installed" >&2; fi
+rm -f "$tmp"
+getent group dots-ops >/dev/null || sudo groupadd --system dots-ops
+id -nG "$me" | tr ' ' '\n' | grep -qx dots-ops || { sudo usermod -aG dots-ops "$me"; echo "dots-ops: added $me to group dots-ops (log out and back in)"; }
+sudo systemctl daemon-reload
+if [ -d "$W/system/dots-ops/udev" ]; then sudo udevadm control --reload || true; fi
+for t in "$W"/system/dots-ops/units/*.timer "$W"/system/dots-ops/units/*.path; do
+  [ -e "$t" ] && sudo systemctl enable --now "$(basename "$t")"
+done
+# check firewall + sshd right after an install/change: both only ask (or no-op); neither applies anything unapproved
+sudo systemctl start --no-block dots-ops@firewall.service dots-ops@ssh-harden.service
+{{- end }}
+{{- end }}
+exit 0

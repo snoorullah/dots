@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "shutdown $*" >> "${STUB_LOG:-/dev/null}"
+[ -z "${STUB_SHUTDOWN_FAIL:-}" ] || exit 1

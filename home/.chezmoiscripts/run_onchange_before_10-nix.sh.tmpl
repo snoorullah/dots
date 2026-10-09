@@ -4,6 +4,7 @@ set -euo pipefail
 {{- if ne .gpu "nixos" }}
 export USER="${USER:-$(id -un)}" HOME="${HOME:-$(getent passwd "$USER" | cut -d: -f6)}"
 [ -e /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh ] && . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+{{ if get . "orgManaged" | default false }}export DOTS_ORG_MANAGED=1{{ else }}unset DOTS_ORG_MANAGED{{ end }}   # read by nix/home.nix (builtins.getEnv, --impure)
 export NIX_CONFIG="experimental-features = nix-command flakes"
 # home-manager CLI pinned by nix/flake.lock (--inputs-from), not a moving branch.
 # -b pre-dots only ever applies to home-manager's own few files (fontconfig conf.d, environment.d/10-home-manager.conf,

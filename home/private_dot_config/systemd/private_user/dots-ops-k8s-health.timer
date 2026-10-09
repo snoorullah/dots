@@ -1,0 +1,10 @@
+[Unit]
+Description=dots-ops cluster health (every 15 min)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+Unit=dots-ops@k8s-health.service
+
+[Install]
+WantedBy=timers.target

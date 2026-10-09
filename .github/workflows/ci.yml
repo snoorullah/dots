@@ -27,6 +27,7 @@ jobs:
       - run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - run: sudo apt-get install -y jq
       - run: bash tests/placement.sh
+      - run: bash tests/orgmanaged.sh
       - run: bash tests/lint.sh
       - run: bash tests/extra-tools-dryrun.sh
       - name: in-home.sh (sentinel mode)
@@ -34,6 +35,37 @@ jobs:
           d="$(mktemp -d)"
           bash tests/render.sh tests/data-nvidia-tmux.toml "$d"
           HOME="$d" bash tests/in-home.sh --sentinel
+  ops-bats:
+    # dots-ops tests (tests/ops). Every tool the tests use is installed here, so a `skip` would hide a real gap:
+    # the run fails on any skipped test except the allow-listed /nix one below (R53; a runner has no /nix).
+    runs-on: ubuntu-latest
+    env:
+      YQ_VERSION: v4.47.1
+      YQ_SHA256: 0fb28c6680193c41b364193d0c0fc4a03177aecde51cfc04d506b1517158c2fb
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y bats jq perl git util-linux sudo
+      - name: install yq (mikefarah v4, pinned)
+        run: |
+          curl -fsSL -o /tmp/yq "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
+          echo "${YQ_SHA256}  /tmp/yq" | sha256sum -c -
+          sudo install -m 755 /tmp/yq /usr/local/bin/yq
+      - run: sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin
+      - run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - run: command -v bats jq yq flock systemd-analyze visudo chezmoi perl git
+      # root.bats (units, sudoers, installer static checks) is part of this run; no separate step
+      - name: bats tests/ops
+        run: |
+          rc=0
+          bats --tap tests/ops > /tmp/ops.tap || rc=$?
+          cat /tmp/ops.tap
+          # R53: the only allowed skip is the /nix one (no /nix on a runner); any other skip fails the job
+          skips=$(grep -E '^(ok|not ok) .*# skip' /tmp/ops.tap || true)
+          allowed='disk-clean-system: /nix present -> nix-collect-garbage # skip no /nix on this host'
+          echo "allowed skip: $allowed"
+          other=$(printf '%s\n' "$skips" | grep -v '^$' | grep -vF -- "$allowed" || true)
+          if [ -n "$other" ]; then echo "::error::unexpected skipped ops tests (install the missing tool):"; echo "$other"; exit 1; fi
+          exit "$rc"
   distro:
     runs-on: ubuntu-latest
     strategy:

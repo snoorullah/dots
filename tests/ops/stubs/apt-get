@@ -1,0 +1,6 @@
+#!/bin/sh
+# stub apt-get: logs; `-s dist-upgrade` prints $STUB_APT_INST (printf %b); STUB_APT_FAIL=<msg> fails real runs
+echo "apt-get $*" >> "${STUB_LOG:-/dev/null}"
+case " $* " in *" -s "*) printf '%b' "${STUB_APT_INST:-}"; exit 0 ;; esac
+[ -z "${STUB_APT_FAIL:-}" ] || { printf '%b\n' "$STUB_APT_FAIL"; exit 100; }
+exit 0

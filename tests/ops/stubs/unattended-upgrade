@@ -1,0 +1,4 @@
+#!/bin/sh
+echo "unattended-upgrade $*" >> "${STUB_LOG:-/dev/null}"
+[ -z "${STUB_UU_FAIL:-}" ] || { echo "$STUB_UU_FAIL"; exit 1; }
+exit 0

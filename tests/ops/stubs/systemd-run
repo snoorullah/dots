@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "systemd-run $*" >> "${STUB_LOG:-/dev/null}"
+[ -z "${STUB_SYSTEMRUN_FAIL:-}" ] || exit 1

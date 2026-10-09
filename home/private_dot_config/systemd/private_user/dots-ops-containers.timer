@@ -1,0 +1,10 @@
+[Unit]
+Description=dots-ops container health (hourly)
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+Unit=dots-ops@containers.service
+
+[Install]
+WantedBy=timers.target

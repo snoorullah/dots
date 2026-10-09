@@ -1,0 +1,8 @@
+{
+  "default_incoming": "deny",
+  "allow": [
+    { "port": 22, "proto": "tcp", "why": "ssh" },
+    { "port": "1714:1764", "proto": "tcp", "why": "kdeconnect" },
+    { "port": "1714:1764", "proto": "udp", "why": "kdeconnect" }
+  ]
+}
