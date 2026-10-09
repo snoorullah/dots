@@ -70,7 +70,7 @@ Two halves, one shared library (`lib.sh`):
 | `smart` | root | daily | no | auto | SMART health and error counters per disk. A rising counter keeps the disk red for 7 days. No SMART disk: n/a |
 | `trim` | root | weekly | no | auto | Makes sure periodic TRIM is on. Unsupported: n/a |
 | `power-profile` | root | udev (AC change), event driven | no | auto | AC: performance. Battery: power-saver. Desktop: balanced |
-| `net-watch` | user | 2 min after boot, then every 5 min | no | auto | DNS, internet, tailscale, kube tunnels. Restarts a down tunnel once, then fails |
+| `net-watch` | user | 2 min after boot, then every 5 min | no | auto | DNS, internet, kube tunnels, and tailscale only if you installed it yourself. Restarts a down tunnel once, then fails |
 | `containers` | user | hourly | no | auto | Warns on unhealthy or restarting containers. No docker: n/a |
 | `containers-prune` | user | idle target | yes | auto + approve | Prunes dangling images. Asks before the root volumes prune when more than 10 GB is reclaimable. The approved prune reports as `containers-prune-volumes` |
 | `k8s-health` | user | 5 min after boot, then every 15 min | no | auto | Per kube context: NotReady nodes, CrashLoop pods, expiring certs, failed Argo syncs. One notification per new issue. A context with any failed query counts as unreachable for that run (its known issues are kept). A configured context missing from this host's kubeconfig is n/a |
@@ -328,6 +328,12 @@ already installed (packages) is uninstalled.
 - The firewall and sshd are guarded against lockout. A first apply is always an approval with the commands shown.
   `ssh-harden` skips (warn) when you have no usable authorized key, checks `sshd -t`, and removes its file if
   invalid.
+- Independently of dots-ops, the chezmoi root script puts the same three settings in
+  `/etc/ssh/sshd_config.d/40-dots-baseline.conf` on every machine, org-managed ones included, and enables sshd only
+  when `~/.ssh/authorized_keys` holds a key (docs/install.md). sshd keeps the first value it reads; `40-` sorts
+  before `50-dots.conf` and sets the same values, so the two never disagree. On NixOS the host config sets them
+  (`services.openssh.settings`, `mkDefault`), and port 22 is opened only by `firewall.json`
+  (`services.openssh.openFirewall = false`).
 - Joining group `dots-ops` is a trust grant: members can run any allow-listed root action. Only the owner is in it.
 
 ## Known limitations and owner decisions
@@ -335,7 +341,7 @@ already installed (packages) is uninstalled.
 | Item | Behaviour | What you do |
 |---|---|---|
 | Firewall is additive only (R41) | Apply never deletes rules. Rules you added by hand stay. Drift is never re-applied silently: it warns and asks | Close a port you removed from `firewall.json` by hand (`sudo ufw delete allow <port>`) |
-| ufw default-deny blocks tailnet services (R42) | Only ssh and the `firewall.json` ports pass, also over `tailscale0` | Add a rule to `system/dots-ops/firewall.json` for each tailnet service you want |
+| ufw default-deny applies to every interface (R42) | Only ssh and the `firewall.json` ports pass, on every interface, VPN or overlay interfaces included (a Tailscale or WireGuard you install yourself gets no exception) | Add a rule to `system/dots-ops/firewall.json` for each service you want reachable |
 | Fedora zone left as is (R43) | FedoraWorkstation zone keeps 1025-65535 open. dots-ops does not tighten it | Tighten by hand if you want the same strictness as other distros |
 | Docker-published ports bypass ufw | Docker writes its own iptables rules. `-p 8080:80` is open regardless of ufw | Bind to `127.0.0.1` (`-p 127.0.0.1:8080:80`) or use the `DOCKER-USER` chain |
 | `dots-update` and sudo without a tty | `chezmoi update` runs `run_onchange` scripts that call `sudo`. Without a tty (a timer) sudo cannot ask for a password, so the job fails when such a script has changes | Run `chezmoi update` by hand once. A passwordless sudo rule for those scripts is not provided |
