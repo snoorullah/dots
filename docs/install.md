@@ -26,6 +26,23 @@ Without them everything else works: shells skip `~/.secrets`, and each kube tunn
 (`ConditionPathExists`) until its file exists. After copying, run
 `systemctl --user restart onprem-kube-tunnel ovh-k8s-tunnel`.
 
+Personal machines only: the reverse SSH tunnel (`reverse-tunnel.service`, autossh) reads its remote host from
+`~/.config/reverse-tunnel.env` (mode 0600), which is never in the repo:
+
+```bash
+REMOTE=user@host               # required: the machine that exposes the tunnel
+REMOTE_PORT=2222               # optional (default 2222): port opened on REMOTE
+LOCAL_PORT=22                  # optional (default 22): this machine's sshd
+IDENTITY=/home/you/.ssh/id_ed25519   # optional (default ~/.ssh/id_ed25519); absolute path
+```
+
+The tunnel uses `StrictHostKeyChecking=yes`, so seed `~/.ssh/known_hosts` once by hand and check the
+fingerprint: `ssh -i "$IDENTITY" "$REMOTE" true`. Then `systemctl --user restart reverse-tunnel`.
+
+Also personal-only and hand-copied: `${XDG_CONFIG_HOME:-~/.config}/pi-fleet/config.sh` for `pi-fleet-monitor`
+and `pnats-agent-browser` (project names, tmux panes, worktree paths; the scripts exit with a message without
+it). The variables each script reads are listed at the top of the script.
+
 ## 3. Init, review, apply
 
 There are no automatic backups of your existing files: chezmoi overwrites every file it manages, and

@@ -98,6 +98,12 @@ render "$per" run_onchange_after_24-systemd.sh.tmpl "$work/per-sysd.sh" && { gre
 grep -qE 'enable .*reverse-tunnel' "$work/org-sysd.sh" && bad "org systemd script enables the reverse tunnel"
 grep -q 'disable --now reverse-tunnel.service' "$work/org-sysd.sh" || bad "org systemd script does not stop a previously enabled reverse tunnel"
 grep -q 'enable --now reverse-tunnel.service' "$work/per-sysd.sh" || bad "personal systemd script lost the reverse tunnel"
+# the remote host is a hand-copied secret: the public unit names no host, address or user@host
+ru="$perout/.config/systemd/user/reverse-tunnel.service"
+grep -q '^EnvironmentFile=-%h/.config/reverse-tunnel.env$' "$ru" || bad "reverse tunnel does not read ~/.config/reverse-tunnel.env"
+grep -q '^ConditionPathExists=%h/.config/reverse-tunnel.env$' "$ru" || bad "reverse tunnel is not skipped without its env file"
+grep -q 'StrictHostKeyChecking=yes' "$ru" || bad "reverse tunnel does not check the host key"
+grep -vE '^[[:space:]]*#' "$ru" | grep -qE '([0-9]{1,3}\.){3}[0-9]{1,3}|[A-Za-z0-9_.-]+@[A-Za-z0-9-]+\.' && bad "reverse tunnel unit hard-codes a host"
 grep -qi ovh "$out/.config/dots-ops/config.toml" && bad "org config.toml names the ovh context"
 grep -q 'contexts = \["admin@onprem-s2a", "ovh"\]' "$perout/.config/dots-ops/config.toml" || bad "personal config.toml lost the ovh context"
 exit $fail

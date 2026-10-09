@@ -16,7 +16,7 @@ systemctl --user disable --now ovh-k8s-tunnel.service 2>/dev/null || true
 systemctl --user disable --now reverse-tunnel.service 2>/dev/null || true
 {{- else }}
 systemctl --user enable --now onprem-kube-tunnel.service ovh-k8s-tunnel.service
-# personal reverse tunnel (autossh); skipped until ~/.ssh/id_rsa exists or while the old system unit is installed
+# personal reverse tunnel (autossh); skipped until the hand-copied ~/.config/reverse-tunnel.env exists, or while the old system unit is installed
 systemctl --user enable --now reverse-tunnel.service
 {{- end }}
 systemctl --user enable --now dots-ops-fallback.timer
