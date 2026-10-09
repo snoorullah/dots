@@ -3,6 +3,8 @@
 # Versions are the owner's live versions as of 2026-10-07 unless "source" says otherwise.
 # `unpinned: true` marks a tool whose origin or version cannot be pinned; `reason` says why.
 # `personal: true` installs the tool on personal machines only (skipped when chezmoi data orgManaged = true).
+# `exclude_bins: [cmd, ...]` (npm/pipx/uv only): after install, ~/.local/bin/<cmd> is removed when it is a link into
+# that tool's own install dir, so the tool cannot shadow another command of the same name.
 extraTools:
   npm:   # npm install -g --prefix ~/.local
     - { name: agent-browser, version: 0.27.1, source: "npm ls -g",
@@ -44,6 +46,7 @@ extraTools:
     - { name: syncall, version: 1.8.8, python: "3.12.5", source: "PyPI JSON API latest (not installed on this machine)",
         readme: "https://github.com/bergercookie/syncall (pip install syncall; requires_python <=3.12.5,>=3.8.1 — pin 3.12.5 exactly, a bare 3.12 resolves to a newer patch)" }
     - { name: claude-code-tools, version: 1.12.0, python: "3.14.3", source: "uv tool list --show-python",
+        exclude_bins: [vault], exclude_why: "its vault command would shadow HashiCorp vault (Nix)",
         readme: "https://github.com/pchalasani/claude-code-tools (uv tool install claude-code-tools; tmux-cli, aichat, msg, ... and a `vault` command)" }
   go:   # GOBIN=~/.local/bin GOTOOLCHAIN=auto go install package@version (module checksums via sum.golang.org)
     # versions from `go version -m` on the owner's binaries; a commit pseudo-version where the owner built a commit.
