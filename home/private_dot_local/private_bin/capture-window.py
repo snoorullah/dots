@@ -9,7 +9,7 @@ Design contract (blueprint/design/08-capture-layer.md):
   - daemon-driven, zero human action; delivers value the moment it runs.
   - append-only JSONL, one file per UTC day (auto-rolls at midnight).
   - each record: {ts_utc, source, device, stream, event, class, title}. UTC only.
-  - PERSONAL machine only -> titles captured raw (never run on the Code42 work PC).
+  - PERSONAL machine only -> titles captured raw (never run on a work machine).
   - self-heals: auto-discovers the socket, reconnects across Hyprland restarts, so it
     needs no maintenance (the completion-recursion rule: no upkeep required).
 """
