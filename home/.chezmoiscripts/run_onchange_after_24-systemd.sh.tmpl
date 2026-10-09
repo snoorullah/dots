@@ -14,7 +14,11 @@ systemctl --user enable --now adhd-prayer-times.timer adhd-salah-schedule.timer 
 systemctl --user enable --now onprem-kube-tunnel.service
 systemctl --user disable --now ovh-k8s-tunnel.service 2>/dev/null || true
 systemctl --user disable --now reverse-tunnel.service 2>/dev/null || true
+# personal window-title capture never runs on a work machine (stop it if an earlier apply enabled it)
+systemctl --user disable --now capture-window.service 2>/dev/null || true
 {{- else }}
+# window-focus capture (raw titles) on personal machines only; capture-mirror reads what it writes
+systemctl --user enable --now capture-window.service
 systemctl --user enable --now onprem-kube-tunnel.service ovh-k8s-tunnel.service
 # personal reverse tunnel (autossh); skipped until the hand-copied ~/.config/reverse-tunnel.env exists, or while the old system unit is installed
 systemctl --user enable --now reverse-tunnel.service

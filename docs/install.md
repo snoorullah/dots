@@ -83,7 +83,11 @@ You are asked once for the multiplexer (tmux by default, herdr as the trial). Th
    `~/walls`.
 4. `24-systemd` (whenever the units or the data change): enables the user timers and services (after
    `22-userdata`, so the prayer-time files exist), the selected multiplexer's service, the kube tunnels (each
-   skipped until its hand-copied secret exists), and the timetrack units when `timetrack` is on.
+   skipped until its hand-copied secret exists), and the timetrack units when `timetrack` is on. On personal
+   machines only (not `orgManaged`) it also enables `capture-window.service`, which logs every Hyprland focus
+   change with the raw window title to `~/capture/<host>/window/YYYY-MM-DD.jsonl` and deletes day files older
+   than `CAPTURE_RETENTION_DAYS` (365 in the unit; `systemctl --user edit capture-window` to change, 0 keeps
+   all). `capture-mirror.py` prints today's time per app from it.
 5. `90-extra-tools` (whenever the pins change): the pinned npm/cargo/pipx/uv/go tools, the Grok CLI and the Aether
    Firefox profile. It runs last and puts the Nix profile on its own PATH, so it works on the first apply.
 

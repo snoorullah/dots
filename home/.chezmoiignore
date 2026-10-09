@@ -41,4 +41,5 @@ README.md
 .config/systemd/user/reverse-tunnel.service
 .local/bin/capture-window.py
 .local/bin/capture-mirror.py
+.config/systemd/user/capture-window.service
 {{- end }}

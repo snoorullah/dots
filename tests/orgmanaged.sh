@@ -109,6 +109,15 @@ render "$per" run_onchange_after_24-systemd.sh.tmpl "$work/per-sysd.sh" && { gre
 grep -qE 'enable .*reverse-tunnel' "$work/org-sysd.sh" && bad "org systemd script enables the reverse tunnel"
 grep -q 'disable --now reverse-tunnel.service' "$work/org-sysd.sh" || bad "org systemd script does not stop a previously enabled reverse tunnel"
 grep -q 'enable --now reverse-tunnel.service' "$work/per-sysd.sh" || bad "personal systemd script lost the reverse tunnel"
+# window-title capture (I3): personal only, like the reverse tunnel
+for f in .config/systemd/user/capture-window.service .local/bin/capture-window.py .local/bin/capture-mirror.py; do
+  [ ! -e "$out/$f" ] || bad "$f deployed on org machine"
+  [ -x "$perout/$f" ] || [ "${f##*.}" = service ] || bad "$f not deployed executable on a personal machine"
+done
+[ -f "$perout/.config/systemd/user/capture-window.service" ] || bad "capture-window.service missing on a personal machine"
+grep -qE 'enable .*capture-window' "$work/org-sysd.sh" && bad "org systemd script enables capture-window"
+grep -q 'disable --now capture-window.service' "$work/org-sysd.sh" || bad "org systemd script does not stop a previously enabled capture-window"
+grep -q 'enable --now capture-window.service' "$work/per-sysd.sh" || bad "personal systemd script does not enable capture-window"
 # the remote host is a hand-copied secret: the public unit names no host, address or user@host
 ru="$perout/.config/systemd/user/reverse-tunnel.service"
 grep -q '^EnvironmentFile=-%h/.config/reverse-tunnel.env$' "$ru" || bad "reverse tunnel does not read ~/.config/reverse-tunnel.env"
