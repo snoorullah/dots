@@ -49,7 +49,18 @@ if render "$org" run_once_before_00-system.sh.tmpl "$work/org-sys.sh" && render 
     grep -q 'pipewire' "$work/org-pkgs.txt" || bad "org package list lost the desktop packages"
     ! grep -qE 'opt_install (power-profiles-daemon|lynis)' "$work/org-sys.sh" || bad "org root script still installs power-profiles-daemon/lynis"
   else echo "ORG: host distro has no package lists; package assertions skipped"; fi
+  # sshd on every machine, org-managed included, but only through the baseline helper: key-only drop-in, sshd -t,
+  # and enabled only with an authorized key (C1). Skipped when the host renders the NixOS branch (exit 0).
+  for f in "$work/org-sys.sh" "$work/per-sys.sh"; do
+    grep -q '^exit 0$' "$f" && [ "$(grep -c . "$f")" -lt 20 ] && continue
+    grep -qF "system/sshd/baseline.sh" "$f" || bad "$(basename "$f"): root script does not run the sshd baseline"
+    grep -qF 'AUTH_KEYS="$HOME/.ssh/authorized_keys"' "$f" || bad "$(basename "$f"): sshd baseline lacks the authorized_keys guard input"
+    grep -qE 'enable --now "?\$u"?|enable --now (ssh|sshd)\.' "$f" && bad "$(basename "$f"): root script enables sshd outside the baseline helper"
+  done
 fi
+# the baseline drop-in and dots-ops ssh-harden's 50-dots.conf set the same keys to the same values (40- is read first)
+[ "$(grep -v '^#' "$root/system/sshd/40-dots-baseline.conf" | sort)" = "$(grep -v '^#' "$root/system/dots-ops/sshd/50-dots.conf" | sort)" ] \
+  || bad "40-dots-baseline.conf and dots-ops 50-dots.conf disagree"
 
 # Tailscale is out of the dotfiles entirely (triage dots_out): no package, installer or enable on any profile
 grep -qE 'tailscale(d)?( |\.service|\.com)' "$work/per-sys.sh" && bad "personal root script still installs/enables tailscale"

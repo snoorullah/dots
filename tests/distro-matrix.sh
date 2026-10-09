@@ -46,6 +46,14 @@ done
 echo "dots-ops installer ok (rendered + bash -n)"
 chezmoi execute-template < ~/dots/home/.chezmoiscripts/run_once_before_00-system.sh.tmpl > /tmp/root-system.sh
 DOTS_PKG_LIST=1 bash /tmp/root-system.sh > /tmp/dots-pkgs.txt || { echo "FAIL root script DOTS_PKG_LIST mode"; exit 1; }
+# sshd: never enabled directly; the baseline helper (drop-in, sshd -t, authorized_keys guard) does it
+grep -qF "bash \"$HOME/dots/system/sshd/baseline.sh\"" /tmp/root-system.sh || { echo "FAIL root script does not run system/sshd/baseline.sh"; exit 1; }
+grep -qF 'AUTH_KEYS="$HOME/.ssh/authorized_keys"' /tmp/root-system.sh || { echo "FAIL root script: no authorized_keys guard input"; exit 1; }
+! grep -qE 'enable --now "?\$u"?|enable --now (ssh|sshd)\.' /tmp/root-system.sh || { echo "FAIL root script enables sshd outside the baseline helper"; exit 1; }
+for needle in '40-dots-baseline.conf' '-t -f "$SSHD_CONFIG"' 'has_key' 'stop_sshd' 'sshd_config\.d/\*\.conf'; do
+  grep -qF -- "$needle" ~/dots/system/sshd/baseline.sh || { echo "FAIL sshd baseline helper lacks '$needle'"; exit 1; }
+done
+echo "sshd baseline wired (drop-in + sshd -t + authorized_keys guard)"
 cat /tmp/dots-pkgs.txt
 bash ~/dots/tests/in-home.sh --sentinel
 echo "distro-matrix (chezmoi side): PASS"

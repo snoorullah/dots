@@ -629,3 +629,10 @@ render_pkgs() {   # render_pkgs <osRelease id> [idLike]: DOTS_PKG_LIST output of
   grep -q 'services.openssh.settings = lib.mkIf ownerHasKeys' "$n"
   grep -q 'authorizedKeys' "$n"
 }
+
+@test "NixOS host (C1): sshd key-only on its own (same baseline as other distros); port 22 only via firewall.json" {
+  h="$R/nix/hosts/nixos-laptop/configuration.nix"
+  grep -q 'PasswordAuthentication = lib.mkDefault false' "$h"; grep -q 'KbdInteractiveAuthentication = lib.mkDefault false' "$h"
+  grep -q 'PermitRootLogin = lib.mkDefault "no"' "$h"; grep -q 'openFirewall = lib.mkDefault false' "$h"
+  [ "$(jq -c '[.allow[] | select(.port == 22 and .proto == "tcp")] | length' "$R/system/dots-ops/firewall.json")" = 1 ]
+}

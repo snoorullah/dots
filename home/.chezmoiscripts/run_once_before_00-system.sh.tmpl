@@ -75,6 +75,12 @@ opt_install() {
 
 command -v nix >/dev/null || { curl -fsSL https://install.determinate.systems/nix | sh -s -- install --no-confirm; }
 DOCKER_PRESENT=0; { command -v dockerd || command -v docker; } >/dev/null 2>&1 && DOCKER_PRESENT=1
+# sshd already on before this run (enabled or running, socket activation included)? Read before openssh-server is
+# installed: Debian's postinst starts it, and the lockout guard below must not mistake that for the owner's choice.
+SSHD_WAS_ON=0
+for u in ssh.service sshd.service ssh.socket sshd.socket; do
+  if systemctl is-enabled --quiet "$u" 2>/dev/null || systemctl is-active --quiet "$u" 2>/dev/null; then SSHD_WAS_ON=1; fi
+done
 {{- if eq $fam "arch" }}
 
 # ---- Arch family ----
@@ -243,11 +249,14 @@ if command -v dockerd >/dev/null || command -v docker >/dev/null; then
   fi
 {{- end }}
 fi
-# OpenSSH server (in REQ): Debian/Ubuntu enable it on install; elsewhere enable it here. dots-ops ssh-harden
-# hardens it (key-only) once you have authorized keys.
-for u in ssh.service sshd.service; do
-  if systemctl cat "$u" >/dev/null 2>&1; then sudo systemctl enable --now "$u"; break; fi
-done
+# OpenSSH server (in REQ) on every machine, org-managed included. system/sshd/baseline.sh first writes
+# /etc/ssh/sshd_config.d/40-dots-baseline.conf (key-only, no root login; same values as dots-ops ssh-harden's
+# 50-dots.conf), makes sure sshd_config Includes sshd_config.d, validates with `sshd -t` (rolled back on failure),
+# and only then enables sshd, and only if ~/.ssh/authorized_keys holds a key (lockout guard: otherwise installed
+# but disabled, with a message). A failure never aborts this script.
+sudo env AUTH_KEYS="$HOME/.ssh/authorized_keys" SSHD_WAS_ON="$SSHD_WAS_ON" \
+  bash {{ joinPath .chezmoi.workingTree "system/sshd/baseline.sh" | quote }} \
+  || echo "sshd: baseline not applied; see the messages above (sshd is not enabled by dots)" >&2
 # Host services: seatd, the zram swap generator and (Intel CPUs only) thermald; each skipped where not packaged.
 opt_install "${HW[@]}" || true
 if grep -q GenuineIntel /proc/cpuinfo; then opt_install thermald || true; else echo "thermald: not an Intel CPU; skipped" >&2; fi

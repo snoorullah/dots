@@ -115,7 +115,18 @@ let user = "devsupreme"; in
   hardware.nvidia-container-toolkit.enable = true;   # NVIDIA host: CDI for `docker run --gpus`
 
   # ── Network / capture ──
-  services.openssh.enable = true;                    # inbound ssh; dots-ops.nix makes it key-only once keys exist
+  # inbound ssh, key-only from the start (same baseline as system/sshd/40-dots-baseline.conf on other distros).
+  # Port 22 is opened by dots-ops' firewall.json (dots-ops.nix -> networking.firewall), not by the openssh module,
+  # so the firewall has one source of truth on every distro; drop the 22 rule there and sshd is local-only.
+  services.openssh = {
+    enable = true;
+    openFirewall = lib.mkDefault false;
+    settings = {
+      PasswordAuthentication = lib.mkDefault false;
+      KbdInteractiveAuthentication = lib.mkDefault false;
+      PermitRootLogin = lib.mkDefault "no";
+    };
+  };
   programs.wireshark.enable = true;                  # dumpcap wrapper; user is in the wireshark group above
 
   # ── Host services ── (thermald: this laptop is Intel, see hardware-configuration.nix kvm-intel)

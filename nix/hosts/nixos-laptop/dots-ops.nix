@@ -121,6 +121,6 @@ in
       KbdInteractiveAuthentication = lib.mkDefault false;
     };
     warnings = lib.optional (config.services.openssh.enable && !ownerHasKeys)
-      "dots-ops: sshd left as is (no users.users.${cfg.owner}.openssh.authorizedKeys) — key-only login would lock you out";
+      "dots-ops: no users.users.${cfg.owner}.openssh.authorizedKeys — sshd is key-only unless the host config overrides it, so remote login is impossible until you add a key";
   };
 }

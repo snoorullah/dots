@@ -71,6 +71,12 @@ You are asked once for the multiplexer (tmux by default, herdr as the trial). Th
    changed `/etc/docker/daemon.json`. It installs the "Hyprland (dots)" session file and
    `/etc/keyd/default.conf`, enables `keyd` and `docker`, and adds you to the `docker` and
    `wireshark` groups. greetd: see step 4. (Tailscale is not part of the dotfiles; install it yourself if you want it.)
+   OpenSSH server, on every machine (org-managed included): before sshd is enabled, `system/sshd/baseline.sh`
+   writes `/etc/ssh/sshd_config.d/40-dots-baseline.conf` (no root login, no password or keyboard-interactive
+   login), adds the `Include` of `sshd_config.d` to `sshd_config` if it is missing, and checks it with `sshd -t`
+   (rolled back if rejected). sshd is enabled only when `~/.ssh/authorized_keys` holds a key; otherwise it stays
+   installed but disabled (Debian's auto-start is undone) and the script says so. Add a key, then
+   `sudo systemctl enable --now ssh` (`sshd` on Arch/Fedora).
 2. `10-nix` (whenever any file under `nix/` changes): `home-manager switch` for your GPU flavour, with the
    home-manager CLI pinned by `nix/flake.lock`.
 3. `22-userdata` (once): creates `~/.task`, `~/.kube` and the adhd directories, generates prayer times, and clones
