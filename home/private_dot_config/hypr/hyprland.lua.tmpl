@@ -99,7 +99,7 @@ hl.animation({ leaf = "layers",     enabled = true, speed = 6, bezier = "snappy"
 -- Keep terminals fully opaque (don't translucent them via the global opacity).
 hl.window_rule({ match = { class = "^(com[.]mitchellh[.]ghostty)$" }, opaque = true })
 
-hl.window_rule({ match = { class = "^(zen-alpha|zen-browser|firefox|Firefox)$" },      workspace = "2 silent" })
+hl.window_rule({ match = { class = "^(zen-alpha|zen-beta|zen-browser|firefox|Firefox)$" }, workspace = "2 silent" })
 hl.window_rule({ match = { class = "^([Cc]ode|code-oss|Cursor)$" },                    workspace = "3 silent" })
 hl.window_rule({ match = { class = "^([Ss]lack)$" },                                   workspace = "4 silent" })
 hl.window_rule({ match = { class = "^([Tt]hunderbird)$" },                             workspace = "5 silent" })
@@ -129,6 +129,9 @@ hl.window_rule({ match = { title = "^(focus-panel)$" }, opaque = true })        
 
 -- ── Autostart ──────────────────────────────────────────────────────────
 hl.on("hyprland.start", function()
+  -- The user manager lingers across logouts: replace a previous session's env (e.g. XDG_CURRENT_DESKTOP=GNOME) and drop
+  -- portals started under it, else xdg-desktop-portal waits on the GNOME backend and every GTK app stalls 25 s.
+  hl.exec_cmd("sh -c 'dbus-update-activation-environment --systemd WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE HYPRLAND_INSTANCE_SIGNATURE; systemctl --user stop xdg-desktop-portal xdg-desktop-portal-gnome xdg-desktop-portal-gtk xdg-desktop-portal-hyprland; systemctl --user reset-failed'")
   hl.exec_cmd("waybar")
   hl.exec_cmd("swaync")
   hl.exec_cmd("swayosd-server")

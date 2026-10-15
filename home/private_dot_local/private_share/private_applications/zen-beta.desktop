@@ -1,0 +1,27 @@
+# Overrides the nix zen flake's entry (same id) so the launcher shows "Zen Browser", not "Zen Browser (Beta)".
+# Zen's release builds are all versioned "<n>b"; the flake just labels the channel. Keep Exec/actions in sync with it.
+[Desktop Entry]
+Actions=new-private-window;new-window;profile-manager-window
+Categories=Network;WebBrowser
+Exec=zen-beta --name zen-beta %U
+GenericName=Web Browser
+Icon=zen-browser
+MimeType=text/html;text/xml;application/xhtml+xml;application/vnd.mozilla.xul+xml;x-scheme-handler/http;x-scheme-handler/https
+Name=Zen Browser
+StartupNotify=true
+StartupWMClass=zen-beta
+Terminal=false
+Type=Application
+Version=1.5
+
+[Desktop Action new-private-window]
+Exec=zen-beta --private-window %U
+Name=New Private Window
+
+[Desktop Action new-window]
+Exec=zen-beta --new-window %U
+Name=New Window
+
+[Desktop Action profile-manager-window]
+Exec=zen-beta --ProfileManager
+Name=Profile Manager
