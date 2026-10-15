@@ -1,3 +1,4 @@
+onboarding = false
 # herdr configuration
 # Place this file at ~/.config/herdr/config.toml
 
@@ -19,6 +20,8 @@
 
 # Override individual color tokens on top of the base theme.
 # Accepts: hex (#rrggbb), named colors, rgb(r,g,b), or panel_bg = "reset"
+name = "dracula"
+auto_switch = false
 [theme.custom]
 sidebar_bg = "{{ .palette.term.bg }}"
 # active_row_bg = "#1e1e2e"
@@ -99,8 +102,6 @@ prefix = "ctrl+space"            # same prefix as tmux-config
 # remote_image_paste = "ctrl+v" # only active in herdr --remote; empty disables raw-key image paste
 # new_tab = "prefix+c"
 # rename_tab = "prefix+shift+t"
-# Rebound from the default prefix+p, which the pass popup keeps (same habit as tmux). prefix+comma is unused by any default binding.
-previous_tab = "prefix+comma"
 # next_tab = "prefix+n"
 # move_tab_previous = ""   # optional, e.g. "alt+shift+left" moves the tab toward the front
 # move_tab_next = ""       # optional, e.g. "alt+shift+right" moves the tab toward the back
@@ -128,6 +129,29 @@ previous_tab = "prefix+comma"
 # resize_pane_right = ""  # optional, e.g. "ctrl+shift+alt+right"
 # toggle_sidebar = "prefix+b"
 
+# ── tmux parity: these mirror tmux.conf (same prefix, same letters) ────────
+# herdr tab = tmux window, herdr workspace = tmux session.
+help = "prefix+?"                                    # tmux ? (palette); prefix+K is the filterable list below
+settings = "prefix+comma"                            # tmux has none; frees prefix+s for split
+detach = "prefix+d"                                  # tmux d
+open_notification_target = "prefix+i"                # frees prefix+o for the session picker
+workspace_picker = ["prefix+o", "prefix+shift+s"]    # tmux o (sessionx) / S (session switch)
+goto = ["prefix+g", "prefix+shift+w"]                # tmux W (window switch)
+rename_workspace = "prefix+$"                        # tmux default rename-session
+new_tab = ["prefix+t", "prefix+c"]                   # tmux t / c (new window)
+rename_tab = "prefix+r"                              # tmux r (rename window)
+previous_tab = "prefix+p"                            # tmux p
+next_tab = "prefix+n"                                # tmux n
+edit_scrollback = ["prefix+e", "prefix+[", "alt+up"] # tmux e (extrakto) / [ / M-Up (copy mode)
+split_vertical = "prefix+v"                          # tmux v: side by side
+split_horizontal = ["prefix+s", "prefix+minus"]      # tmux s: stacked
+close_pane = ["prefix+w", "prefix+x"]                # tmux w (kill pane)
+resize_mode = "prefix+ctrl+r"                        # frees prefix+r for rename
+toggle_sidebar = "prefix+`"                          # tmux ` (toggle status bar)
+# Not mirrored: tmux's -n C-h/j/k/l pane moves are vim-aware (they pass the key
+# through to nvim); herdr cannot tell, so direct ctrl+hjkl would break nvim and
+# shell C-l/C-k. Use prefix+h/j/k/l (the defaults), as in tmux.
+
 # Navigate-mode movement. These local shortcuts win while navigate mode is open.
 # They are independent from focus_pane_*. Do not include prefix+, esc, enter, tab, or 1..9 here.
 # navigate_workspace_up = "up"
@@ -152,14 +176,108 @@ previous_tab = "prefix+comma"
 
 # Shared mux scripts live in ~/.config/dots-mux (present under tmux and herdr).
 [[keys.command]]
-key = "prefix+p"
+key = "prefix+*"                                     # tmux *
 type = "popup"
 command = "~/.config/dots-mux/pass-menu.sh"
 
 [[keys.command]]
-key = "prefix+S"
+key = "prefix+ctrl+s"                                # prefix+S is the session picker, as in tmux
 type = "popup"
 command = "~/.config/dots-mux/ssh-menu.sh"
+
+[[keys.command]]
+key = "prefix+shift+k"                               # tmux K (key list): searchable list of every herdr key
+type = "popup"
+command = "~/.config/dots-mux/herdr-keys.sh"
+width = "80%"
+height = "80%"
+
+[[keys.command]]
+key = "prefix+b"                                     # tmux b
+type = "popup"
+command = "otter-launcher zt"
+width = "85%"
+height = "75%"
+
+# ── Plugins (herdr plugin install …). herdr ignores keys declared in plugin
+# manifests, so every plugin key lives here. tmux-equivalent first, then extras.
+[[keys.command]]
+key = "prefix+f"                                     # tmux f (tmux-fzf): jump to any tab/pane/agent
+type = "plugin_action"
+command = "herdr-bar.open"
+
+[[keys.command]]
+key = "prefix+shift+c"                               # tmux C (command list)
+type = "plugin_action"
+command = "herdr-bar.open"
+
+[[keys.command]]
+key = "prefix+shift+b"                               # tmux B (tmux-browser)
+type = "plugin_action"
+command = "structupath.browser.open"
+
+[[keys.command]]
+key = "prefix+space"                                 # tmux Space (tmux-thumbs): open a file the agent printed
+type = "plugin_action"
+command = "chmarax.herdr-nvim.pick-file"
+
+[[keys.command]]
+key = "prefix+shift+e"
+type = "plugin_action"
+command = "chmarax.herdr-nvim.toggle"
+
+[[keys.command]]
+key = "prefix+ctrl+g"
+type = "plugin_action"
+command = "herdr-lazygit.open"
+
+[[keys.command]]
+key = "prefix+y"
+type = "plugin_action"
+command = "vedangp57.gitty.open"
+
+[[keys.command]]
+key = "prefix+ctrl+d"
+type = "plugin_action"
+command = "herdr-dagr.open-dagr"
+
+[[keys.command]]
+key = "prefix+a"
+type = "plugin_action"
+command = "herdr-projects.open-popup"
+
+[[keys.command]]
+key = "prefix+shift+a"                               # Automations board (scheduled agent prompts)
+type = "shell"
+command = "herdr plugin pane open --plugin dnzzl.automations --entrypoint board"
+
+[[keys.command]]
+key = "prefix+ctrl+t"
+type = "plugin_action"
+command = "herdr-theme-picker.open"
+
+[[keys.command]]
+key = "prefix+shift+t"                               # tmux T (task monitor)
+type = "plugin_action"
+command = "herdr-tsk.open-board"
+
+[[keys.command]]
+key = "prefix+ctrl+a"
+type = "plugin_action"
+command = "herdr-tsk.quick-capture"
+
+[[keys.command]]
+key = "prefix+shift+o"                               # tmux O (tmuxinator): apply a saved layout
+type = "plugin_action"
+command = "herdr-spreader.apply"
+
+[[keys.command]]
+key = "prefix+ctrl+b"
+type = "plugin_action"
+command = "zenbu-labs.terminal-browser.open-split"
+
+# pairfob (phone remote control) is deliberately unbound: pair from herdr-bar
+# (prefix+f) only when you mean to, since a paired phone gets full terminal access.
 
 # Legacy indexed shortcut config is still parsed for compatibility.
 # Prefer switch_tab, switch_workspace, and focus_agent for new configs.
@@ -313,6 +431,7 @@ tab_bar_right = [
 # rows = [["state_icon", "workspace"], ["branch", "git_status"]]
 
 # Background notification popup delivery
+status_indicators = "dots"
 [ui.toast]
 # off = disable pop-up notifications
 # herdr = show in-app toasts
@@ -341,6 +460,7 @@ delivery = "system"
 # [ui.sound.agents]
 # droid = "off"
 
+enabled = true
 [session]
 # Resume supported AI-agent panes into their native conversation sessions after
 # a Herdr server restart. Requires official integrations that report session refs.
