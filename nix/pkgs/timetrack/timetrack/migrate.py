@@ -353,7 +353,21 @@ CREATE TABLE web_ticket_day (
 COMMIT;
 """
 
-MIGRATIONS = {"work": [(1, WORK_V1), (2, WORK_V2), (3, WORK_V3), (4, WORK_V4)],
+# --- work v5 ---------------------------------------------------------------
+# An explicit logout (Super+Esc -> "log out for today"). It ENDS the day: presence after
+# it never extends that day's session. Coming back afterwards is a new login, clustered
+# afresh. A table, not a clock_event kind, because it must exist before any session does
+# -- the AW ingest reads it to decide where sessions end.
+WORK_V5 = """
+BEGIN;
+CREATE TABLE logout (
+  ts_unix    INTEGER PRIMARY KEY,
+  provenance TEXT    NOT NULL
+);
+COMMIT;
+"""
+
+MIGRATIONS = {"work": [(1, WORK_V1), (2, WORK_V2), (3, WORK_V3), (4, WORK_V4), (5, WORK_V5)],
               "private": [(1, PRIVATE_V1), (2, PRIVATE_V2)]}
 
 

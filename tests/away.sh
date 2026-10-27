@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # D7 (away.py): declared on the way out (Super+Esc) or asked on the way back. What must
 # never happen: a gap answered without the user, a neighbouring gap answered by mistake, a
-# stale declaration answering a later gap, or a prompt past the D21 budget.
+# stale declaration answering a later gap, or presence after a logout counted to that day.
 set -euo pipefail
 root="$(git rev-parse --show-toplevel)"
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
@@ -41,11 +41,6 @@ pt = tmp / "prayer-times.conf"
 pt.write_text("# generated\nAsr 17:15    # adhan 16:10\nMaghrib 17:52\n")
 check("gap over Asr iqamah", away.salah_hint(T, T + 1800, pt), "Asr")
 check("gap far from iqamah", away.salah_hint(T - 7200, T - 5400, pt), None)
-
-# 3. budget
-check("2 this hour is the cap", away.within_budget([T - 100, T - 200], T), False)
-check("8 today is the cap", away.within_budget([T - 3600 * h for h in range(2, 10)], T), False)
-check("1 this hour ok", away.within_budget([T - 100], T), True)
 
 migrate.migrate()
 conn = dbs.open_work()
@@ -89,13 +84,14 @@ check("meeting costs nothing", (r["minutes"], r["confirmed"], r["provenance"]),
       (0, 1, "manual:meeting"))
 
 before = len(calls)
-check("over budget defers", away.handle(T - 1700, T - 1000, T + 200, launch=panel("salah\n")), "deferred")
-check("no panel when over budget", len(calls), before)
-check("deferred stays unconfirmed", row(other)["confirmed"], 0)
-
+check("no budget: asked again", away.handle(T - 1700, T - 1000, T + 200, launch=panel("salah\n")),
+      "answered:salah")
+check("asked: panel shown", len(calls), before + 1)
+before = len(calls)
+other = gap(T - 900, T - 400); conn.commit()
 away.STATE.unlink()
 config.PANIC.parent.mkdir(parents=True, exist_ok=True); config.PANIC.touch()
-check("PANIC defers", away.handle(T - 1700, T - 1000, T + 9000, launch=panel("salah\n")), "deferred")
+check("PANIC defers", away.handle(T - 900, T - 400, T + 9000, launch=panel("salah\n")), "deferred")
 check("no panel under PANIC", len(calls), before)
 
 # 6. declared with Super+Esc: answered from the pick, no panel
@@ -119,12 +115,32 @@ away.declare("meal", now=T - 30000)
 check("morning long break is lunch", (away.handle(T - 30000, T - 28000, T + 40000),
       row(meal)["category"]), ("declared:meal", "lunch"))
 check("long break from 17:00 is dinner", away.category("meal", T + 60), "dinner")
-check("garbage panel output is no answer", away.handle(T - 1700, T - 1000, T + 50000,
+check("garbage panel output is no answer", away.handle(T - 900, T - 400, T + 50000,
       launch=panel("rm -rf /\n")), "unanswered")
+
+# 7. log out ends the day: presence after it never extends that session
+from datetime import timedelta
+away.declare("logout", now=T)
+check("logout recorded", conn.execute("SELECT COUNT(*) FROM logout WHERE ts_unix=?", (T,)).fetchone()[0], 1)
+d = lambda h, m=0: datetime(2026, 10, 27, h, m).astimezone()
+L = datetime.fromtimestamp(T).astimezone()
+days = aw.workdays([(d(13), d(18)), (d(19), d(20))], [L])
+check("logout ends the day; same-evening return dropped", [(x["open"].hour, x["close"].hour) for x in days], [(13, 17)])
+nxt = datetime(2026, 10, 28, 1, 0).astimezone()
+days = aw.workdays([(d(13), d(18)), (nxt, nxt + timedelta(hours=1))], [L])
+check("01:00 after a logout is still dropped", [x["day"] for x in days], ["2026-10-27"])
+nxt = datetime(2026, 10, 28, 12, 0).astimezone()
+days = aw.workdays([(d(13), d(17)), (nxt, nxt + timedelta(hours=3))], [L])
+check("next day's work counts", [x["day"] for x in days], ["2026-10-27", "2026-10-28"])
+late = datetime(2026, 10, 28, 0, 30).astimezone()
+days = aw.workdays([(d(20), late), (nxt, nxt + timedelta(hours=3))], [late])
+check("00:30 logout does not black out the next day", [x["day"] for x in days], ["2026-10-27", "2026-10-28"])
+check("no logout: one cluster", len(aw.workdays([(d(13), d(18)), (d(19), d(20))])), 1)
+check("away after logout: nothing to answer", away.handle(T + 60, T + 3600, T + 60000), "declared:logout")
 
 if fails:
     print("away FAILED:")
     for f in fails: print("  " + f)
     raise SystemExit(1)
-print("away ok (6 scenarios, 30 assertions)")
+print("away ok (7 scenarios, 33 assertions)")
 PY

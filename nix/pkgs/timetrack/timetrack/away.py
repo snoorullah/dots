@@ -11,8 +11,9 @@ can. Two paths, both ending in the same human answer:
                      gap < PROMPT_MIN (5 min) a short break (deducted) + a 4s toast
                      longer                   the same picker, in a blocking panel
 
-The prompt budget (D21) caps blocking panels at 2 an hour and 8 a day. Over budget, or on
-no answer, the gap stays UNCONFIRMED for the batch fallback (`timetrack backfill`).
+Every undeclared gap is asked about, as often as it happens (the user's call, 2026-10-28,
+overriding the D21 budget). With no answer the gap stays UNCONFIRMED for the batch
+fallback (`timetrack backfill`). "Log out for today" ENDS the day (work.db `logout`).
 Nothing is ever answered for the user: a timeout records an absence, not a choice.
 
 Auto-classification only ever DEDUCTS. Getting a short gap wrong under-reports; it can
@@ -31,7 +32,6 @@ from .backfill import aw
 MIN_GAP = aw.MIN_GAP
 PROMPT_MIN = 5 * 60        # matches hypridle's lock: an undeclared lock is always asked
 RECENT = 5 * 60            # a return older than this was missed; the batch panel has it
-BUDGET_HOUR, BUDGET_DAY = 2, 8
 SALAH_BEFORE, SALAH_AFTER = 10 * 60, 30 * 60
 DECLARE_SLACK = 10 * 60    # a declaration this long before the user left still counts
 AUTO = "return:auto"
@@ -131,6 +131,11 @@ def declare(key, now=None):
     if key == "salah" and (p := salah_hint(now, now)):
         label = f"Salah · {p}"
     _write(INTENT, {"key": key, "label": label, "since": now})
+    if key == "logout":
+        with dbs.open_work() as conn:
+            conn.execute("INSERT OR IGNORE INTO logout(ts_unix, provenance) VALUES(?, ?)",
+                         (now, DECLARED))
+            conn.commit()
     return label
 
 
@@ -143,12 +148,6 @@ def take_intent(g0, g1):
         return None
     INTENT.unlink(missing_ok=True)
     return it["key"]
-
-
-def within_budget(prompts, now):
-    hour = sum(1 for t in prompts if now - t < 3600)
-    day = sum(1 for t in prompts if datetime.fromtimestamp(t).date() == date.fromtimestamp(now))
-    return hour < BUDGET_HOUR and day < BUDGET_DAY
 
 
 def find_gap(conn, g0, g1):
@@ -193,6 +192,8 @@ def handle(g0, g1, now, launch=None):
     mins = round((g1 - g0) / 60)
 
     if key := take_intent(g0, g1):
+        if key == "logout":
+            return "declared:logout"     # the day ended at the logout; no gap to answer
         return f"declared:{key}" if _answer(g0, g1, key, DECLARED) else "no-gap"
 
     if g1 - g0 < PROMPT_MIN:
@@ -205,7 +206,7 @@ def handle(g0, g1, now, launch=None):
         if not find_gap(conn, g0, g1):
             return "no-gap"
     st = _state()
-    if config.panic() or not within_budget(st["prompts"], now):
+    if config.panic():
         _toast(f"{mins} min away ({_clock(g0)}–{_clock(g1)}) · answer later: timetrack backfill")
         return "deferred"
     st["prompts"] = [t for t in st["prompts"] if now - t < 86400] + [now]

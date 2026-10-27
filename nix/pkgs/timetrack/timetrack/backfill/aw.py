@@ -25,6 +25,7 @@ PROVENANCE = "backfill:aw"
 MIN_PRESENT = 300  # seconds; below this a cluster is noise, not a workday
 MIN_GAP = 180      # seconds; a shorter gap is a pause, not a break worth asking about
 CONFIDENCE = 0.8
+ROLLOVER_HOUR = 6  # a logout ends the day until 06:00 (see workdays)
 HAND = "hotkey"   # provenance of intervals the user recorded by hand (hotkey.py)
 
 
@@ -84,7 +85,7 @@ def not_afk(since=None, until=None, now=None):
     return intervals.merge(spans)
 
 
-def workdays(spans):
+def workdays(spans, logouts=()):
     """Cluster presence spans into workdays.
 
     Split on config.workday_gap_seconds() (8h), NOT on midnight. This user works evenings
@@ -92,11 +93,26 @@ def workdays(spans):
     an 01:20 start and a 22:45 finish on the same date as a 21-hour day.
 
     attendance_day is the date the cluster OPENS and is inherited by the whole cluster.
+
+    An explicit logout ends the day: the cluster closes at it, presence until the next
+    06:00 is dropped, and anything after starts a new cluster.
     """
     gap = timedelta(seconds=config.workday_gap_seconds())
+    cuts = sorted(logouts)
+    # Logged out for TODAY: presence from the logout until the next ROLLOVER_HOUR (unlocking
+    # to grab something, a glance at a message) is not work. Not midnight: this user's day
+    # runs past it, so a 00:30 logout would otherwise black out all of the next day.
+    # Work after a logout and before the rollover belongs on the hotkey (Super+Shift+U).
+    def rollover(c):
+        r = c.replace(hour=ROLLOVER_HOUR, minute=0, second=0, microsecond=0)
+        return r if r > c else r + timedelta(days=1)
+    blackout = [(c, rollover(c)) for c in cuts]
+    pieces = intervals.subtract(spans, blackout) if blackout else list(spans)
     out = []
-    for s, e in spans:
-        if out and s - out[-1][-1][1] < gap:
+    for s, e in pieces:
+        prev = out[-1][-1][1] if out else None
+        cut = prev is not None and any(prev <= c <= s for c in cuts)
+        if prev is not None and s - prev < gap and not cut:
             out[-1].append((s, e))
         else:
             out.append([(s, e)])
@@ -156,7 +172,9 @@ def write(conn, since=None, until=None, refresh_day=None):
     freezes at whenever it first ran. The provenance guard is what keeps that from ever
     eating the hand-kept sheet, which is confidence 1.0 and is what gets submitted.
     """
-    days = workdays(not_afk(since, until))
+    tz = datetime.now().astimezone().tzinfo
+    logouts = [datetime.fromtimestamp(r[0], tz) for r in conn.execute("SELECT ts_unix FROM logout")]
+    days = workdays(not_afk(since, until), logouts)
     kept = {}
     if refresh_day:
         kept[refresh_day] = _answers(conn, refresh_day)
@@ -181,7 +199,8 @@ def write(conn, since=None, until=None, refresh_day=None):
             "INSERT INTO work_session(opened_ts,opened_unix,closed_ts,closed_unix,"
             "attendance_day,open_trigger,close_trigger,provenance) VALUES(?,?,?,?,?,?,?,?)",
             (_iso(d["open"]), int(d["open"].timestamp()), _iso(d["close"]),
-             int(d["close"].timestamp()), d["day"], "aw", "aw", PROVENANCE))
+             int(d["close"].timestamp()), d["day"], "aw",
+             "logout" if d["close"] in logouts else "aw", PROVENANCE))
         sid = cur.lastrowid
         # ONE run pair spanning open..close, matching how the sheet writes a day. The
         # obvious alternative -- a run pair per presence span -- makes span mean ACTIVE

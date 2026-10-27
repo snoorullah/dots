@@ -40,7 +40,7 @@ def net():
                         (day,)).fetchone()[0]
 
 aw.not_afk = lambda *a, **k: []
-aw.workdays = lambda _ev: presence(19, 0)
+aw.workdays = lambda _ev, _lo=(): presence(19, 0)
 aw.write(conn, refresh_day=day)
 check("first write: 6h span, 90m of gaps", net(), 360 - 90)
 
@@ -54,7 +54,7 @@ conn.commit()
 check("after answering: the meeting returns 60 minutes", net(), 360 - 30)
 
 # an hour later the day has grown, and the capture job refreshes it
-aw.workdays = lambda _ev: presence(20, 0)
+aw.workdays = lambda _ev, _lo=(): presence(20, 0)
 aw.write(conn, refresh_day=day)
 check("REFRESH KEEPS THE MEETING AS WORKED TIME", net(), 420 - 30)
 cats = conn.execute("SELECT category, minutes, confirmed, provenance FROM deduction"
@@ -76,7 +76,7 @@ r = hotkey.stop(conn, now=int(T(21, 30).timestamp()))      # 20:30-21:30, half b
 check("hand interval recorded", r["action"], "recorded")
 check("hand interval in its own session", conn.execute(
     "SELECT provenance FROM work_session WHERE id=?", (r["session_id"],)).fetchone()[0], "hotkey")
-aw.workdays = lambda _ev: presence(21, 0)                 # AW presence grows to 21:00
+aw.workdays = lambda _ev, _lo=(): presence(21, 0)                 # AW presence grows to 21:00
 aw.write(conn, refresh_day=day)
 check("refresh kept the hand interval", conn.execute(
     "SELECT COUNT(*) FROM clock_event WHERE provenance='hotkey' AND kind IN ('run_start','run_stop')").fetchone()[0], 2)
@@ -99,7 +99,7 @@ U = lambda h, m, s=0: datetime(2026, 10, 21, h, m, s)
 hotkey.start("", now=int(U(10, 0, 4).timestamp()))                # 4s after AW saw idle
 hotkey.stop(conn, now=int(U(10, 14).timestamp()))
 runs2 = [(U(9, 0), U(10, 0)), (U(10, 14), U(11, 0))]
-aw.workdays = lambda _ev: [{"day": d2, "open": runs2[0][0], "close": runs2[-1][1],
+aw.workdays = lambda _ev, _lo=(): [{"day": d2, "open": runs2[0][0], "close": runs2[-1][1],
     "present_seconds": sum((b - a).total_seconds() for a, b in runs2), "runs": runs2}]
 aw.write(conn, refresh_day=d2)
 g = conn.execute("SELECT confirmed, provenance FROM deduction WHERE attendance_day=?"
@@ -116,7 +116,7 @@ check("AW share within measured presence", round(n2 - hand) <= real_present + 1,
 # the guard still holds: a refresh never touches a day it did not write itself
 conn.execute("UPDATE work_session SET provenance='backfill:sheet' WHERE attendance_day=?", (day,))
 conn.commit()
-aw.workdays = lambda _ev: presence(21, 0)
+aw.workdays = lambda _ev, _lo=(): presence(21, 0)
 aw.write(conn, refresh_day=day)
 check("sheet day untouched", net(), 450 + 30)
 

@@ -21,7 +21,7 @@ def check(name, got, want):
 
 migrate.migrate()
 conn = dbs.open_work()
-check("schema v4", conn.execute("PRAGMA user_version").fetchone()[0], 4)
+check("schema v5", conn.execute("PRAGMA user_version").fetchone()[0], 5)
 check("ships as a shadow", migrate.live_counts(conn), False)
 
 day = "2026-10-24"
@@ -32,7 +32,7 @@ conn.execute("INSERT INTO day_class(day,kind,pay_affecting,target_minutes) VALUE
 # AW measured 13:00-17:00 with no gaps
 runs = [(datetime(2026, 10, 24, 13), datetime(2026, 10, 24, 17))]
 aw.not_afk = lambda *a, **k: []
-aw.workdays = lambda _e: [{"day": day, "open": runs[0][0], "close": runs[0][1],
+aw.workdays = lambda _e, _lo=(): [{"day": day, "open": runs[0][0], "close": runs[0][1],
                            "present_seconds": 4 * 3600, "runs": runs}]
 aw.write(conn, refresh_day=day)
 
