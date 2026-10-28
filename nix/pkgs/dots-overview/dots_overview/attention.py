@@ -8,7 +8,7 @@ Those are the only two counts the pill spends colour on.
 """
 import time
 
-from . import herdr, names, sources_notify, sources_ops, sync
+from . import atomic, config, herdr, names, sources_notify, sources_ops, sync
 
 URGENCY_RANK = {"critical": 0, "time": 1, "active": 2, "passive": 3}
 CLAUDE_TTL = 24 * 3600
@@ -83,11 +83,31 @@ def build(tasks, live, now=None):
         "task": {"state": "ok", "ts": now, "detail": None},
         "mail": {"state": "unavailable", "ts": now, "detail": "no local mail store"},
     }
+    inbox, inbox_src = inbox_counts(now)
+    if inbox is not None:
+        counts["inbox"] = inbox
+        sources["mail"] = inbox_src
     sources["gh"] = sources["gh"] or {"state": "unavailable", "ts": now, "detail": "never synced"}
     return {"v": 1, "ts": now, "items": items, "counts": counts, "sources": sources}
 
 
 STALE_SYNC = 3 * 3600
+
+
+def inbox_counts(now):
+    """(counts, source) from dots-inbox's inbox.json, or (None, None) when there is none.
+
+    dots-inbox writes NUMBERS ONLY here because this file sits outside the encrypted mail
+    store: no subject, sender or body can reach the dashboard. An old file is stale.
+    """
+    doc = atomic.read_json(config.STATE_DIR / "inbox.json", None)
+    if not isinstance(doc, dict):
+        return None, None
+    counts = {k: v for k, v in doc.items()
+              if k != "updated" and isinstance(v, int) and not isinstance(v, bool)}
+    ts = int(doc.get("updated") or 0)
+    state = "ok" if now - ts <= STALE_SYNC else "stale"
+    return counts, {"state": state, "ts": ts, "detail": None if state == "ok" else "last mail sync over 3 h ago"}
 
 
 def _aged(src, now):

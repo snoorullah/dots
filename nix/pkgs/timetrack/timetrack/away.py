@@ -293,10 +293,17 @@ def login_due(st, events, now):
     return now - last >= QUIET_LOGIN or _logged_out_since(last)
 
 
+def _inbox_login(now):
+    """The mail brief: what was prepared and answered while away. Detached; absent tool = no-op."""
+    if exe := shutil.which("dots-inbox"):
+        subprocess.Popen([exe, "brief", "--login"], stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+
+
 def on_login(now):
     """D10, D15, D18 at the start of a session. One failure must not stop the others."""
     from . import health, login
-    for hook in (login.on_login, health.on_login):
+    for hook in (login.on_login, health.on_login, _inbox_login):
         try:
             hook(int(now))
         except (Exception, SystemExit) as e:
