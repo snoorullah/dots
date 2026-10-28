@@ -7,4 +7,4 @@ Type=oneshot
 Environment=PATH=%h/.nix-profile/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 Nice=15
 TimeoutStartSec=3h
-ExecStart=%h/.local/bin/dots-inbox prep-run
+ExecStart=%h/.nix-profile/bin/dots-inbox prep-run
