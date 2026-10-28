@@ -59,6 +59,8 @@ if [ -n "${QML_LINT:-}" ] && [ -x "$QML_LINT" ]; then
   done
   cp -r "$ov/js" "$lint/qs/modules/overview/js"
   cp "$tst/stub/modules/theme/Theme.qml" "$lint/qs/modules/theme/"
+  # the one shared component the overview borrows (screenshot-proof dismiss)
+  mkdir -p "$lint/qs/modules/common"; cp "$ov/../common/DismissGrab.qml" "$lint/qs/modules/common/"
   mkqmldir() { # dir module
     ( cd "$1" && { echo "module $2"; for f in *.qml; do n="${f%.qml}"
         if grep -q '^pragma Singleton' "$f"; then echo "singleton $n 1.0 $f"; else echo "$n 1.0 $f"; fi; done; } > qmldir )
@@ -67,6 +69,7 @@ if [ -n "${QML_LINT:-}" ] && [ -x "$QML_LINT" ]; then
   mkqmldir "$lint/qs/modules/overview/parts" qs.modules.overview.parts
   mkqmldir "$lint/qs/modules/overview/pages" qs.modules.overview.pages
   mkqmldir "$lint/qs/modules/theme" qs.modules.theme
+  mkqmldir "$lint/qs/modules/common" qs.modules.common
   qsq="$(dirname "$(dirname "$QS")")/lib/qt-6/qml"
   lintimp=(-I "$lint"); [ -d "$qsq" ] && lintimp+=(-I "$qsq"); [ -n "$QTD" ] && lintimp+=(-I "$QTD/lib/qt-6/qml")
   # OverviewHost builds Quickshell windows (PanelWindow, margins { }, anchors { }) whose attached
