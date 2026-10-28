@@ -14,7 +14,7 @@ TOP = 8
 
 
 def bucket_starts(today):
-    """Start dates for today / week (Monday) / month / quarter; each begins at 06:00 (workday)."""
+    """Start dates for today / week (Monday) / month / quarter; each begins at that day's first login."""
     q = (today.month - 1) // 3 * 3 + 1
     return {"today": today, "week": today - timedelta(days=today.weekday()),
             "month": today.replace(day=1), "quarter": today.replace(month=q, day=1)}

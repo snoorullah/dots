@@ -30,13 +30,11 @@ python3 - "$tmp/tt/work.db" <<'EOF'
 import sqlite3, sys, time
 from datetime import datetime
 c = sqlite3.connect(sys.argv[1])
-c.executescript("""CREATE TABLE work_session (id INTEGER PRIMARY KEY, opened_unix INTEGER, closed_unix INTEGER);
+c.executescript("""CREATE TABLE work_session (id INTEGER PRIMARY KEY, opened_unix INTEGER, closed_unix INTEGER, attendance_day TEXT);
 CREATE TABLE deduction (id INTEGER PRIMARY KEY, session_id INTEGER, start_unix INTEGER, end_unix INTEGER);
 CREATE TABLE v_run_interval (ticket TEXT, start_unix INTEGER, end_unix INTEGER);""")
-d = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
-if datetime.now().hour < 6: d -= 86400       # before 06:00 the workday began yesterday
-d += 6 * 3600                                 # the workday starts at 06:00
-c.execute("INSERT INTO work_session VALUES (1, ?, ?)", (d + 3600, d + 3600 + 6 * 3600 + 12 * 60))
+d = time.time() - 7 * 3600     # logged in 7 h ago, logs out in 10 min (the tasks below close inside it): the day is the session
+c.execute("INSERT INTO work_session VALUES (1, ?, ?, ?)", (d, time.time() + 600, datetime.fromtimestamp(d).strftime("%Y-%m-%d")))
 c.execute("INSERT INTO v_run_interval VALUES ('HD-123', ?, ?)", (d + 3600, d + 3600 + 6000))
 c.commit()
 EOF
@@ -53,7 +51,7 @@ tw project:personal "done" >/dev/null 2>&1
 echo "1. first run"
 out=$(dots-overview report 2>&1); rc=$?
 [ "$rc" = 0 ] && ok "report exits 0 with the network poisoned" || bad "report failed: $out"
-day=$(date -d "-6 hours" +%F); f="$tmp/daily/$day.md"   # the workday: 06:00 -> 06:00
+day=$(date -d "-7 hours" +%F); f="$tmp/daily/$day.md"   # the session's day (it opened 7 h ago)
 [ -f "$f" ] && ok "writes REPORT_DIR/$day.md" || bad "no brief at $f"
 [ "$(stat -c %a "$f")" = 600 ] && ok "file is 0600" || bad "file mode $(stat -c %a "$f")"
 [ "$(stat -c %a "$tmp/daily")" = 700 ] && ok "directory is 0700" || bad "dir mode"

@@ -45,12 +45,11 @@ def _line(i, t, secs, cfg=None):
 
 def build(day, cfg, now=None):
     now = int(now or time.time())
-    t0, t1 = local_tt.day_bounds(day)
-    t1 = min(t1, now) if day == date.fromtimestamp(now) else t1
+    t0, t1 = local_tt.day_bounds(day, now)      # the day is its session: login -> logout (or now)
     times = dict(local_tt.ref_seconds(t0, t1))
     worked = local_tt.worked_sec(t0, t1, now)
     pend = [t for t in tw.pending() if cfg.is_work_task(t)]
-    done = [t for t in tw.completed_since(t0 - 1) if cfg.is_work_task(t) and t0 <= (t.get("end_ts") or 0) < local_tt.day_bounds(day)[1]]
+    done = [t for t in tw.completed_since(t0 - 1) if cfg.is_work_task(t) and t0 <= (t.get("end_ts") or 0) <= t1]
     done.sort(key=lambda t: t.get("end_ts") or 0)
     still = [t for t in pend if t.get("start_ts") or t.get("ref") in times or "attn" in (t.get("tags") or [])][:MAX_OPEN]
 
@@ -106,7 +105,7 @@ def write(day, cfg, reason=None, now=None):
 
 
 def parse_day(s):
-    today = local_tt.workday(time.time())   # a logout at 01:00 briefs the evening's workday
+    today = local_tt.workday(time.time())   # the session's day: a logout at 01:00 briefs that evening
     if not s or s == "today":
         return today
     if s == "yesterday":

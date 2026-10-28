@@ -32,24 +32,58 @@ def day_start(d):
     return int(datetime(d.year, d.month, d.day).timestamp())
 
 
-# A workday runs 06:00 -> 06:00, as timetrack's does (a logout ends the day until 06:00): an
-# evening that runs past midnight is still that day's work, not the next day's first minutes.
-ROLLOVER_HOUR = 6
+# A day is a WORK SESSION, login -> logout, never a clock boundary: an evening past midnight
+# is that session's day. timetrack's work_session carries attendance_day (fixed when the
+# session opened). A day's bounds are its sessions' first open and last close (now while
+# one is open). Dates with no session fall back to local midnight, which has nothing in it.
+
+def _sessions():
+    """{attendance_day (date): [opened_unix, closed_unix or None]} merged per day."""
+    conn = _ro(config.TT_DIR / "work.db")
+    if conn is None:
+        return {}
+    out = {}
+    try:
+        for r in conn.execute("SELECT attendance_day, opened_unix, closed_unix FROM work_session"):
+            try:
+                d = datetime.strptime(r["attendance_day"], "%Y-%m-%d").date()
+            except (TypeError, ValueError):
+                continue
+            cur = out.setdefault(d, [r["opened_unix"], r["closed_unix"]])
+            cur[0] = min(cur[0], r["opened_unix"])
+            cur[1] = None if (cur[1] is None or r["closed_unix"] is None) else max(cur[1], r["closed_unix"])
+    except sqlite3.Error:
+        return {}
+    finally:
+        conn.close()
+    return out
 
 
 def workday(now):
-    """The date whose workday contains epoch `now`."""
-    return (datetime.fromtimestamp(now) - timedelta(hours=ROLLOVER_HOUR)).date()
+    """The day of the session `now` is in, else of the last session before it, else the date."""
+    best = None
+    for d, (a, b) in _sessions().items():
+        if a <= now and (best is None or a > best[1]):
+            best = (d, a)
+    return best[0] if best else datetime.fromtimestamp(now).date()
 
 
 def workday_start(d):
-    """06:00 local on date d, as epoch seconds."""
-    return int(datetime(d.year, d.month, d.day, ROLLOVER_HOUR).timestamp())
+    """When day d began: its first login. Without a session that day, the first login of any
+    later day (so a week starting on a day off begins at the next login), else midnight."""
+    days = _sessions()
+    later = [a for x, (a, b) in days.items() if x >= d]
+    return min(later) if later else day_start(d)
 
 
-def day_bounds(d):
-    """[start, end) of workday d, 06:00 -> 06:00. Built from dates, not 86400 s, so a DST day is 23/25 h."""
-    return workday_start(d), workday_start(d + timedelta(days=1))
+def day_bounds(d, now=None):
+    """[login, logout) of day d; an open session runs to now."""
+    se = _sessions().get(d)
+    if not se:
+        return day_start(d), day_start(d + timedelta(days=1))
+    now = int(now or time.time())
+    end = se[1] if se[1] is not None else min(now, se[0] + OPEN_CAP)   # as _end caps a lost session
+    return se[0], max(se[0], end)
 
 
 def _clip(a, b, t0, t1):
@@ -100,7 +134,7 @@ def worked_by_day(first, last, now=None):
     finally:
         conn.close()
     for d in out:
-        a, b = day_bounds(d)
+        a, b = day_bounds(d, now)
         out[d] = _net(sess, ded, a, b)
     return out
 

@@ -153,12 +153,34 @@ class AppSecondsAndProjects(unittest.TestCase):
         self.assertEqual([g[2] for g in got], ["dots", "unassigned"])
 
 
-class Workday(unittest.TestCase):
-    """Today runs 06:00 -> 06:00: work past midnight stays on the evening's day."""
+class Workday(helpers.Scratch):
+    """A day is a work session, login -> logout, whatever the clock says (plan D1)."""
 
-    def test_rollover_at_six(self):
-        at = lambda h, m=0: datetime(2026, 10, 29, h, m).timestamp()  # noqa: E731
-        self.assertEqual(str(local_tt.workday(at(0, 30))), "2026-10-28")
-        self.assertEqual(str(local_tt.workday(at(5, 59))), "2026-10-28")
-        self.assertEqual(str(local_tt.workday(at(6, 0))), "2026-10-29")
-        self.assertEqual(local_tt.workday_start(local_tt.workday(at(0, 30))), int(datetime(2026, 10, 28, 6).timestamp()))
+    def setUp(self):
+        super().setUp()
+        config.TT_DIR.mkdir(parents=True, exist_ok=True)
+        db = sqlite3.connect(config.TT_DIR / "work.db")
+        db.execute("CREATE TABLE work_session (id INTEGER PRIMARY KEY, opened_unix INTEGER, closed_unix INTEGER,"
+                   " attendance_day TEXT)")
+        at = lambda d, h, m=0: int(datetime(2026, 10, d, h, m).timestamp())  # noqa: E731
+        self.at = at
+        # day 27: 19:27 -> 07:05 next morning; day 28: two overlapping sources, one still open
+        db.executemany("INSERT INTO work_session (opened_unix, closed_unix, attendance_day) VALUES (?,?,?)",
+                       [(at(27, 19, 27), at(28, 7, 5), "2026-10-27"), (at(28, 20, 24), None, "2026-10-28"),
+                        (at(28, 20, 25), at(28, 23, 0), "2026-10-28")])
+        db.commit()
+        db.close()
+
+    def test_past_midnight_is_still_the_sessions_day(self):
+        self.assertEqual(str(local_tt.workday(self.at(28, 6, 30))), "2026-10-27")   # still in the 27th's session
+        self.assertEqual(str(local_tt.workday(self.at(29, 0, 30))), "2026-10-28")   # after midnight, same session
+        self.assertEqual(str(local_tt.workday(self.at(28, 12, 0))), "2026-10-27")   # logged out: the last session
+
+    def test_bounds_are_login_to_logout_or_now(self):
+        self.assertEqual(local_tt.day_bounds(datetime(2026, 10, 27).date()), (self.at(27, 19, 27), self.at(28, 7, 5)))
+        now = self.at(29, 0, 30)
+        self.assertEqual(local_tt.day_bounds(datetime(2026, 10, 28).date(), now), (self.at(28, 20, 24), now))
+        self.assertEqual(local_tt.workday_start(datetime(2026, 10, 28).date()), self.at(28, 20, 24))
+
+    def test_a_week_that_starts_on_a_day_off_begins_at_the_next_login(self):
+        self.assertEqual(local_tt.workday_start(datetime(2026, 10, 26).date()), self.at(27, 19, 27))
