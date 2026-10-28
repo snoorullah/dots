@@ -1,0 +1,11 @@
+[Unit]
+Description=dots-inbox: look for replies to Slack messages Claude sent, then tidy the ledger
+# the ledger lives inside the encrypted mail store; nothing to do while it is locked
+ConditionPathIsMountPoint=%h/Mail
+
+[Service]
+Type=oneshot
+Environment=PATH=%h/.nix-profile/bin:%h/.local/bin:/run/current-system/sw/bin:/usr/local/bin:/usr/bin:/bin
+# `;` not `&&`: the sweep runs even when the checker fails or times out
+ExecStart=/bin/sh -c 'dots-inbox slack-check; dots-inbox ledger-sweep'
+TimeoutStartSec=300
