@@ -128,7 +128,7 @@ Item {
             objectName: "focusChip"
             owner: pill
             ring: true
-            want: Feed.focusRunning || pill.lampOn
+            want: (Feed.focusRunning && (Feed.focusTarget <= 0 || Feed.focusElapsed < Feed.focusTarget)) || pill.lampOn
             tone: Look.fg
             label: Fmt.mmss(Math.max(0, Feed.focusTarget - Feed.focusElapsed))
         }

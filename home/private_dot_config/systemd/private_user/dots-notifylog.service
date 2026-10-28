@@ -6,7 +6,7 @@ Type=simple
 # MANUAL and opt-in: nothing enables this. It only listens (dbus-monitor on Notify) and
 # writes ~/.local/state/dots-overview/notifications.jsonl; bodies are kept only for the
 # apps named in work.conf NOTIFY_BODY_APPS.
-ExecStart=%h/.local/bin/dots-overview notifylog
+ExecStart=%h/.nix-profile/bin/dots-overview notifylog
 Restart=on-failure
 RestartSec=10
 Nice=10

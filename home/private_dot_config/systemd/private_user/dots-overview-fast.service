@@ -4,8 +4,8 @@ Description=dots-overview fast cycle (local only, no network)
 [Service]
 Type=oneshot
 # the three local steps of the 60 s cycle; none touches the network
-ExecStart=%h/.local/bin/dots-overview ingest
-ExecStart=%h/.local/bin/dots-overview local
-ExecStart=%h/.local/bin/dots-overview attention
+ExecStart=%h/.nix-profile/bin/dots-overview ingest
+ExecStart=%h/.nix-profile/bin/dots-overview local
+ExecStart=%h/.nix-profile/bin/dots-overview attention
 TimeoutStartSec=30
 Nice=10
