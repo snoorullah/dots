@@ -1,0 +1,8 @@
+module qs.modules.overview
+singleton Actions 1.0 Actions.qml
+singleton Feed 1.0 Feed.qml
+singleton Look 1.0 Look.qml
+OverviewCard 1.0 OverviewCard.qml
+OverviewHost 1.0 OverviewHost.qml
+OverviewPanel 1.0 OverviewPanel.qml
+OverviewPill 1.0 OverviewPill.qml

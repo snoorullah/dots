@@ -1,0 +1,196 @@
+{
+ "counts": {
+  "failed": 2,
+  "total": 8,
+  "waiting": 5
+ },
+ "items": [
+  {
+   "actor": "grace",
+   "ageSec": 7200,
+   "canBreakdown": true,
+   "id": "a1",
+   "jump": {
+    "pane": "p1",
+    "sess": "s1",
+    "workspace": "w1"
+   },
+   "kind": "review",
+   "ref": "gh:acme/widgets#12",
+   "src": "gh",
+   "startedAt": null,
+   "title": "Review the widget parser change",
+   "urgency": "active",
+   "url": "https://example.invalid/a1",
+   "waiting": true
+  },
+  {
+   "actor": "linus",
+   "ageSec": 3600,
+   "canBreakdown": false,
+   "id": "a2",
+   "jump": {
+    "pane": "p1",
+    "sess": "s1",
+    "workspace": "w1"
+   },
+   "kind": "blocker",
+   "ref": "HD-88",
+   "src": "gh",
+   "startedAt": null,
+   "title": "Release is blocked on your sign-off",
+   "urgency": "time",
+   "url": "https://example.invalid/a2",
+   "waiting": true
+  },
+  {
+   "actor": "ada",
+   "ageSec": 600,
+   "canBreakdown": true,
+   "id": "a3",
+   "jump": null,
+   "kind": "task",
+   "ref": "HD-12",
+   "src": "gh",
+   "startedAt": null,
+   "title": "Tidy the backlog",
+   "urgency": "passive",
+   "url": "https://example.invalid/a3",
+   "waiting": false
+  },
+  {
+   "actor": "cron",
+   "ageSec": 1800,
+   "canBreakdown": false,
+   "id": "f1",
+   "jump": {
+    "pane": "p1",
+    "sess": "s1",
+    "workspace": "w1"
+   },
+   "kind": "alert",
+   "ref": "ops:sync",
+   "src": "gh",
+   "startedAt": null,
+   "title": "Nightly sync job failed",
+   "urgency": "critical",
+   "url": "https://example.invalid/f1",
+   "waiting": false
+  },
+  {
+   "actor": "ada",
+   "ageSec": 600,
+   "canBreakdown": false,
+   "id": "b1",
+   "jump": {
+    "pane": "p1",
+    "sess": "s1",
+    "workspace": "w1"
+   },
+   "kind": "dm",
+   "ref": "",
+   "src": "gh",
+   "startedAt": null,
+   "title": "Question about the deploy window",
+   "urgency": "active",
+   "url": "https://example.invalid/b1",
+   "waiting": true
+  },
+  {
+   "actor": "client",
+   "ageSec": 90000,
+   "canBreakdown": false,
+   "id": "b2",
+   "jump": {
+    "pane": "p1",
+    "sess": "s1",
+    "workspace": "w1"
+   },
+   "kind": "erp",
+   "ref": "HD-9",
+   "src": "gh",
+   "startedAt": null,
+   "title": "Ticket needs your reply",
+   "urgency": "time",
+   "url": "https://example.invalid/b2",
+   "waiting": true
+  },
+  {
+   "actor": "ken",
+   "ageSec": 600,
+   "canBreakdown": false,
+   "id": "b3",
+   "jump": {
+    "pane": "p1",
+    "sess": "s1",
+    "workspace": "w1"
+   },
+   "kind": "review",
+   "ref": "gh:acme/widgets#13",
+   "src": "gh",
+   "startedAt": null,
+   "title": "Second review waiting",
+   "urgency": "passive",
+   "url": "https://example.invalid/b3",
+   "waiting": true
+  },
+  {
+   "actor": "ada",
+   "ageSec": 300,
+   "canBreakdown": false,
+   "id": "b4",
+   "jump": {
+    "pane": "p1",
+    "sess": "s1",
+    "workspace": "w1"
+   },
+   "kind": "alert",
+   "ref": "ops:disk",
+   "src": "gh",
+   "startedAt": null,
+   "title": "Disk usage high on a build host",
+   "urgency": "active",
+   "url": "https://example.invalid/b4",
+   "waiting": false
+  }
+ ],
+ "sources": {
+  "erp": {
+   "detail": "",
+   "state": "off",
+   "ts": 1761599990
+  },
+  "gh": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "herdr": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "mail": {
+   "detail": "no local store",
+   "state": "unavailable",
+   "ts": 1761599990
+  },
+  "notif": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "ops": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "task": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  }
+ },
+ "ts": 1761599990,
+ "v": 1
+}

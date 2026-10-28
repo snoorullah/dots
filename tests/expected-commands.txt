@@ -98,3 +98,8 @@ virt-sysprep
 iucode_tool
 pahole
 extlinux
+quickshell
+matugen
+gowall
+cliphist
+dots-overview

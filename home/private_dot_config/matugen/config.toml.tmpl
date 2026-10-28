@@ -1,0 +1,23 @@
+# matugen config. `dots-theme wallpaper` only reads matugen's JSON and maps the roles
+# itself, so these templates are NOT needed for the shell to work. They exist so that
+# `matugen image <path>` alone paints the same consumers dots-theme emit would, for use
+# outside the shell. There is deliberately no tokens.json template: dots-theme is the one writer of
+# tokens.json, so the status colours and derived tones cannot drift from the palette.
+[config]
+reload_apps = false
+
+[templates.hyprland]
+input_path = "~/.config/matugen/templates/hyprland.conf"
+output_path = "~/.config/hypr/colors.conf"
+
+[templates.ghostty]
+input_path = "~/.config/matugen/templates/ghostty.conf"
+output_path = "~/.config/ghostty/dots-theme.conf"
+
+[templates.swaync]
+input_path = "~/.config/matugen/templates/swaync.css"
+output_path = "~/.config/swaync/dots-theme.css"
+
+[templates.hyprlock]
+input_path = "~/.config/matugen/templates/hyprlock.conf"
+output_path = "~/.config/hypr/hyprlock-colors.conf"

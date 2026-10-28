@@ -1,0 +1,34 @@
+{
+ "buckets": {
+  "month": {
+   "byApp": [],
+   "byProject": [],
+   "byRef": [],
+   "tasksDone": 0,
+   "workedSec": 0
+  },
+  "quarter": {
+   "byApp": [],
+   "byProject": [],
+   "byRef": [],
+   "tasksDone": 0,
+   "workedSec": 0
+  },
+  "today": {
+   "byApp": [],
+   "byProject": [],
+   "byRef": [],
+   "tasksDone": 0,
+   "workedSec": 0
+  },
+  "week": {
+   "byApp": [],
+   "byProject": [],
+   "byRef": [],
+   "tasksDone": 0,
+   "workedSec": 0
+  }
+ },
+ "ts": 1761599400,
+ "v": 1
+}

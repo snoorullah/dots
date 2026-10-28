@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# dots-shell -- which desktop shell runs, and the one reversible switch between them.
+#
+#   dots-shell status               print the active shell
+#   dots-shell start                launch the active shell (Hyprland autostart calls this)
+#   dots-shell use waybar|quickshell   switch now: stop the other, start this one, remember it
+#   dots-shell toggle               flip between the two (Super+Alt+Q)
+#   dots-shell key volume|brightness raise|lower|mute   the media keys, shell-aware
+#
+# waybar    = waybar + swaync + swayosd-server   (the default; what this repo shipped before)
+# quickshell = qs-dots: bar, notifications, OSD, media, quick panel, calendar
+#
+# They cannot coexist: Quickshell's notification server and swaync both want
+# org.freedesktop.Notifications. So switching stops the old one BEFORE starting the new,
+# and nothing here touches systemd or `chezmoi apply`. Reversible with one command.
+set -u
+# Run from a terminal that predates the compositor (herdr panes, ssh, an agent), there is no
+# WAYLAND_DISPLAY: Qt falls back to xcb, Quickshell dies on start, and the waybar fallback
+# dies the same way -- leaving no bar and no notification daemon. Borrow the session's.
+if [ -z "${WAYLAND_DISPLAY:-}" ] && command -v systemctl >/dev/null; then
+  while IFS='=' read -r k v; do
+    case "$k" in WAYLAND_DISPLAY|DISPLAY|HYPRLAND_INSTANCE_SIGNATURE|XDG_CURRENT_DESKTOP) export "$k=$v" ;; esac
+  done < <(systemctl --user show-environment 2>/dev/null)
+fi
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/dots-shell"
+QS_DIR="${DOTS_QS_DIR:-$HOME/.config/quickshell/dots}"
+
+active() {
+  local a; a="$(cat "$STATE/active" 2>/dev/null)"
+  case "$a" in quickshell|waybar) echo "$a" ;; *) echo waybar ;; esac
+}
+
+remember() { mkdir -p "$STATE" && printf '%s\n' "$1" >| "$STATE/active"; }
+
+# pkill, unanchored on purpose: the nix wrappers run as .waybar-wrapped / .swaync-wrapped
+stop_waybar_side() {
+  pkill waybar 2>/dev/null
+  pkill swaync 2>/dev/null
+  pkill swayosd-server 2>/dev/null
+}
+
+stop_quickshell() {
+  quickshell kill -p "$QS_DIR" >/dev/null 2>&1 || pkill quickshell 2>/dev/null
+}
+
+start_waybar_side() {
+  setsid -f waybar >/dev/null 2>&1
+  setsid -f swaync >/dev/null 2>&1
+  # -s is required: without it swayosd looks for a system sheet and ignores ours
+  setsid -f swayosd-server -s "$HOME/.config/swayosd/style.css" >/dev/null 2>&1
+}
+
+start_quickshell() {
+  [ -f "$QS_DIR/shell.qml" ] || { echo "dots-shell: no shell at $QS_DIR (chezmoi apply first)" >&2; return 1; }
+  # -n: a second `start` is a no-op instead of a second bar
+  setsid -f quickshell -p "$QS_DIR" -n >/dev/null 2>&1
+}
+
+start_active() {
+  case "$(active)" in
+    quickshell) start_quickshell || { echo "dots-shell: falling back to waybar" >&2; start_waybar_side; } ;;
+    *) start_waybar_side ;;
+  esac
+}
+
+use() {
+  case "${1:-}" in
+    quickshell)
+      [ -f "$QS_DIR/shell.qml" ] || { echo "dots-shell: no shell at $QS_DIR" >&2; return 1; }
+      remember quickshell
+      stop_waybar_side
+      sleep 0.4              # let swaync release the bus name before we ask for it
+      start_quickshell ;;
+    waybar)
+      remember waybar
+      stop_quickshell
+      sleep 0.4
+      start_waybar_side ;;
+    *) echo "usage: dots-shell use waybar|quickshell" >&2; return 2 ;;
+  esac
+}
+
+# Media keys. Under waybar they go to swayosd as before; under quickshell the level is set
+# with wpctl/brightnessctl and the shell is asked to show its OSD.
+key() {
+  local what="${1:-}" act="${2:-}"
+  if [ "$(active)" != quickshell ]; then
+    case "$what $act" in
+      "volume raise")     exec swayosd-client --output-volume raise ;;
+      "volume lower")     exec swayosd-client --output-volume lower ;;
+      "volume mute")      exec swayosd-client --output-volume mute-toggle ;;
+      "brightness raise") exec swayosd-client --brightness raise ;;
+      "brightness lower") exec swayosd-client --brightness lower ;;
+    esac
+    echo "usage: dots-shell key volume|brightness raise|lower|mute" >&2; return 2
+  fi
+  case "$what $act" in
+    "volume raise")     wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+ ;;
+    "volume lower")     wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- ;;
+    "volume mute")      wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle ;;
+    "brightness raise") brightnessctl -c backlight set 5%+ >/dev/null ;;
+    "brightness lower") brightnessctl -c backlight set 5%- >/dev/null ;;
+    *) echo "usage: dots-shell key volume|brightness raise|lower|mute" >&2; return 2 ;;
+  esac
+  quickshell ipc -p "$QS_DIR" call dots.osd display "$what" >/dev/null 2>&1
+  return 0
+}
+
+case "${1:-status}" in
+  status) active ;;
+  start) start_active ;;
+  use) use "${2:-}" ;;
+  toggle) if [ "$(active)" = quickshell ]; then use waybar; else use quickshell; fi ;;
+  key) key "${2:-}" "${3:-}" ;;
+  *) echo "usage: dots-shell status|start|use waybar|quickshell|toggle|key volume|brightness raise|lower|mute" >&2; exit 2 ;;
+esac

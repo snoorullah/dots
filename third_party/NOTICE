@@ -1,0 +1,34 @@
+Third-party notices for the Quickshell desktop (qs-dots)
+=========================================================
+
+1. tally-screentime
+   Licence:   MIT (third_party/licenses/MIT-tally-screentime.txt)
+   Copyright: (c) 2026 luna (@lunanoir21)
+   Use:       inspiration only. The overview UI's JavaScript
+              (modules/overview/js/) is a fresh implementation written for
+              this repository; no source file or fragment was copied from
+              tally-screentime. The MIT text is kept as a courtesy
+              attribution. If a file is ever copied or adapted from it, that
+              file must carry
+                SPDX-License-Identifier: MIT
+              and the copyright line above.
+
+2. ii-p3drovfx
+   Licence:   GPL-3.0 (third_party/licenses/GPL-3.0.txt)
+   Lineage:   end-4 dots-hyprland (illogical-impulse)
+              -> vaguesyntax/ii-vynx
+              -> P3DROVFX/ii-p3drovfx
+   Use:       ideas only. No file from it is copied. Every service is
+              re-implemented from the public Quickshell.Services.* API, so the
+              GPL-3.0 does not apply to this repository.
+
+Policy
+------
+A verbatim port of any GPL-3.0 file would live under
+quickshell/dots/vendor/ii/ with a GPL-3.0 header, the upstream copyright, a
+"changed by" note and a line here, and it would make the combined shell
+GPL-3.0. That needs an explicit decision; tests/shell.sh fails if vendor/
+appears without those headers.
+
+No fonts are bundled. JetBrains Mono Nerd Font and Material Symbols come from
+nixpkgs.

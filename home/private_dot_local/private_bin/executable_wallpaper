@@ -35,3 +35,5 @@ sel=$(find . -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -
 swww img "$WALLS/$sel" --transition-type fade --transition-duration 1 2>/dev/null \
   || swww img "$WALLS/$sel"
 mkdir -p "$HOME/.cache"; printf '%s' "$WALLS/$sel" > "$HOME/.cache/current-wallpaper"  # for restore-on-login later
+# colours follow the wallpaper (matugen); dots-theme falls back to the preset by itself
+command -v dots-theme >/dev/null 2>&1 && setsid -f dots-theme wallpaper "$WALLS/$sel" >/dev/null 2>&1 || true

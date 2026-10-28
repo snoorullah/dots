@@ -1,0 +1,17 @@
+{
+ "state": "OPEN",
+ "mergedAt": null,
+ "reviewRequests": [
+  {
+   "login": "me"
+  }
+ ],
+ "reviews": [
+  {
+   "author": {
+    "login": "me"
+   },
+   "submittedAt": "2099-01-01T00:00:00Z"
+  }
+ ]
+}

@@ -1,0 +1,10 @@
+[Unit]
+Description=dots-overview nightly daily brief (23:50)
+
+[Timer]
+OnCalendar=*-*-* 23:50:00
+Persistent=true
+
+# Shipped DISABLED (orchestrator enables it).
+[Install]
+WantedBy=timers.target

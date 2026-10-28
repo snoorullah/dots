@@ -1,0 +1,32 @@
+{
+ "agent": null,
+ "clock": {
+  "awayReason": "",
+  "sinceTs": 1761592800,
+  "state": "in"
+ },
+ "focus": {
+  "elapsedSec": 833,
+  "endsAt": 1761600667,
+  "startedAt": 1761599167,
+  "state": "running",
+  "targetSec": 1500,
+  "zone": "alpha"
+ },
+ "task": {
+  "agent": null,
+  "desc": "Fix the login redirect loop",
+  "id": 4,
+  "pane": null,
+  "project": "alpha",
+  "ref": "HD-101",
+  "sess": null,
+  "src": "erp",
+  "startedAt": 1761599100,
+  "tags": [],
+  "uuid": "u-1",
+  "workspace": null
+ },
+ "ts": 1761599990,
+ "v": 1
+}

@@ -1,0 +1,352 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dots-overview activity",
+  "description": "Worked time and completions per bucket.",
+  "type": "object",
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "ts": {
+      "type": "integer"
+    },
+    "buckets": {
+      "type": "object",
+      "properties": {
+        "today": {
+          "type": "object",
+          "properties": {
+            "workedSec": {
+              "type": "integer"
+            },
+            "tasksDone": {
+              "type": "integer"
+            },
+            "byProject": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  },
+                  "sec": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "project",
+                  "sec"
+                ],
+                "additionalProperties": true
+              }
+            },
+            "byApp": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "app": {
+                    "type": "string"
+                  },
+                  "sec": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "app",
+                  "sec"
+                ],
+                "additionalProperties": true
+              }
+            },
+            "byRef": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string"
+                  },
+                  "sec": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ref",
+                  "sec",
+                  "title"
+                ],
+                "additionalProperties": true
+              }
+            }
+          },
+          "required": [
+            "workedSec",
+            "tasksDone",
+            "byProject",
+            "byApp",
+            "byRef"
+          ],
+          "additionalProperties": true
+        },
+        "week": {
+          "type": "object",
+          "properties": {
+            "workedSec": {
+              "type": "integer"
+            },
+            "tasksDone": {
+              "type": "integer"
+            },
+            "byProject": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  },
+                  "sec": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "project",
+                  "sec"
+                ],
+                "additionalProperties": true
+              }
+            },
+            "byApp": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "app": {
+                    "type": "string"
+                  },
+                  "sec": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "app",
+                  "sec"
+                ],
+                "additionalProperties": true
+              }
+            },
+            "byRef": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string"
+                  },
+                  "sec": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ref",
+                  "sec",
+                  "title"
+                ],
+                "additionalProperties": true
+              }
+            }
+          },
+          "required": [
+            "workedSec",
+            "tasksDone",
+            "byProject",
+            "byApp",
+            "byRef"
+          ],
+          "additionalProperties": true
+        },
+        "month": {
+          "type": "object",
+          "properties": {
+            "workedSec": {
+              "type": "integer"
+            },
+            "tasksDone": {
+              "type": "integer"
+            },
+            "byProject": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  },
+                  "sec": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "project",
+                  "sec"
+                ],
+                "additionalProperties": true
+              }
+            },
+            "byApp": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "app": {
+                    "type": "string"
+                  },
+                  "sec": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "app",
+                  "sec"
+                ],
+                "additionalProperties": true
+              }
+            },
+            "byRef": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string"
+                  },
+                  "sec": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ref",
+                  "sec",
+                  "title"
+                ],
+                "additionalProperties": true
+              }
+            }
+          },
+          "required": [
+            "workedSec",
+            "tasksDone",
+            "byProject",
+            "byApp",
+            "byRef"
+          ],
+          "additionalProperties": true
+        },
+        "quarter": {
+          "type": "object",
+          "properties": {
+            "workedSec": {
+              "type": "integer"
+            },
+            "tasksDone": {
+              "type": "integer"
+            },
+            "byProject": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  },
+                  "sec": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "project",
+                  "sec"
+                ],
+                "additionalProperties": true
+              }
+            },
+            "byApp": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "app": {
+                    "type": "string"
+                  },
+                  "sec": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "app",
+                  "sec"
+                ],
+                "additionalProperties": true
+              }
+            },
+            "byRef": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string"
+                  },
+                  "sec": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ref",
+                  "sec",
+                  "title"
+                ],
+                "additionalProperties": true
+              }
+            }
+          },
+          "required": [
+            "workedSec",
+            "tasksDone",
+            "byProject",
+            "byApp",
+            "byRef"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "today",
+        "week",
+        "month",
+        "quarter"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "v",
+    "ts",
+    "buckets"
+  ],
+  "additionalProperties": true
+}

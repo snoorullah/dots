@@ -235,17 +235,23 @@ hl.layer_rule({ match = { namespace = "waybar" },                      blur = tr
 hl.layer_rule({ match = { namespace = "swaync-control-center" },       blur = true, ignore_alpha = 0.3 })
 hl.layer_rule({ match = { namespace = "swaync-notification-window" },  blur = true, ignore_alpha = 0.3 })
 hl.layer_rule({ match = { namespace = "swayosd" },                     blur = true, ignore_alpha = 0.3 })
+-- The Quickshell shell (dots-shell use quickshell): one namespace per surface, frozen by
+-- docs/contracts/qml-api.md. Same glass, same threshold as the waybar/swaync rules above.
+hl.layer_rule({ match = { namespace = "qs-bar" },      blur = true, ignore_alpha = 0.3 })
+hl.layer_rule({ match = { namespace = "qs-notif" },    blur = true, ignore_alpha = 0.3 })
+hl.layer_rule({ match = { namespace = "qs-osd" },      blur = true, ignore_alpha = 0.3 })
+hl.layer_rule({ match = { namespace = "qs-panel" },    blur = true, ignore_alpha = 0.3 })
+hl.layer_rule({ match = { namespace = "qs-overview" }, blur = true, ignore_alpha = 0.3 })
 
 -- ── Autostart ──────────────────────────────────────────────────────────
 hl.on("hyprland.start", function()
   -- The user manager lingers across logouts: replace a previous session's env (e.g. XDG_CURRENT_DESKTOP=GNOME) and drop
   -- portals started under it, else xdg-desktop-portal waits on the GNOME backend and every GTK app stalls 25 s.
   hl.exec_cmd("sh -c 'dbus-update-activation-environment --systemd WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE HYPRLAND_INSTANCE_SIGNATURE; systemctl --user stop xdg-desktop-portal xdg-desktop-portal-gnome xdg-desktop-portal-gtk xdg-desktop-portal-hyprland; systemctl --user reset-failed'")
-  hl.exec_cmd("waybar")
-  hl.exec_cmd("swaync")
-  -- -s is required: without it swayosd looks for a system sheet, fails to find one, and ignores
-  -- the style.css this repo ships, so the OSD renders with stock GTK styling.
-  hl.exec_cmd("swayosd-server -s " .. HOME .. "/.config/swayosd/style.css")
+  -- bar + notifications + OSD: waybar/swaync/swayosd-server by default, or the Quickshell shell
+  -- when `dots-shell use quickshell` has been run (see ~/.local/state/dots-shell/active).
+  -- dots-shell passes swayosd its stylesheet with -s; without it the OSD renders stock GTK.
+  hl.exec_cmd("~/.local/bin/dots-shell start")
   hl.exec_cmd("~/.local/bin/wallpaper --restore")
   hl.exec_cmd("clipse -listen")   -- clipboard-history daemon for the clipse TUI
   hl.exec_cmd("systemctl --user start awatcher.service")     -- ActivityWatch window+AFK watcher (needs Wayland env)
@@ -318,15 +324,15 @@ hl.bind(mod .. " + SHIFT + F12", hl.dsp.exec_cmd("~/.local/bin/dots-ops perf-mod
 --  with them.)
 
 -- Media keys (locked = work on lockscreen; repeating = hold to repeat)
-hl.bind("XF86AudioRaiseVolume",  hl.dsp.exec_cmd("swayosd-client --output-volume raise"))
-hl.bind("XF86AudioLowerVolume",  hl.dsp.exec_cmd("swayosd-client --output-volume lower"))
-hl.bind("XF86AudioMute",         hl.dsp.exec_cmd("swayosd-client --output-volume mute-toggle"))
+hl.bind("XF86AudioRaiseVolume",  hl.dsp.exec_cmd("~/.local/bin/dots-shell key volume raise"))
+hl.bind("XF86AudioLowerVolume",  hl.dsp.exec_cmd("~/.local/bin/dots-shell key volume lower"))
+hl.bind("XF86AudioMute",         hl.dsp.exec_cmd("~/.local/bin/dots-shell key volume mute"))
 hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd("pactl set-source-mute @DEFAULT_SOURCE@ toggle"), { locked = true })
 hl.bind("XF86AudioPlay",        hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
 hl.bind("XF86AudioNext",        hl.dsp.exec_cmd("playerctl next"),       { locked = true })
 hl.bind("XF86AudioPrev",        hl.dsp.exec_cmd("playerctl previous"),   { locked = true })
-hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd("swayosd-client --brightness raise"))
-hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("swayosd-client --brightness lower"))
+hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd("~/.local/bin/dots-shell key brightness raise"))
+hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("~/.local/bin/dots-shell key brightness lower"))
 hl.bind("Caps_Lock",             hl.dsp.exec_cmd("swayosd-client --caps-lock"))
 
 -- Super+Esc asks WHY before it locks (timetrack D7); the lock screen then shows it with a timer.
@@ -369,6 +375,16 @@ hl.bind(mod .. " + SHIFT + C", hl.dsp.exec_cmd("hyprctl reload"))
 hl.bind(mod .. " + SHIFT + R", hl.dsp.exec_cmd("hyprctl reload"))
 hl.bind(mod .. " + Delete",    hl.dsp.exit())
 hl.bind(mod .. " + I",         hl.dsp.exec_cmd("pkill -USR1 waybar"))  -- toggle bar (zen); pkill matches the nix `.waybar-wrapped` comm — killall waybar did NOT
+
+-- Quickshell shell: overview, lamp test, jump, and the shell switch. Super+I stays the zen
+-- bar toggle above (the build spec listed it as free; it is not), so the overview toggle
+-- is Super+Alt+I. Every conditional bar surface has a twin here or in `qs ipc call dots.*`.
+hl.bind(mod .. " + ALT + I",       hl.dsp.exec_cmd("qs ipc call dots.overview toggle"))
+hl.bind(mod .. " + SHIFT + I",     hl.dsp.exec_cmd("qs ipc call dots.overview panel today"))
+hl.bind(mod .. " + ALT + F",       hl.dsp.exec_cmd("qs ipc call dots.overview focus start"))
+hl.bind(mod .. " + SHIFT + T",     hl.dsp.exec_cmd("qs ipc call dots.bar lamp"))  -- lamp test: every conditional surface lit for 1.2 s
+hl.bind(mod .. " + ALT + J",       hl.dsp.exec_cmd("~/.local/bin/dots-jump --last"))
+hl.bind(mod .. " + ALT + Q",       hl.dsp.exec_cmd("~/.local/bin/dots-shell toggle"))  -- quickshell <-> waybar
 
 -- Resize submap
 hl.bind(mod .. " + R", hl.dsp.submap("resize"))

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# timew stub: records the calls the Taskwarrior on-modify hook makes, creates nothing.
+echo "$*" >> "${TIMEW_LOG:?}"
+exit 0

@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dots-overview attention",
+  "description": "Things that need me, ranked, plus per-source health.",
+  "type": "object",
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "ts": {
+      "type": "integer"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "blocker",
+              "review",
+              "alert",
+              "dm",
+              "task",
+              "erp",
+              "mail"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "src": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "urgency": {
+            "enum": [
+              "passive",
+              "active",
+              "time",
+              "critical"
+            ]
+          },
+          "waiting": {
+            "type": "boolean"
+          },
+          "ageSec": {
+            "type": "integer"
+          },
+          "actor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "jump": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "pane": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "workspace": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "sess": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "pane",
+                  "workspace",
+                  "sess"
+                ],
+                "additionalProperties": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "canBreakdown": {
+            "type": "boolean"
+          },
+          "startedAt": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "ref",
+          "src",
+          "url",
+          "urgency",
+          "waiting",
+          "ageSec",
+          "actor",
+          "jump",
+          "canBreakdown",
+          "startedAt"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "counts": {
+      "type": "object",
+      "properties": {
+        "waiting": {
+          "type": "integer"
+        },
+        "failed": {
+          "type": "integer"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "waiting",
+        "failed",
+        "total"
+      ],
+      "additionalProperties": true
+    },
+    "sources": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "enum": [
+              "ok",
+              "stale",
+              "error",
+              "unavailable",
+              "off"
+            ]
+          },
+          "ts": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "state",
+          "ts",
+          "detail"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "v",
+    "ts",
+    "items",
+    "counts",
+    "sources"
+  ],
+  "additionalProperties": true
+}

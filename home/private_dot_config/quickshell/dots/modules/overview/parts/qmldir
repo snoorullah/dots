@@ -1,0 +1,14 @@
+module qs.modules.overview.parts
+AttnRow 1.0 AttnRow.qml
+Bars 1.0 Bars.qml
+Button 1.0 Button.qml
+Empty 1.0 Empty.qml
+Glyph 1.0 Glyph.qml
+Heatmap 1.0 Heatmap.qml
+RefTable 1.0 RefTable.qml
+Ring 1.0 Ring.qml
+Sparkline 1.0 Sparkline.qml
+StaleMark 1.0 StaleMark.qml
+StatRow 1.0 StatRow.qml
+StatTile 1.0 StatTile.qml
+Txt 1.0 Txt.qml

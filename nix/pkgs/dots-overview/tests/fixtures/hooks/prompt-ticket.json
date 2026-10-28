@@ -1,0 +1,8 @@
+{
+ "session_id": "11111111-2222-3333-4444-555555555555",
+ "transcript_path": "/tmp/t/transcript.jsonl",
+ "cwd": "/tmp/work",
+ "hook_event_name": "UserPromptSubmit",
+ "permission_mode": "default",
+ "prompt": "work on TASK-2026-00512 and also HD-77 today"
+}

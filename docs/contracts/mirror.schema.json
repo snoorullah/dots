@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dots-overview mirror",
+  "description": "Detector and jump index of mirrored external items.",
+  "type": "object",
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "ts": {
+      "type": "integer"
+    },
+    "refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "ref": {
+            "type": "string"
+          },
+          "src": {
+            "type": "string"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "taskUuid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "closedAt": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "reviewedAt": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "ref",
+          "src",
+          "url",
+          "title",
+          "state",
+          "updatedAt",
+          "taskUuid",
+          "closedAt",
+          "reviewedAt"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "v",
+    "ts",
+    "refs"
+  ],
+  "additionalProperties": true
+}

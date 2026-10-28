@@ -1,0 +1,8 @@
+/* written by matugen; @import it before the swaync sheet */
+@define-color dots_bg {{colors.background.default.hex}};
+@define-color dots_surface {{colors.surface.default.hex}};
+@define-color dots_surfaceContainer {{colors.surface_container.default.hex}};
+@define-color dots_fg {{colors.on_surface.default.hex}};
+@define-color dots_fgDim {{colors.on_surface_variant.default.hex}};
+@define-color dots_accent {{colors.primary.default.hex}};
+@define-color dots_outline {{colors.outline.default.hex}};

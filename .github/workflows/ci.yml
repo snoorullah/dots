@@ -25,10 +25,12 @@ jobs:
       - uses: actions/checkout@v4
       - run: sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin
       - run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - run: sudo apt-get install -y jq
+      - run: sudo apt-get install -y jq python3-jsonschema
       - run: bash tests/placement.sh
       - run: bash tests/orgmanaged.sh
       - run: bash tests/lint.sh
+      # dots-theme token contract (needs no display; shell.sh needs Hyprland/quickshell and runs locally)
+      - run: bash tests/theme.sh
       - run: bash tests/extra-tools-dryrun.sh
       # The timetrack suites. They were written and then never run by anything but a
       # human remembering to -- which is the exact failure the package exists to correct.
@@ -47,6 +49,11 @@ jobs:
       - run: bash tests/webclass.sh
       - run: bash tests/away.sh
       - run: bash tests/locality.sh
+      # Work tracking (dots-overview) and the daily brief. Stub gh/herdr/timew, scratch Taskwarrior,
+      # no network; only `task` itself has to be real.
+      - run: sudo apt-get install -y taskwarrior
+      - run: bash tests/track.sh
+      - run: bash tests/report.sh
       - name: in-home.sh (sentinel mode)
         run: |
           d="$(mktemp -d)"

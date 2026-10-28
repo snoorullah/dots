@@ -1,0 +1,67 @@
+{
+ "counts": {
+  "failed": 1,
+  "total": 1,
+  "waiting": 0
+ },
+ "items": [
+  {
+   "actor": "cron",
+   "ageSec": 1800,
+   "canBreakdown": false,
+   "id": "f1",
+   "jump": {
+    "pane": "p1",
+    "sess": "s1",
+    "workspace": "w1"
+   },
+   "kind": "alert",
+   "ref": "ops:sync",
+   "src": "gh",
+   "startedAt": null,
+   "title": "Nightly sync job failed",
+   "urgency": "critical",
+   "url": "https://example.invalid/f1",
+   "waiting": false
+  }
+ ],
+ "sources": {
+  "erp": {
+   "detail": "",
+   "state": "off",
+   "ts": 1761599990
+  },
+  "gh": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "herdr": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "mail": {
+   "detail": "no local store",
+   "state": "unavailable",
+   "ts": 1761599990
+  },
+  "notif": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "ops": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "task": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  }
+ },
+ "ts": 1761599990,
+ "v": 1
+}

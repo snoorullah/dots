@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dots-overview meta",
+  "type": "object",
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "generatedAt": {
+      "type": "integer"
+    },
+    "generationMs": {
+      "type": "integer"
+    },
+    "writer": {
+      "type": "string"
+    },
+    "schema": {
+      "const": "1"
+    },
+    "cycle": {
+      "enum": [
+        "fast",
+        "slow"
+      ]
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "msg": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "msg"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "v",
+    "generatedAt",
+    "generationMs",
+    "writer",
+    "schema",
+    "cycle",
+    "errors"
+  ],
+  "additionalProperties": true
+}

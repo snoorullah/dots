@@ -1,0 +1,115 @@
+{
+ "buckets": {
+  "month": {
+   "byApp": [],
+   "byProject": [
+    {
+     "project": "alpha",
+     "sec": 300000
+    }
+   ],
+   "byRef": [],
+   "tasksDone": 38,
+   "workedSec": 504000
+  },
+  "quarter": {
+   "byApp": [],
+   "byProject": [
+    {
+     "project": "alpha",
+     "sec": 900000
+    }
+   ],
+   "byRef": [],
+   "tasksDone": 120,
+   "workedSec": 1512000
+  },
+  "today": {
+   "byApp": [
+    {
+     "app": "editor",
+     "sec": 8000
+    },
+    {
+     "app": "terminal",
+     "sec": 5000
+    },
+    {
+     "app": "browser",
+     "sec": 2300
+    }
+   ],
+   "byProject": [
+    {
+     "project": "alpha",
+     "sec": 9000
+    },
+    {
+     "project": "beta",
+     "sec": 4500
+    },
+    {
+     "project": "misc",
+     "sec": 1800
+    }
+   ],
+   "byRef": [
+    {
+     "ref": "HD-101",
+     "sec": 5400,
+     "title": "Fix the login redirect"
+    },
+    {
+     "ref": "TASK-2026-0042",
+     "sec": 3600,
+     "title": "Quarterly cleanup"
+    },
+    {
+     "ref": "gh:acme/widgets#12",
+     "sec": 2700,
+     "title": "Review widget parser"
+    }
+   ],
+   "tasksDone": 3,
+   "workedSec": 15300
+  },
+  "week": {
+   "byApp": [
+    {
+     "app": "editor",
+     "sec": 90000
+    }
+   ],
+   "byProject": [
+    {
+     "project": "alpha",
+     "sec": 70000
+    },
+    {
+     "project": "beta",
+     "sec": 40000
+    },
+    {
+     "project": "misc",
+     "sec": 16000
+    }
+   ],
+   "byRef": [
+    {
+     "ref": "HD-101",
+     "sec": 30000,
+     "title": "Fix the login redirect"
+    },
+    {
+     "ref": "HD-088",
+     "sec": 22000,
+     "title": "Backfill report"
+    }
+   ],
+   "tasksDone": 11,
+   "workedSec": 126000
+  }
+ },
+ "ts": 1761599990,
+ "v": 1
+}

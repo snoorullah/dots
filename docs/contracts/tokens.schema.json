@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dots-theme/tokens.schema.json",
+  "title": "dots-theme tokens",
+  "description": "~/.local/state/dots-theme/tokens.json. Written only by dots-theme, in preset or wallpaper mode, with an identical key set.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "source", "mode", "wallpaper", "color", "alpha", "radius", "space", "font", "motion", "bar"],
+  "$defs": {
+    "hex": { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+    "px": { "type": "integer", "minimum": 0 },
+    "unit": { "type": "number", "minimum": 0, "maximum": 1 }
+  },
+  "properties": {
+    "v": { "const": 1 },
+    "source": { "enum": ["preset", "wallpaper"] },
+    "mode": { "const": "dark" },
+    "wallpaper": { "type": ["string", "null"] },
+    "color": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bg", "surface", "surfaceDim", "surfaceContainer", "surfaceContainerHigh", "outline", "outlineVariant", "fg", "fgDim", "fgFaint", "accent", "accentFg", "amber", "red", "green", "purple", "pink", "cyan", "yellow"],
+      "properties": {
+        "bg": { "$ref": "#/$defs/hex" },
+        "surface": { "$ref": "#/$defs/hex" },
+        "surfaceDim": { "$ref": "#/$defs/hex" },
+        "surfaceContainer": { "$ref": "#/$defs/hex" },
+        "surfaceContainerHigh": { "$ref": "#/$defs/hex" },
+        "outline": { "$ref": "#/$defs/hex" },
+        "outlineVariant": { "$ref": "#/$defs/hex" },
+        "fg": { "$ref": "#/$defs/hex" },
+        "fgDim": { "$ref": "#/$defs/hex" },
+        "fgFaint": { "$ref": "#/$defs/hex" },
+        "accent": { "$ref": "#/$defs/hex" },
+        "accentFg": { "$ref": "#/$defs/hex" },
+        "amber": { "$ref": "#/$defs/hex" },
+        "red": { "$ref": "#/$defs/hex" },
+        "green": { "$ref": "#/$defs/hex" },
+        "purple": { "$ref": "#/$defs/hex" },
+        "pink": { "$ref": "#/$defs/hex" },
+        "cyan": { "$ref": "#/$defs/hex" },
+        "yellow": { "$ref": "#/$defs/hex" }
+      }
+    },
+    "alpha": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["slab", "panel", "wash", "hover", "divider", "rest", "on", "pressed"],
+      "properties": {
+        "slab": { "$ref": "#/$defs/unit" },
+        "panel": { "$ref": "#/$defs/unit" },
+        "wash": { "$ref": "#/$defs/unit" },
+        "hover": { "$ref": "#/$defs/unit" },
+        "divider": { "$ref": "#/$defs/unit" },
+        "rest": { "$ref": "#/$defs/unit" },
+        "on": { "$ref": "#/$defs/unit" },
+        "pressed": { "$ref": "#/$defs/unit" }
+      }
+    },
+    "radius": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chip", "panel", "card", "pill"],
+      "properties": {
+        "chip": { "$ref": "#/$defs/px" },
+        "panel": { "$ref": "#/$defs/px" },
+        "card": { "$ref": "#/$defs/px" },
+        "pill": { "$ref": "#/$defs/px" }
+      }
+    },
+    "space": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["xs", "s", "m", "l", "xl", "xxl", "xxxl"],
+      "properties": {
+        "xs": { "$ref": "#/$defs/px" },
+        "s": { "$ref": "#/$defs/px" },
+        "m": { "$ref": "#/$defs/px" },
+        "l": { "$ref": "#/$defs/px" },
+        "xl": { "$ref": "#/$defs/px" },
+        "xxl": { "$ref": "#/$defs/px" },
+        "xxxl": { "$ref": "#/$defs/px" }
+      }
+    },
+    "font": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sans", "mono", "icon", "size"],
+      "properties": {
+        "sans": { "type": "string", "minLength": 1 },
+        "mono": { "type": "string", "minLength": 1 },
+        "icon": { "type": "string", "minLength": 1 },
+        "size": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["caption", "bodyS", "body", "title", "headline", "display"],
+          "properties": {
+            "caption": { "$ref": "#/$defs/px" },
+            "bodyS": { "$ref": "#/$defs/px" },
+            "body": { "$ref": "#/$defs/px" },
+            "title": { "$ref": "#/$defs/px" },
+            "headline": { "$ref": "#/$defs/px" },
+            "display": { "$ref": "#/$defs/px" }
+          }
+        }
+      }
+    },
+    "motion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fast", "base", "slow", "easeIn", "easeOut"],
+      "properties": {
+        "fast": { "$ref": "#/$defs/px" },
+        "base": { "$ref": "#/$defs/px" },
+        "slow": { "$ref": "#/$defs/px" },
+        "easeIn": { "type": "string" },
+        "easeOut": { "type": "string" }
+      }
+    },
+    "bar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["height", "gutter", "chipGapPx"],
+      "properties": {
+        "height": { "const": 30 },
+        "gutter": { "$ref": "#/$defs/px" },
+        "chipGapPx": { "$ref": "#/$defs/px" }
+      }
+    }
+  }
+}

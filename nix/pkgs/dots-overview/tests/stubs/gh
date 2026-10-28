@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# gh stub for tests: answers from $GH_FIX, logs every argv line to $GH_LOG. Anything it does
+# not know is an error, so a new (write) call shows up as a failing test instead of passing.
+echo "$*" >> "${GH_LOG:?}"
+fix="${GH_FIX:?}"
+case "$1 $2" in
+  "api rate_limit") echo "${GH_QUOTA:-30}" ;;
+  "api user") echo me ;;
+  "search issues") cat "$fix/issues.json" ;;
+  "search prs")
+    case "$*" in
+      *--author*) cat "$fix/prs.json" ;;
+      *--review-requested*) cat "$fix/review.json" ;;
+      *) exit 2 ;;
+    esac ;;
+  "issue view") cat "$fix/issue-$3.json" ;;
+  "pr view") cat "$fix/pr-$3.json" ;;
+  *) echo "gh stub: unexpected: $*" >&2; exit 2 ;;
+esac

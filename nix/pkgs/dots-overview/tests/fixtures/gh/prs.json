@@ -1,0 +1,18 @@
+[
+ {
+  "number": 2,
+  "title": "Pin the workflow actions",
+  "url": "https://github.com/acme/r/pull/2",
+  "state": "open",
+  "repository": {
+   "nameWithOwner": "acme/r",
+   "name": "r"
+  },
+  "author": {
+   "login": "bob"
+  },
+  "updatedAt": "2026-10-27T10:00:00Z",
+  "createdAt": "2026-10-20T10:00:00Z",
+  "isPullRequest": true
+ }
+]

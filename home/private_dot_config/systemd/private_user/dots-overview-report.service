@@ -1,0 +1,8 @@
+[Unit]
+Description=dots-overview nightly daily brief (no-op when today's brief exists)
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/dots-overview report --reason nightly
+TimeoutStartSec=2min
+Nice=10

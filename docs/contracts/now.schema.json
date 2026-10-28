@@ -1,0 +1,250 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dots-overview now",
+  "description": "What I am doing right now: active task, agent pane, focus timer, clock.",
+  "type": "object",
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "ts": {
+      "type": "integer"
+    },
+    "task": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "uuid": {
+              "type": "string"
+            },
+            "id": {
+              "type": [
+                "integer",
+                "string",
+                "null"
+              ]
+            },
+            "desc": {
+              "type": "string"
+            },
+            "ref": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "src": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "project": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "startedAt": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "agent": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pane": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "workspace": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "sess": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "uuid",
+            "id",
+            "desc",
+            "ref",
+            "src",
+            "project",
+            "tags",
+            "startedAt",
+            "agent",
+            "pane",
+            "workspace",
+            "sess"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "agent": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "pane": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tab": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "workspace": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "sess": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "status": {
+              "type": "string"
+            },
+            "cwd": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "name",
+            "pane",
+            "tab",
+            "workspace",
+            "sess",
+            "status",
+            "cwd"
+          ],
+          "additionalProperties": true
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "focus": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "enum": [
+            "idle",
+            "running",
+            "break"
+          ]
+        },
+        "zone": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "startedAt": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "endsAt": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "elapsedSec": {
+          "type": "integer"
+        },
+        "targetSec": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "state",
+        "zone",
+        "startedAt",
+        "endsAt",
+        "elapsedSec",
+        "targetSec"
+      ],
+      "additionalProperties": true
+    },
+    "clock": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "enum": [
+            "in",
+            "out",
+            "away"
+          ]
+        },
+        "awayReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sinceTs": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "state",
+        "awayReason",
+        "sinceTs"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "v",
+    "ts",
+    "task",
+    "agent",
+    "focus",
+    "clock"
+  ],
+  "additionalProperties": true
+}

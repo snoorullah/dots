@@ -1,46 +1,48 @@
 #!/usr/bin/env bash
-# Register the ticket-binding hook in ~/.claude/settings.json.
+# Register the ticket-binding hook and the overview session recorder in ~/.claude/settings.json.
 #
 # That file is HAND-MAINTAINED and chezmoi does not manage it -- it holds the user's model
 # routing, permissions, plugins and output style, none of which belongs in a public repo.
-# So this script merges in exactly two entries and leaves everything else byte-identical:
-# it never writes a settings file it did not first parse, and it refuses to install a
-# result that does not parse back.
+# So this script merges in its own entries (timetrack-ticket-hook on two events,
+# dots-track-hook on four) and leaves everything else byte-identical: it never writes a
+# settings file it did not first parse, and it refuses to install a result that does not
+# parse back.
 #
 # Why a script and not a managed file: the alternative is for chezmoi to own the whole of
 # settings.json, which would mean either publishing the user's permissions list or
 # rendering it from template data -- and either way an apply would overwrite hand edits
 # made between applies. Merging is the only form that cannot lose their work.
 #
-# Not gated on .timetrack, for the same reason the capture job is not: the hook writes
-# NOTHING to the payroll database. It labels a herdr pane with the ticket the user named,
-# which is display metadata with a 90-minute ttl. If clockd never runs, nothing reads it.
-# Gating it would buy no privacy and would guarantee that the binding was missing on the
+# Not gated on .timetrack, for the same reason the capture job is not: neither hook writes
+# to the payroll database. timetrack-ticket-hook labels a herdr pane with the ticket the
+# user named (display metadata, 90-minute ttl); dots-track-hook appends to a local session
+# log that the overview reads. If clockd never runs, nothing reads the first.
+# Gating them would buy no privacy and would guarantee that the binding was missing on the
 # first day the clock went live -- which is the day the attribution matters most.
 set -uo pipefail
 S="$HOME/.claude/settings.json"
-HOOK="$HOME/.local/bin/timetrack-ticket-hook"
+BIN="$HOME/.local/bin"
 # live state in the onchange hash: how many of our entries the settings file carries, so
 # this re-asserts if an edit drops them and stays silent while they are already there.
 # Deliberately NOT the file's own hash -- settings.json is edited by hand often, and
 # hashing all of it would leave this script permanently pending in `chezmoi status` for
-# reasons that have nothing to do with the hook.
+# reasons that have nothing to do with the hooks.
 # ONE line, always: this output is pasted into a comment, and a second line would land in
 # the script as a bare command. `grep -c` prints 0 AND exits 1 on no match, so the old
 # `grep -c ... || echo absent` printed both and ran `absent` as a command.
-# live: {{ output "sh" "-c" "c=$(grep -c timetrack-ticket-hook \"$HOME/.claude/settings.json\" 2>/dev/null); printf '%s' \"${c:-absent}\"" | trim }}
+# live: {{ output "sh" "-c" "c=$(grep -c 'timetrack-ticket-hook\\|dots-track-hook' \"$HOME/.claude/settings.json\" 2>/dev/null); printf '%s' \"${c:-absent}\"" | trim }}
 
 [ -f "$S" ] || { echo "claude-hooks: $S does not exist; skipping (re-run after first launch)" >&2; exit 0; }
-[ -x "$HOOK" ] || { echo "claude-hooks: $HOOK is not executable; skipping" >&2; exit 0; }
+[ -x "$BIN/timetrack-ticket-hook" ] || [ -x "$BIN/dots-track-hook" ] || { echo "claude-hooks: no hook under $BIN is executable; skipping" >&2; exit 0; }
 command -v python3 >/dev/null || { echo "claude-hooks: no python3" >&2; exit 0; }
 
-CLAUDE_SETTINGS="$S" CLAUDE_HOOK="$HOOK" python3 - <<'PY'
+CLAUDE_SETTINGS="$S" CLAUDE_BIN="$BIN" python3 - <<'PY'
 import json
 import os
 import shutil
 import sys
 
-path, hook = os.environ["CLAUDE_SETTINGS"], os.environ["CLAUDE_HOOK"]
+path, bindir = os.environ["CLAUDE_SETTINGS"], os.environ["CLAUDE_BIN"]
 raw = open(path, encoding="utf-8").read()
 try:
     d = json.loads(raw)
@@ -49,26 +51,36 @@ except ValueError as e:
     # owner to look at, and rewriting one would destroy whatever they were mid-edit on.
     sys.exit(f"claude-hooks: {path} is not valid JSON ({e}); left untouched")
 
-MINE = "timetrack-ticket-hook"
-WANT = {"UserPromptSubmit": "prompt", "SessionStart": "session"}
+# script name (also its marker in the settings file) -> {event: action}. Each hook finds
+# ONLY its own entry by its own marker, so two hooks can share an event (UserPromptSubmit
+# carries both) and a re-run replaces each in place instead of one displacing the other.
+HOOKS = {
+    "timetrack-ticket-hook": {"UserPromptSubmit": "prompt", "SessionStart": "session"},
+    "dots-track-hook": {"UserPromptSubmit": "prompt", "SessionStart": "session",
+                        "Stop": "stop", "SessionEnd": "end"},
+}
 hooks = d.setdefault("hooks", {})
 changed = []
-for event, action in WANT.items():
-    entries = hooks.setdefault(event, [])
-    cmd = {"type": "command", "command": f"{hook} {action}", "timeout": 5}
-    # Our own entry gets replaced in place; every other entry in the list -- herdr's
-    # SessionStart reporter, the notification hook -- is preserved exactly as found.
-    for entry in entries:
-        inner = entry.get("hooks") or []
-        mine = [h for h in inner if MINE in str(h.get("command", ""))]
-        if mine:
-            if mine[0] != cmd:
-                inner[inner.index(mine[0])] = cmd
-                changed.append(f"{event} (updated)")
-            break
-    else:
-        entries.append({"hooks": [cmd]})
-        changed.append(f"{event} (added)")
+for marker, want in HOOKS.items():
+    hook = os.path.join(bindir, marker)
+    if not os.access(hook, os.X_OK):
+        continue
+    for event, action in want.items():
+        entries = hooks.setdefault(event, [])
+        cmd = {"type": "command", "command": f"{hook} {action}", "timeout": 5}
+        # Our own entry gets replaced in place; every other entry in the list -- herdr's
+        # SessionStart reporter, the notification hook -- is preserved exactly as found.
+        for entry in entries:
+            inner = entry.get("hooks") or []
+            mine = [h for h in inner if marker in str(h.get("command", ""))]
+            if mine:
+                if mine[0] != cmd:
+                    inner[inner.index(mine[0])] = cmd
+                    changed.append(f"{marker} {event} (updated)")
+                break
+        else:
+            entries.append({"hooks": [cmd]})
+            changed.append(f"{marker} {event} (added)")
 
 if not changed:
     print("claude-hooks: already registered")

@@ -1,4 +1,9 @@
-final: prev: {
+# dots-overview (the tracking + data CLI) lives in ./dots-overview. It is added only when that directory
+# exists, so this overlay still evaluates on a tree that does not carry it yet.
+final: prev:
+(prev.lib.optionalAttrs (builtins.pathExists ./dots-overview) {
+  dots-overview = final.callPackage ./dots-overview { };
+}) // {
   otter-launcher  = final.callPackage ./otter-launcher.nix { };
   aether          = final.callPackage ./aether.nix { };
   timetrack       = final.callPackage ./timetrack { };

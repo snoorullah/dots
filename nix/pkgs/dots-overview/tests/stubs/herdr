@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# herdr stub for tests: a canned snapshot, canned `pane get`, and a log of every focus call.
+echo "$*" >> "${HERDR_LOG:?}"
+case "$1 $2" in
+  "api snapshot")
+    cat <<'JSON'
+{"id":"cli:api:snapshot","result":{"snapshot":{"agents":[
+ {"agent":"claude","agent_session":{"value":"sess-live-1"},"agent_status":"blocked","cwd":"/tmp/x","focused":false,
+  "pane_id":"w4:p1","tab_id":"w4:t2","workspace_id":"w4","terminal_title_stripped":"t"}]}}}
+JSON
+    ;;
+  "pane get")
+    cat <<JSON
+{"id":"cli:pane:get","result":{"pane":{"pane_id":"$3","tab_id":"w9:t1","workspace_id":"w9","cwd":"/tmp","agent_session":{"value":"x"}},"type":"pane_info"}}
+JSON
+    ;;
+  "workspace focus"|"tab focus"|"pane report-metadata") ;;
+  *) echo "herdr stub: unexpected: $*" >&2; exit 2 ;;
+esac

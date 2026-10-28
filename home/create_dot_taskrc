@@ -6,6 +6,31 @@ news.version=3.4.2
 uda.estimate.type=duration
 uda.estimate.label=Est
 
+# Work-tracking mirror (dots-overview). `ref` is the idempotency key: one task per ticket.
+# This file is create_ (written once), so on a machine that already has a ~/.taskrc the same
+# lines are applied by hand with `task config`; docs/overview-tracking.md lists them.
+# `parentref`, not `parent`: Taskwarrior reserves `parent` for recurrence and refuses a UDA of that name.
+uda.ref.type=string
+uda.ref.label=Ref
+uda.src.type=string
+uda.src.label=Src
+uda.srcstate.type=string
+uda.srcstate.label=State
+uda.srcsync.type=date
+uda.srcsync.label=Synced
+uda.url.type=string
+uda.url.label=URL
+uda.agent.type=string
+uda.agent.label=Agent
+uda.sess.type=string
+uda.sess.label=Session
+uda.pane.type=string
+uda.pane.label=Pane
+uda.wspace.type=string
+uda.wspace.label=Space
+uda.parentref.type=string
+uda.parentref.label=Parent
+
 # Salah quality tracking (Stage-2 time-tracking system)
 
 # Contexts (work/lab/agents/personal) — read filters

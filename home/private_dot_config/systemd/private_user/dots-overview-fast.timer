@@ -1,0 +1,11 @@
+[Unit]
+Description=dots-overview fast cycle (every 60 s)
+
+[Timer]
+OnActiveSec=30
+OnUnitActiveSec=60
+AccuracySec=5s
+
+# Shipped DISABLED. `systemctl --user enable --now dots-overview-fast.timer` is the orchestrator's step.
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,7 @@
+{
+ "session_id": "../../etc/evil",
+ "transcript_path": "/tmp/t/transcript.jsonl",
+ "cwd": "/tmp/work",
+ "hook_event_name": "UserPromptSubmit",
+ "prompt": "x"
+}

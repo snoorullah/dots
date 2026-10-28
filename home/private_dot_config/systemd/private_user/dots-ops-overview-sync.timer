@@ -1,0 +1,12 @@
+[Unit]
+Description=dots-ops overview sync (hourly: GitHub and ERP reads, completion detectors)
+
+[Timer]
+OnStartupSec=240
+OnCalendar=hourly
+Persistent=true
+Unit=dots-ops@overview-sync.service
+
+# Shipped DISABLED (orchestrator enables it).
+[Install]
+WantedBy=timers.target

@@ -52,9 +52,13 @@ in {
   home.packages = with pkgs; [
     # --- desktop / session / scripts ---
     # NVIDIA (non-NixOS) runs the distro Hyprland: Nix's cannot load the host GBM backend (start-hyprland-dots)
-  ] ++ lib.optional (gpu != "nvidia") (gl hyprland) ++ [
+  ] ++ lib.optional (gpu != "nvidia") (gl hyprland)
+  # the tracking/data CLI (nix/pkgs/dots-overview); guarded so a tree without it still evaluates
+  ++ lib.optional (pkgs ? dots-overview) pkgs.dots-overview ++ [
     hypridle hyprpolkitagent xdg-desktop-portal-hyprland hyprpicker
     waybar swaynotificationcenter swayosd awww (gl ghostty) chafa otter-launcher clipse yazi ffmpegthumbnailer unar file fd
+    # Quickshell desktop (`dots-shell use quickshell`); (gl ...) because this machine is nvidia
+    (gl quickshell) matugen gowall cliphist
     grim slurp wl-clipboard playerctl brightnessctl networkmanagerapplet bluetuith libnotify papirus-icon-theme phosphor-icon-theme dots-icon-font
     (lib.hiPrio taskwarrior3) timewarrior taskwarrior-tui aw-server-rust awatcher dotsAdhanPython timetrack
     zsh antidote starship zoxide fzf eza bat ripgrep jq gh neovim git chezmoi

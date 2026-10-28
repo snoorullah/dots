@@ -1,0 +1,86 @@
+{
+ "counts": {
+  "failed": 0,
+  "total": 2,
+  "waiting": 2
+ },
+ "items": [
+  {
+   "actor": "grace",
+   "ageSec": 7200,
+   "canBreakdown": true,
+   "id": "a1",
+   "jump": {
+    "pane": "p1",
+    "sess": "s1",
+    "workspace": "w1"
+   },
+   "kind": "review",
+   "ref": "gh:acme/widgets#12",
+   "src": "gh",
+   "startedAt": null,
+   "title": "Review the widget parser change",
+   "urgency": "active",
+   "url": "https://example.invalid/a1",
+   "waiting": true
+  },
+  {
+   "actor": "linus",
+   "ageSec": 3600,
+   "canBreakdown": false,
+   "id": "a2",
+   "jump": {
+    "pane": "p1",
+    "sess": "s1",
+    "workspace": "w1"
+   },
+   "kind": "blocker",
+   "ref": "HD-88",
+   "src": "gh",
+   "startedAt": null,
+   "title": "Release is blocked on your sign-off",
+   "urgency": "time",
+   "url": "https://example.invalid/a2",
+   "waiting": true
+  }
+ ],
+ "sources": {
+  "erp": {
+   "detail": "",
+   "state": "off",
+   "ts": 1761599990
+  },
+  "gh": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "herdr": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "mail": {
+   "detail": "no local store",
+   "state": "unavailable",
+   "ts": 1761599990
+  },
+  "notif": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "ops": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "task": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  }
+ },
+ "ts": 1761599990,
+ "v": 1
+}

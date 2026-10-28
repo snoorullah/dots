@@ -1,0 +1,10 @@
+#!/bin/sh
+# dots-jump <ref | agent | task-id>   focus the herdr pane that task lives in (else open its url)
+# dots-jump --last                    the most recently touched task that has a pane
+# dots-jump --resume <target>         print `claude --resume <session>` (run it in the pane's cwd)
+# dots-jump --open <target>           xdg-open the task's url
+#
+# A thin wrapper so the Hyprland bind, the overview card and a terminal all go through one
+# resolver (dots-overview jump). Everything it does is local: herdr focus, or xdg-open.
+command -v dots-overview >/dev/null 2>&1 || { echo "dots-jump: dots-overview is not installed" >&2; exit 127; }
+exec dots-overview jump "$@"

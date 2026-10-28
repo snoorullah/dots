@@ -1,0 +1,48 @@
+# ~/.config/dots-work/work.conf -- copy this file to work.conf and fill it in BY HAND.
+#
+# work.conf is never managed by chezmoi and never committed: the dots repo is public, and
+# everything below is company-specific. dots-overview reads it as plain KEY=VALUE; nothing
+# in it is executed, and a missing file simply means "no company filtering, ERP off".
+# Every value here is a placeholder.
+
+# One GitHub org login. Items in it count as company work in the daily brief.
+# Empty: no GitHub item is treated as company work.
+WORK_GH_ORG=example-org
+
+# Optional allowlist of owner/repo (space separated). When set it REPLACES the org match.
+WORK_GH_REPOS=
+
+# off | token | mcp.   off is the default and the only mode that needs nothing from you.
+#   token  read-only GETs against ERP_BASE_URL with the key in ERP_KEY_FILE
+#   mcp    `claude -p` with the read-only tools named in ERP_MCP_TOOLS; spends tokens, so
+#          it also needs `dots-overview sync --erp-mcp`
+ERP_MODE=off
+ERP_BASE_URL=https://erp.example.com
+
+# Path to a mode-0600 file holding exactly "key:secret". NEVER put the secret in this file.
+ERP_KEY_FILE=~/.config/dots-work/erp.key
+ERP_DOCTYPES="ToDo,HD Ticket,Task"
+
+# mcp mode only: the read-only tool names `claude -p` may call (space separated).
+ERP_MCP_TOOLS=
+
+# mcp mode only, REQUIRED: every write-capable tool, passed as --disallowedTools next to
+# --allowedTools. mcp mode refuses to run while this is empty. The names below are the
+# generic shape; in your real work.conf write the FULL tool names with your server prefix
+# (mcp__<server>__create_document ...), because a bare name matches nothing.
+ERP_MCP_DENY="create_document update_document delete_document submit_document cancel_document run_sql run_python"
+
+# Taskwarrior projects counted as company work (space separated).
+WORK_PROJECTS=work
+
+# Apps whose notification BODY may be stored in the local notification log. Every other
+# app stores its summary only. Leave empty to store no body at all.
+NOTIFY_BODY_APPS=
+
+# Extra words scrubbed from titles in the daily brief (space separated, case-insensitive,
+# each also removes the rest of its token). Email addresses are ALWAYS scrubbed; this
+# list only adds to that floor.
+REDACT_WORDS=
+
+# Where the daily brief is written. Default shown.
+REPORT_DIR=~/powerhouse/reports/daily

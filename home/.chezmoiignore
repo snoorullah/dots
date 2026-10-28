@@ -57,3 +57,7 @@ README.md
 .local/bin/capture-mirror.py
 .config/systemd/user/capture-window.service
 {{- end }}
+
+{{- /* Test-only trees: the overview's headless harness, fixtures and screenshots stay in the repo. */}}
+.config/quickshell/dots/modules/overview/tst
+.config/quickshell/dots/modules/overview/tst/**

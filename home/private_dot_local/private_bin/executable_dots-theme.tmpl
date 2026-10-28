@@ -1,0 +1,543 @@
+#!/usr/bin/env python3
+# dots-theme -- the only writer of ~/.local/state/dots-theme/tokens.json.
+#
+#   dots-theme [auto]              DEFAULT: wallpaper colours (matugen) from the current
+#                                  wallpaper; falls back to the preset when matugen or the
+#                                  wallpaper is unavailable or matugen fails
+#   dots-theme preset              fixed Dracula palette, identical every run
+#   dots-theme wallpaper [PATH]    matugen scheme-tonal-spot on a wallpaper, same keys;
+#                                  regenerates the icon theme when the palette changed
+#                                  (--no-icons skips that)
+#   dots-theme wallpaper --recolour [PATH]   fit the wallpaper to the palette first (gowall)
+#   dots-theme icons [--apply] [--source NAME|DIR]
+#                                  recolour an installed icon theme with the current palette
+#                                  into ~/.local/share/icons/dots-themed (cached by palette
+#                                  hash); --apply also sets it as the GTK icon theme
+#   dots-theme emit                re-render the cheap consumers from tokens.json
+#   dots-theme status
+#
+# One contract, two producers: both modes emit the same key set (docs/contracts/
+# tokens.schema.json), so the shell never knows which one ran. Status colours (amber,
+# red, green ...) are semantic and stay on the preset in BOTH modes; a wallpaper must not
+# be able to turn "someone waits" into blue. Waybar's CSS is templated straight from the
+# palette and never reads a generated file, so the fallback bar cannot depend on this.
+#
+# Every derived tone is computed from the palette below, never typed by hand
+# (tests/theme.sh re-derives them and compares).
+import colorsys, hashlib, json, os, re, shutil, subprocess, sys, tempfile
+from pathlib import Path
+
+# rendered from .chezmoidata/palette.yaml by chezmoi
+PALETTE = {
+    "bg": "{{ .palette.bg }}", "fg": "{{ .palette.fg }}", "sel": "{{ .palette.sel }}",
+    "comment": "{{ .palette.comment }}", "cyan": "{{ .palette.cyan }}",
+    "green": "{{ .palette.green }}", "orange": "{{ .palette.orange }}",
+    "pink": "{{ .palette.pink }}", "purple": "{{ .palette.purple }}",
+    "red": "{{ .palette.red }}", "yellow": "{{ .palette.yellow }}",
+}
+
+HOME = Path(os.environ.get("HOME", "~")).expanduser()
+STATE = Path(os.environ.get("DOTS_THEME_DIR") or
+             (Path(os.environ.get("XDG_STATE_HOME", HOME / ".local/state")) / "dots-theme"))
+CONF = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config"))
+TOKENS = STATE / "tokens.json"
+
+
+# ── colour maths ───────────────────────────────────────────────────────
+def rgb(h):
+    h = h.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def hexc(c):
+    return "#" + "".join(f"{max(0, min(255, round(v))):02x}" for v in c)
+
+
+def mix(a, b, t):
+    """t of b over a, in sRGB. mix(bg, white, .04) is 'bg lightened 4 %'."""
+    ra, rb = rgb(a), rgb(b)
+    return hexc(tuple(x + (y - x) * t for x, y in zip(ra, rb)))
+
+
+def luminance(h):
+    def lin(v):
+        v /= 255
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    r, g, b = (lin(v) for v in rgb(h))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def contrast(a, b):
+    la, lb = sorted((luminance(a), luminance(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+def readable(c, toward, on, minimum=4.8):
+    """c, lifted toward `toward` in 5 % steps until it reads `minimum`:1 on `on`."""
+    for i in range(21):
+        out = mix(c, toward, i / 20)
+        if contrast(out, on) >= minimum:
+            return out
+    return norm(toward)
+
+
+def lighten(h, t):
+    return mix(h, "#ffffff", t)
+
+
+def darken(h, t):
+    return mix(h, "#000000", t)
+
+
+def norm(h):
+    return hexc(rgb(h))
+
+
+class ThemeError(Exception):
+    """A producer could not run. `auto` falls back to the preset; explicit commands exit."""
+
+
+# ── token sets ─────────────────────────────────────────────────────────
+def status_colours():
+    p = PALETTE
+    return {"amber": norm(p["orange"]), "red": norm(p["red"]), "green": norm(p["green"]),
+            "purple": norm(p["purple"]), "pink": norm(p["pink"]), "cyan": norm(p["cyan"]),
+            "yellow": norm(p["yellow"])}
+
+
+def static_tokens():
+    return {
+        "alpha": {"slab": 0.78, "panel": 0.86, "wash": 0.20, "hover": 0.10, "divider": 0.24,
+                  "rest": 0.04, "on": 0.16, "pressed": 0.18},
+        "radius": {"chip": 8, "panel": 16, "card": 16, "pill": 999},
+        "space": {"xs": 2, "s": 4, "m": 6, "l": 8, "xl": 12, "xxl": 16, "xxxl": 24},
+        "font": {"sans": "Lato", "mono": "JetBrainsMono Nerd Font", "icon": "Material Symbols Rounded",
+                 "size": {"caption": 11, "bodyS": 12, "body": 13, "title": 16, "headline": 20, "display": 28}},
+        "motion": {"fast": 120, "base": 180, "slow": 240, "easeIn": "OutExpo", "easeOut": "OutCubic"},
+        "bar": {"height": 30, "gutter": 8, "chipGapPx": 6},
+    }
+
+
+def preset_tokens():
+    p = PALETTE
+    bg = norm(p["bg"])
+    # secondary text: the palette's comment tone lifted 40 % toward fg, so it clears
+    # WCAG AA (4.5:1) on the panel surface (the bare comment tone reads 2.8:1)
+    dim = mix(p["comment"], p["fg"], 0.40)
+    color = {
+        "bg": bg,
+        "surface": lighten(bg, 0.04),
+        "surfaceDim": darken(bg, 0.20),
+        "surfaceContainer": norm(p["sel"]),
+        "surfaceContainerHigh": lighten(p["sel"], 0.06),
+        "outline": norm(p["comment"]),
+        "outlineVariant": mix(p["comment"], bg, 0.50),
+        "fg": norm(p["fg"]),
+        "fgDim": dim,
+        "fgFaint": mix(bg, dim, 0.70),
+        "accent": norm(p["purple"]),
+        "accentFg": bg,
+    }
+    color.update(status_colours())
+    return finish("preset", None, color)
+
+
+# matugen role -> token. Roles are M3 names as printed by `matugen --json hex`.
+M3 = {"bg": "background", "surface": "surface", "surfaceDim": "surface_dim",
+      "surfaceContainer": "surface_container", "surfaceContainerHigh": "surface_container_high",
+      "outline": "outline", "outlineVariant": "outline_variant", "fg": "on_surface",
+      "fgDim": "on_surface_variant", "accent": "primary", "accentFg": "on_primary"}
+
+
+def wallpaper_tokens(roles, wallpaper):
+    miss = [r for r in M3.values() if r not in roles]
+    if miss:
+        raise ThemeError(f"matugen output lacks roles: {', '.join(miss)}")
+    color = {k: norm(roles[r]) for k, r in M3.items()}
+    color["fgDim"] = readable(color["fgDim"], color["fg"], color["surface"])
+    color["fgFaint"] = mix(color["bg"], color["fgDim"], 0.70)
+    color.update(status_colours())
+    return finish("wallpaper", wallpaper, color)
+
+
+def finish(source, wallpaper, color):
+    t = {"v": 1, "source": source, "mode": "dark", "wallpaper": wallpaper, "color": color}
+    t.update(static_tokens())
+    return t
+
+
+# ── io ─────────────────────────────────────────────────────────────────
+def write_atomic(path, text, mode=0o644):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(text)
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def load_tokens():
+    try:
+        return json.loads(TOKENS.read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def current_wallpaper():
+    """The wallpaper in use: the picker's cache file first, then ask the daemon."""
+    try:
+        p = (HOME / ".cache/current-wallpaper").read_text().strip()
+        if p and Path(p).is_file():
+            return p
+    except OSError:
+        pass
+    for cmd, pat in ((["swww", "query"], r"image:\s*(\S.*?)\s*$"),
+                     (["hyprctl", "hyprpaper", "listactive"], r"=\s*(/\S.*?)\s*$")):
+        if not shutil.which(cmd[0]):
+            continue
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        for line in r.stdout.splitlines():
+            m = re.search(pat, line)
+            if m and Path(m.group(1)).is_file():
+                return m.group(1)
+    return None
+
+
+def run_matugen(path):
+    exe = shutil.which("matugen")
+    if not exe:
+        raise ThemeError("matugen is not installed (nix/home.nix adds it)")
+    r = subprocess.run([exe, "image", str(path), "--json", "hex", "--dry-run",
+                        "--mode", "dark", "--type", "scheme-tonal-spot",
+                        "--prefer", "saturation", "--quiet"],
+                       capture_output=True, text=True, timeout=60)
+    if r.returncode != 0:
+        raise ThemeError(f"matugen failed: {r.stderr.strip()[:200]}")
+    try:
+        cols = json.loads(r.stdout)["colors"]
+        if isinstance(cols.get("dark"), dict):          # matugen < 4: colors.dark.<role>
+            cols = cols["dark"]
+        return {role: pick(v) for role, v in cols.items()}
+    except (ValueError, KeyError, AttributeError, TypeError) as e:
+        raise ThemeError(f"unreadable matugen output ({e})")
+
+
+def pick(v):
+    """matugen 4: {role: {dark: {color: '#..'}, default: ..}}; older: {role: '#..'}."""
+    if isinstance(v, dict):
+        v = v.get("dark") or v.get("default")
+        if isinstance(v, dict):
+            v = v["color"]
+    return v
+
+
+def recolour(path):
+    """Fit a wallpaper to the palette with gowall; returns the new path. Never in place."""
+    exe = shutil.which("gowall")
+    if not exe:
+        raise ThemeError("gowall is not installed (nix/home.nix adds it)")
+    out = STATE / "wallpaper-recoloured.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    r = subprocess.run([exe, "convert", str(path), "-t", "dracula", "--output", str(out)],
+                       capture_output=True, text=True, timeout=120)
+    if r.returncode != 0 or not out.is_file():
+        raise ThemeError(f"gowall failed: {r.stderr.strip()[:200]}")
+    return out
+
+
+# ── consumers (emit) ───────────────────────────────────────────────────
+def emit(t):
+    c = t["color"]
+    write_atomic(TOKENS, json.dumps(t, indent=2) + "\n")
+
+    def h(name):
+        return c[name].lstrip("#")
+
+    # hyprlang-style variables; the Lua config reads them with io.open if it wants them
+    hypr = "".join(f"${k} = rgb({h(k)})\n" for k in
+                   ("bg", "surface", "fg", "fgDim", "accent", "amber", "red", "outline"))
+    write_atomic(CONF / "hypr/colors.conf", "# written by dots-theme; do not edit\n" + hypr)
+
+    ghostty = (f"# written by dots-theme; include with: config-file = ?dots-theme.conf\n"
+               f"background = {h('bg')}\nforeground = {h('fg')}\n"
+               f"selection-background = {h('surfaceContainer')}\nselection-foreground = {h('fg')}\n"
+               f"cursor-color = {h('accent')}\ncursor-text = {h('accentFg')}\n")
+    write_atomic(CONF / "ghostty/dots-theme.conf", ghostty)
+
+    css = "/* written by dots-theme; @import it before the swaync sheet */\n" + "".join(
+        f"@define-color dots_{k} {c[k]};\n" for k in
+        ("bg", "surface", "surfaceContainer", "fg", "fgDim", "accent", "amber", "red", "outline"))
+    write_atomic(CONF / "swaync/dots-theme.css", css)
+
+    lock = ("# written by dots-theme; source it from hyprlock.conf\n"
+            f"$lock_bg = rgb({h('bg')})\n$lock_fg = rgb({h('fg')})\n$lock_accent = rgb({h('accent')})\n")
+    write_atomic(CONF / "hypr/hyprlock-colors.conf", lock)
+
+
+# ── icons ──────────────────────────────────────────────────────────────
+ICONS_NAME = "dots-themed"
+ICONS_VERSION = "1"                      # bump when the recolouring algorithm changes
+ICONS_DIR = Path(os.environ.get("DOTS_ICONS_DIR") or
+                 (Path(os.environ.get("XDG_DATA_HOME", HOME / ".local/share")) / "icons" / ICONS_NAME))
+ICON_PREFER = ("Papirus-Dark", "Papirus", "Adwaita")
+ACCENTS = ("accent", "amber", "red", "green", "purple", "pink", "cyan", "yellow")
+SVG_HEX = re.compile(r"(?<!url\()(?<!href=\")(?<!href=')#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-zA-Z_-])")
+
+
+def icon_roots():
+    data = Path(os.environ.get("XDG_DATA_HOME", HOME / ".local/share"))
+    return [data / "icons", HOME / ".nix-profile/share/icons", Path("/usr/share/icons")]
+
+
+def find_icon_source(want=None):
+    """An installed icon theme directory. NAME is looked up in the usual roots; a DIR is taken as is."""
+    env = os.environ.get("DOTS_ICON_SRC")
+    want = want or env
+    if want and ("/" in want or want.startswith("~")):
+        d = Path(want).expanduser()
+        return d if (d / "index.theme").is_file() else None
+    for name in ([want] if want else ICON_PREFER):
+        for root in icon_roots():
+            d = root / name
+            if (d / "index.theme").is_file():
+                return d
+    return None
+
+
+def palette_list(t):
+    c = t["color"]
+    return [c[k] for k in ("bg", "surfaceContainer", "fgDim", "fg") + ACCENTS]
+
+
+def icons_hash(t, src):
+    h = hashlib.sha256()
+    h.update(ICONS_VERSION.encode())
+    h.update(os.path.realpath(src).encode())
+    h.update(json.dumps(palette_list(t)).encode())
+    return h.hexdigest()
+
+
+def recolour_hex(h, pal):
+    """Greys ride the bg..fg ramp at their own lightness; colours take the nearest palette
+    hue (accent, status colours) and keep their own lightness, so shading survives."""
+    if len(h) == 3:
+        h = "".join(ch * 2 for ch in h)
+    r, g, b = (int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    hh, ll, ss = colorsys.rgb_to_hls(r, g, b)
+    if ss < 0.12:
+        return mix(pal["bg"], pal["fg"], ll)
+    best, bd, bh = None, 9.0, 0.0
+    for k in ACCENTS:
+        ph, pl, ps = colorsys.rgb_to_hls(*(v / 255 for v in rgb(pal[k])))
+        if ps < 0.08:
+            continue
+        d = abs(ph - hh)
+        d = min(d, 1 - d)
+        if d < bd:
+            best, bd, bh = k, d, (ph, ps)
+    if best is None:
+        return mix(pal["bg"], pal["fg"], ll)
+    rr, gg, bb = colorsys.hls_to_rgb(bh[0], ll, (bh[1] + ss) / 2)
+    return hexc((rr * 255, gg * 255, bb * 255))
+
+
+def recolour_svg(text, pal):
+    return SVG_HEX.sub(lambda m: recolour_hex(m.group(1), pal), text)
+
+
+def build_icons(t, src):
+    pal = t["color"]
+    out = ICONS_DIR.parent / (ICONS_NAME + ".new")
+    shutil.rmtree(out, ignore_errors=True)
+    pngs = {}
+    done = {}          # real path (file or dir) -> where it was written in the output
+    links = []         # (dst, real target) for every symlink, resolved once the tree is known
+
+    def put_file(f, dst):
+        done[os.path.realpath(f)] = dst
+        name = f.name
+        if name.endswith(".svg"):
+            try:
+                dst.write_text(recolour_svg(f.read_text(), pal))
+            except (UnicodeDecodeError, OSError):
+                shutil.copy2(f, dst)
+        elif name.endswith(".png"):
+            pngs.setdefault(dst.parent, []).append(f)
+        elif name.endswith((".svgz", ".cache")):
+            done.pop(os.path.realpath(f), None)     # gtk icon cache / compressed svg: not carried
+        else:
+            shutil.copy2(f, dst)
+
+    def walk(sdir, odir):
+        done[os.path.realpath(sdir)] = odir
+        odir.mkdir(parents=True, exist_ok=True)
+        for e in sorted(os.scandir(sdir), key=lambda x: x.name):
+            f, dst = Path(e.path), odir / e.name
+            if e.is_symlink():
+                links.append((dst, os.path.realpath(f)))
+            elif e.is_dir():
+                walk(f, dst)
+            elif not (e.name == "index.theme" and sdir == src):
+                put_file(f, dst)
+
+    walk(src, out)
+    # Symlinks become relative links to wherever their target landed. A target the walk has
+    # not reached (Papirus-Dark -> ../Papirus) is copied at the link's own place, once, so
+    # nothing dangles and nothing is duplicated.
+    while links:
+        links.sort(key=lambda x: not os.path.isdir(x[1]))
+        batch, links[:] = links[:], []
+        for dst, real in batch:
+            if not os.path.exists(real) or dst.exists() or dst.is_symlink():
+                continue
+            if real not in done:
+                walk(Path(real), dst) if os.path.isdir(real) else put_file(Path(real), dst)
+            elif real in done:
+                os.symlink(os.path.relpath(done[real], dst.parent), dst)
+    if pngs:
+        gowall = shutil.which("gowall")
+        theme = STATE / "icons-gowall-theme.json"
+        write_atomic(theme, json.dumps({"name": "dots", "colors": palette_list(t)}))
+        for odir, files in pngs.items():
+            if not gowall:
+                for f in files:
+                    shutil.copy2(f, odir / f.name)
+                continue
+            for i in range(0, len(files), 40):
+                chunk = files[i:i + 40]
+                r = subprocess.run([gowall, "convert", "--batch", ",".join(map(str, chunk)),
+                                    "-t", str(theme), "--output", str(odir),
+                                    "--preview", "false", "--yes"],
+                                   capture_output=True, text=True, timeout=600)
+                for f in chunk:
+                    if r.returncode != 0 or not (odir / f.name).is_file():
+                        shutil.copy2(f, odir / f.name)
+        if not gowall:
+            print("dots-theme: gowall missing; PNG icons copied unchanged", file=sys.stderr)
+    idx = (src / "index.theme").read_text()
+    idx = re.sub(r"(?m)^Name=.*$", f"Name={ICONS_NAME}", idx, count=1)
+    idx = re.sub(r"(?m)^Inherits=.*\n", "", idx)
+    idx = re.sub(r"(?m)^(\[Icon Theme\]\n)", rf"\1Inherits={src.name},hicolor\n", idx, count=1)
+    (out / "index.theme").write_text(idx)
+    return out
+
+
+def icons(t, src_name=None, apply=False):
+    """Idempotent: same palette + same source -> nothing is rewritten."""
+    src = find_icon_source(src_name)
+    if not src:
+        raise ThemeError("no installed icon theme found (looked for " + ", ".join(ICON_PREFER) + ")")
+    want = icons_hash(t, src)
+    stamp = ICONS_DIR / ".dots-palette-hash"
+    try:
+        same = stamp.read_text().strip() == want
+    except OSError:
+        same = False
+    if same:
+        print(f"icons: up to date ({ICONS_NAME} from {src.name})")
+    else:
+        new = build_icons(t, src)
+        (new / ".dots-palette-hash").write_text(want + "\n")
+        old = ICONS_DIR.parent / (ICONS_NAME + ".old")
+        shutil.rmtree(old, ignore_errors=True)
+        if ICONS_DIR.exists():
+            os.replace(ICONS_DIR, old)
+        os.replace(new, ICONS_DIR)
+        shutil.rmtree(old, ignore_errors=True)
+        print(f"icons: wrote {ICONS_DIR} from {src.name}")
+    if apply:
+        gs = shutil.which("gsettings")
+        if not gs:
+            raise ThemeError("gsettings not found; cannot set the GTK icon theme")
+        r = subprocess.run([gs, "set", "org.gnome.desktop.interface", "icon-theme", ICONS_NAME],
+                           capture_output=True, text=True, timeout=10)
+        if r.returncode != 0:
+            raise ThemeError(f"gsettings failed: {r.stderr.strip()[:200]}")
+        print(f"icons: GTK icon theme set to {ICONS_NAME}")
+
+
+def maybe_icons(t, skip):
+    """Palette changed -> regenerate. A failure here never fails the colour change."""
+    if skip:
+        return
+    try:
+        icons(t)
+    except (ThemeError, OSError, subprocess.SubprocessError) as e:
+        print(f"dots-theme: icons skipped ({e})", file=sys.stderr)
+
+
+# ── cli ────────────────────────────────────────────────────────────────
+def make_wallpaper_tokens(args, recolour_first):
+    cur = current_wallpaper()
+    wp = Path(args[0]).expanduser() if args else (Path(cur) if cur else None)
+    if not wp or not wp.is_file():
+        raise ThemeError("no wallpaper (pass a PATH, or set one with the wallpaper picker)")
+    if recolour_first:
+        wp = recolour(wp)
+    return wallpaper_tokens(run_matugen(wp), str(wp))
+
+
+def main(argv):
+    cmd = argv[0] if argv else "auto"
+    rest = argv[1:]
+    try:
+        run(cmd, rest)
+    except ThemeError as e:
+        raise SystemExit(f"dots-theme: {e}")
+
+
+def run(cmd, rest):
+    if cmd == "auto":
+        try:
+            t = make_wallpaper_tokens([], False)
+        except ThemeError as e:
+            print(f"dots-theme: {e}; using the preset", file=sys.stderr)
+            t = preset_tokens()
+        emit(t)
+        maybe_icons(t, "--no-icons" in rest)
+    elif cmd == "preset":
+        emit(preset_tokens())
+    elif cmd == "wallpaper":
+        args = [a for a in rest if not a.startswith("--")]
+        t = make_wallpaper_tokens(args, "--recolour" in rest)
+        emit(t)
+        maybe_icons(t, "--no-icons" in rest)
+    elif cmd == "icons":
+        apply = "--apply" in rest
+        src = None
+        if "--source" in rest:
+            k = rest.index("--source")
+            src = rest[k + 1] if k + 1 < len(rest) else None
+        t = load_tokens() or preset_tokens()
+        icons(t, src, apply)
+    elif cmd == "emit":
+        t = load_tokens()
+        if t is None:
+            raise SystemExit("dots-theme: no tokens.json yet; run `dots-theme` first")
+        emit(t)
+    elif cmd == "status":
+        t = load_tokens()
+        if t is None:
+            print("tokens: absent (the shell uses its built-in defaults)")
+        else:
+            print(f"tokens: {TOKENS}\nsource: {t.get('source')}\nwallpaper: {t.get('wallpaper')}\n"
+                  f"accent: {t['color']['accent']}  bg: {t['color']['bg']}")
+    else:
+        print("usage: dots-theme [auto] | preset | wallpaper [--recolour] [--no-icons] [PATH] | "
+              "icons [--apply] [--source NAME|DIR] | emit | status", file=sys.stderr)
+        sys.exit(2)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

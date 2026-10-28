@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dots-overview heatmap",
+  "description": "One cell per day for the last spanDays days; score is 0..4, computed here and never in QML.",
+  "type": "object",
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "ts": {
+      "type": "integer"
+    },
+    "spanDays": {
+      "type": "integer"
+    },
+    "maxSec": {
+      "type": "integer"
+    },
+    "days": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "d": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "workedSec": {
+            "type": "integer"
+          },
+          "done": {
+            "type": "integer"
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4
+          }
+        },
+        "required": [
+          "d",
+          "workedSec",
+          "done",
+          "score"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "v",
+    "ts",
+    "spanDays",
+    "maxSec",
+    "days"
+  ],
+  "additionalProperties": true
+}

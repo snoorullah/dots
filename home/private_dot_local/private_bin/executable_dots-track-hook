@@ -1,0 +1,160 @@
+#!/bin/sh
+# Claude Code hook for the overview: record which session is doing what, and where.
+#
+# Installed by .chezmoiscripts/run_onchange_after_30-claude-hooks on four events:
+#
+#   session  SessionStart     -- name the agent, label its herdr pane, forget a stale ticket
+#   prompt   UserPromptSubmit -- remember the ticket the user named, and the prompt's first words
+#   stop     Stop             -- heartbeat: the agent finished a turn
+#   end      SessionEnd       -- close-out
+#
+# It does NO taskwarrior writes and touches NO network. It appends one line to
+# $STATE/sessions.jsonl and rewrites $STATE/sessions/<session_id>.json; the 60 s
+# `dots-overview ingest` cycle turns those into tasks. Keeping the hook a dumb recorder
+# is what lets it stay under the 5 s hook timeout and never block a prompt.
+#
+# Same contract as timetrack-ticket-hook, which it sits beside on UserPromptSubmit:
+# stdout stays EMPTY (UserPromptSubmit stdout is injected into the model's context), every
+# path exits 0, subagents are skipped (they share the parent's pane), and outside herdr
+# there is no pane to attribute so it does nothing.
+set -eu
+
+action="${1:-}"
+case "$action" in
+  prompt|session|stop|end) ;;
+  *) exit 0 ;;
+esac
+
+inp="$(mktemp "${TMPDIR:-/tmp}/dots-track-hook.XXXXXX")" || exit 0
+trap 'rm -f "$inp"' EXIT HUP INT TERM
+cat >"$inp" 2>/dev/null || true
+
+[ "${HERDR_ENV:-}" = "1" ] || exit 0
+[ -n "${HERDR_PANE_ID:-}" ] || exit 0
+command -v python3 >/dev/null 2>&1 || exit 0
+
+TT_ACTION="$action" TT_INPUT="$inp" python3 - >/dev/null 2>&1 <<'PY' || exit 0
+import json
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+import time
+
+# Three segments, greedily: the ERP ids are TASK-2026-00512. A two-segment pattern would
+# match TASK-2026 and stop, reporting every ticket of the year as the same one.
+TICKET_RE = re.compile(r"\b([A-Z][A-Z0-9]{1,9}-\d{1,6}(?:-\d{1,6})?)\b")
+SESS_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+state = os.environ.get("DOTS_OVERVIEW_STATE_DIR") or os.path.join(
+    os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "dots-overview")
+pane = os.environ["HERDR_PANE_ID"]
+action = os.environ["TT_ACTION"]
+
+try:
+    with open(os.environ["TT_INPUT"], encoding="utf-8") as fh:
+        hook = json.loads(fh.read() or "{}")
+except (OSError, ValueError):
+    hook = {}
+if not isinstance(hook, dict) or hook.get("agent_id"):
+    raise SystemExit(0)
+
+sess = str(hook.get("session_id") or "")
+# the id becomes a file name: anything that is not a plain token is dropped, not escaped
+if not SESS_RE.match(sess):
+    raise SystemExit(0)
+
+
+# The installer gives this hook 5 s. Every child has its own cap and they sum to 4.0 s
+# (herdr get 1.5 + name 1.5 + report-metadata 1.0), so even when all three hang the hook
+# ends under the limit with 1 s for interpreter start and the file writes.
+T_PANE, T_NAME, T_META = 1.5, 1.5, 1.0
+DEADLINE = time.monotonic() + 4.0
+
+
+def run(argv, timeout=1.5):
+    timeout = min(timeout, DEADLINE - time.monotonic())
+    if timeout <= 0.05:
+        return ""
+    try:
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL)
+        return p.stdout if p.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def write_atomic(path, text):
+    os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), suffix=".tmp")
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, path)
+
+
+tab = workspace = None
+if shutil.which("herdr"):
+    try:
+        p = json.loads(run(["herdr", "pane", "get", pane], T_PANE) or "{}")["result"]["pane"]
+        tab, workspace = p.get("tab_id"), p.get("workspace_id")
+    except (ValueError, KeyError, TypeError):
+        pass
+if workspace is None and ":" in pane:
+    workspace = pane.split(":", 1)[0]
+
+agent = None
+if shutil.which("dots-overview"):
+    agent = run(["dots-overview", "name", sess], T_NAME).strip() or None
+
+prev_path = os.path.join(state, "sessions", sess + ".json")
+try:
+    with open(prev_path, encoding="utf-8") as fh:
+        prev = json.load(fh)
+except (OSError, ValueError):
+    prev = {}
+
+# A ticket is sticky within a session: a conversation names it once and then says
+# "continue". A NEW session clears it, so a recycled pane starts clean.
+ticket = None if action == "session" else prev.get("ticket")
+if action == "prompt":
+    found = None
+    env = (os.environ.get("TIMETRACK_TICKET") or "").strip()
+    if env:
+        m = TICKET_RE.search(env)
+        found = m.group(1) if m else None
+    if not found:
+        m = TICKET_RE.search(str(hook.get("prompt") or ""))
+        found = m.group(1) if m else None
+    ticket = found or ticket
+
+rec = {
+    "v": 1, "ts": int(time.time()), "action": action, "sess": sess,
+    "agent": agent or prev.get("agent"), "pane": pane, "tab": tab, "workspace": workspace,
+    "cwd": hook.get("cwd"), "ticket": ticket,
+    "prompt_head": (str(hook.get("prompt") or "")[:120] if action == "prompt" else prev.get("prompt_head", "")),
+    "transcript": hook.get("transcript_path"),
+}
+os.makedirs(state, mode=0o700, exist_ok=True)
+line = json.dumps(rec, separators=(",", ":")) + "\n"
+fd = os.open(os.path.join(state, "sessions.jsonl"), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+with os.fdopen(fd, "a", encoding="utf-8") as fh:
+    fh.write(line)
+RING = 5000
+log = os.path.join(state, "sessions.jsonl")
+try:
+    # ring like notifications.jsonl: trim in batches (a stat per call, a rewrite per ~200)
+    if os.stat(log).st_size > RING * 100:
+        with open(log, encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+        if len(lines) > RING + 200:
+            write_atomic(log, "\n".join(lines[-RING:]) + "\n")
+except OSError:
+    pass
+write_atomic(prev_path, json.dumps(rec, separators=(",", ":")) + "\n")
+
+if action == "session" and agent and shutil.which("herdr"):
+    # herdr is local; this is display metadata only. The pane id goes FIRST.
+    run(["herdr", "pane", "report-metadata", pane, "--source", "dots-track", "--display-agent", agent], T_META)
+PY
+exit 0

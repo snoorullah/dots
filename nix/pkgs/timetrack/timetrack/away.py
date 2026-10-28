@@ -136,7 +136,18 @@ def declare(key, now=None):
             conn.execute("INSERT OR IGNORE INTO logout(ts_unix, provenance) VALUES(?, ?)",
                          (now, DECLARED))
             conn.commit()
+        _brief()
     return label
+
+
+def _brief():
+    """Write the day's brief on the way out. Detached and best effort: it must never hold up the picker."""
+    if exe := shutil.which("dots-overview"):
+        try:
+            subprocess.Popen([exe, "report", "--reason", "logout"], stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        except OSError:
+            pass
 
 
 def take_intent(g0, g1):

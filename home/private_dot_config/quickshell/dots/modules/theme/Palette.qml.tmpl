@@ -1,0 +1,19 @@
+pragma Singleton
+// Rendered by chezmoi from .chezmoidata/palette.yaml. Only the raw palette lives here;
+// Tokens.qml derives every other tone from it, so the fallback theme cannot drift from
+// what `dots-theme preset` writes. Nothing here is read when tokens.json exists.
+import Quickshell
+
+Singleton {
+  readonly property string bg: "{{ .palette.bg }}"
+  readonly property string fg: "{{ .palette.fg }}"
+  readonly property string sel: "{{ .palette.sel }}"
+  readonly property string comment: "{{ .palette.comment }}"
+  readonly property string cyan: "{{ .palette.cyan }}"
+  readonly property string green: "{{ .palette.green }}"
+  readonly property string orange: "{{ .palette.orange }}"
+  readonly property string pink: "{{ .palette.pink }}"
+  readonly property string purple: "{{ .palette.purple }}"
+  readonly property string red: "{{ .palette.red }}"
+  readonly property string yellow: "{{ .palette.yellow }}"
+}

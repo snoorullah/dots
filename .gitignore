@@ -1,0 +1,6 @@
+# Python bytecode. It is a build artifact of whatever interpreter last ran the tests
+# (cpython-314 here), it is unreviewable in a diff, and a .pyc embeds the string
+# constants of its source -- so a committed one republishes anything the source
+# redacts. This repo is public: nothing generated belongs in it.
+__pycache__/
+*.py[cod]
