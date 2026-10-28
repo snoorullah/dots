@@ -88,7 +88,11 @@ for t in ("Bash", "Edit", "Write", "NotebookEdit", "WebFetch", "mcp__plugin_slac
 for t in ("Read(~/.ssh/**)", "Read(~/.config/**)", "Read(~/Mail/**)", "WebSearch"):
     check(f"denies {t}", t in dis, True)
 al = argv[argv.index("--allowedTools") + 1].split(",")
-check("allows only reads", sorted(al), sorted(["Read(~/work/**)", "Grep", "Glob"] + [
+from dots_inbox import slack as _slack
+for t in _slack.DENY_TOOLS + ["Grep", "Glob", "mcp__plugin_slack_slack", "mcp__pnow-erp"]:
+    check(f"denies {t} (shared with the slack checker)", t in dis, True)
+check("no unscoped search tool is allowed", any(x in ("Grep", "Glob") for x in al), False)
+check("allows only reads", sorted(al), sorted(["Read(~/work/**)"] + [
     "mcp__k8s-ro__" + x for x in ("list_resources", "get_resource", "get_logs", "get_pod_metrics",
     "get_node_metrics", "list_contexts", "get_pod_containers", "list_api_resources")]))
 check("turn limit", argv[argv.index("--max-turns") + 1], "25")

@@ -71,7 +71,7 @@ CREATE INDEX IF NOT EXISTS ix_event_ts ON event(ts_unix);
 def open_db():
     if not config.mounted():
         raise SystemExit("dots-inbox: the mail store is locked (not logged in?)")
-    config.STATE.mkdir(parents=True, exist_ok=True)
+    config.STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
     conn = sqlite3.connect(config.DB, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")

@@ -14,6 +14,7 @@ Cost is bounded on purpose: at most DAILY_CAP analyses a day, and an alert NAME 
 prepared once a week (alerts re-fire constantly; the second analysis of the same alert
 is noise). Both limits are visible, an over-cap item is `skipped` with the reason.
 """
+import re
 import fcntl
 import json
 import os
@@ -22,7 +23,7 @@ import subprocess
 import sys
 import time
 
-from . import config, db, mail, notify
+from . import config, db, mail, notify, slack
 
 DAILY_CAP = 6
 ALERT_WINDOW = 7 * 24 * 3600
@@ -31,17 +32,22 @@ BODY_MAX = 8000
 
 # The material is untrusted mail, so the agent reads only the work checkouts and a read-only
 # cluster view: never secrets, config, the mail store or the web, and it has no way to write.
-ALLOWED = ("Read(~/work/**),Grep,Glob,mcp__k8s-ro__list_resources,mcp__k8s-ro__get_resource,"
+# Grep and Glob take no path rule, so they are not offered at all: Read(~/work/**) is the
+# only file access. k8s-ro redacts Secret values itself and save_secret_to_file is not allowed.
+ALLOWED = ("Read(~/work/**),mcp__k8s-ro__list_resources,mcp__k8s-ro__get_resource,"
            "mcp__k8s-ro__get_logs,mcp__k8s-ro__get_pod_metrics,mcp__k8s-ro__get_node_metrics,"
            "mcp__k8s-ro__list_contexts,mcp__k8s-ro__get_pod_containers,"
            "mcp__k8s-ro__list_api_resources")
-DISALLOWED = ("Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent,Task,"
+DISALLOWED = ("Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Agent,Task,Grep,Glob,"
               "Read(~/.ssh/**),Read(~/.secrets*),Read(~/.config/**),Read(~/.claude/**),Read(~/.claude.json),"
               "Read(~/Mail/**),Read(~/.local/**),Read(~/.kube/**),Read(~/.aws/**),Read(~/.azure/**),"
-              "mcp__plugin_slack_slack__slack_send_message,"
-              "mcp__pnow-erp__create_document,mcp__pnow-erp__update_document,"
-              "mcp__pnow-erp__delete_document,mcp__pnow-erp__submit_document,"
-              "mcp__pnow-erp__cancel_document")
+              # whole MCP servers that can send, post or change something
+              "mcp__plugin_slack_slack,mcp__pnow-erp,mcp__claude_ai_Gmail,mcp__plugin_linear_linear,"
+              "mcp__pnow-erp__create_document,mcp__pnow-erp__update_document,mcp__pnow-erp__delete_document,"
+              "mcp__pnow-erp__submit_document,mcp__pnow-erp__cancel_document,"
+              "mcp__claude_ai_Vercel,mcp__claude_ai_Todoist,"
+              "mcp__k8s-ro__save_secret_to_file,"
+              + ",".join(slack.DENY_TOOLS))
 
 PROMPT = """You are preparing a READ-ONLY analysis for a DevOps/platform engineer who is away from \
 their desk. They will read it when they arrive at work.
@@ -204,8 +210,9 @@ def _alert_material(conn, row):
                           (name, name + "|%")):
         out.append(f"- {_fmt(e['ts_unix'])} {e['kind']} {e['ref']} {e['detail'] or ''}".rstrip())
     try:
-        safe = name.replace('"', " ")
-        found = mail.messages(f'tag:alert and subject:"{safe}"', limit=1)
+        # an alert name comes from a mail subject: keep only a safe set before it meets a query
+        safe = re.sub(r"[^A-Za-z0-9_.-]", "", name)[:80]
+        found = mail.messages(f'tag:alert and subject:"{safe}"', limit=1) if safe else []
     except Exception:
         found = []
     if found:
@@ -222,12 +229,19 @@ def claude_argv():
             "--allowedTools", ALLOWED, "--disallowedTools", DISALLOWED]
 
 
+def _scratch():
+    """An empty working directory outside the mail store for the agent."""
+    import tempfile
+    base = os.environ.get("XDG_RUNTIME_DIR") or None
+    return tempfile.mkdtemp(prefix="dots-inbox-prep-", dir=base)
+
+
 def analyse(text):
     """One headless, read-only call. Returns the markdown or raises RuntimeError."""
     config.PREP_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
     try:
         r = run(claude_argv(), input=PROMPT + text, capture_output=True, text=True,
-                timeout=TIMEOUT, cwd=str(config.PREP_DIR))
+                timeout=TIMEOUT, cwd=_scratch())
     except subprocess.TimeoutExpired:
         raise RuntimeError(f"timed out after {TIMEOUT // 60} min")
     except OSError as e:

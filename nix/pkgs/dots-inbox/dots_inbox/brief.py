@@ -181,7 +181,7 @@ def _last_brief(conn):
 
 
 def write(md):
-    config.STATE.mkdir(parents=True, exist_ok=True)
+    config.STATE.mkdir(parents=True, exist_ok=True, mode=0o700)
     fd = os.open(config.BRIEF, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         fh.write(md)
