@@ -191,7 +191,9 @@ def on_context(event, hook, env):
     if event == "UserPromptSubmit":
         p = str(hook.get("prompt") or "")
         auto = p.lstrip().startswith(HARNESS_PROMPT)
+        at = task.read_decl(sess) if task.SESS_RE.match(sess) else None
         atomic.write_json(task._p(TURN, sess), {"v": 1, "ts": int(time.time()), "prompt": p[:600], "auto": auto,
+                                                "decl": (at or {}).get("uuid"),
                                                 "hash": hashlib.sha256(p.encode("utf-8", "replace")).hexdigest()[:16]})
     task.refresh_token(pane, token_value(sess), timeout=1.0)
     if kill_switch(env):
@@ -241,8 +243,9 @@ def stop(hook, env, deadline):
         return None
     if turn.get("auto"):
         return None                                 # the harness started this turn, not the user
-    if int(d.get("ts") or 0) > int(turn.get("ts") or 0):
-        return None                                 # declared or switched after the prompt: already answered
+    if d.get("uuid") != turn.get("decl") and int(d.get("ts") or 0) > int(turn.get("ts") or 0):
+        return None                                 # moved to another task after the prompt: already answered
+    # (re-declaring the SAME task after the prompt does not count: that would be a way round the check)
     vpath = task._p(VERDICTS, sess)
     cache = atomic.read_json(vpath)
     cache = cache if isinstance(cache, dict) else {}
