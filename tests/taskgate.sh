@@ -37,6 +37,7 @@ export PATH="$tmp/bin:$PATH"
 hook="$tmp/bin/dots-task-hook"
 export TASKRC="$tmp/taskrc" TASKDATA="$tmp/task" TIMEWARRIORDB="$tmp/none-timew" HERDR_LOG="$tmp/herdr.log"
 export DOTS_OVERVIEW_STATE_DIR="$tmp/state" DOTS_WORK_CONF="$tmp/work.conf"
+export TIMETRACK_STATE_DIR="$tmp/timetrack"   # never the real work.db: the report day comes from its sessions
 export HTTP_PROXY=http://127.0.0.1:1 HTTPS_PROXY=http://127.0.0.1:1
 sed -e "s#^data.location=.*#data.location=$TASKDATA#" "$rc" > "$TASKRC"
 : > "$HERDR_LOG"
@@ -207,6 +208,8 @@ out=$(hk stop "$(stop_in $S4 "$tmp/work" 1)")
 [ -z "$out" ] && [ ! -s "$tmp/llm.count" ] && ok "stop_hook_active: never blocks, never asks the model" || bad "blocked or asked while stop_hook_active"
 out=$(hk stop "$(stop_in $S4 "$tmp/work" 0)")
 echo "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['decision']=='block'; r=d['reason']; assert 'HD-8' in r and 'dots-task switch' in r and 'dots-task new' in r and 'log this as a ticket' in r" && ok "clearly different work: blocks with switch / new / ask-the-user" || bad "no block on mismatch: $out"
+hk prompt "$(mk $S4 "$tmp/work" UserPromptSubmit 'Another Claude session sent a message: a poem about the ocean at night, written in full')" >/dev/null
+[ -z "$(hk stop "$(stop_in $S4 "$tmp/work" 0)")" ] && ok "a harness-started turn (subagent report) is never judged" || bad "blocked a subagent report"
 n=$(wc -l < "$tmp/llm.count")
 out=$(hk stop "$(stop_in $S4 "$tmp/work" 0)")
 [ -z "$out" ] && [ "$(wc -l < "$tmp/llm.count")" = "$n" ] && ok "the same prompt never blocks twice (cached verdict, no second model call)" || bad "blocked twice or re-asked"
