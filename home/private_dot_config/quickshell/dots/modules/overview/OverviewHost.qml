@@ -5,6 +5,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
 import qs.modules.overview
+import "../common" as Common
 
 // Instantiated once in the shell root. Owns the two overview windows and the
 // `dots.overview` IPC target. Both windows are created only while open (LazyLoader)
@@ -92,10 +93,10 @@ Item {
             implicitHeight: card.height
             mask: Region { item: card }
 
-            HyprlandFocusGrab {
+            Common.DismissGrab {
                 windows: [cw]
-                active: host.cardOpen && host.cardShown
-                onCleared: host.close()
+                armed: host.cardOpen && host.cardShown
+                onDismissed: host.close()
             }
 
             OverviewCard {
@@ -122,10 +123,10 @@ Item {
             implicitWidth: Look.panelWidth
             implicitHeight: Look.panelHeight
 
-            HyprlandFocusGrab {
+            Common.DismissGrab {
                 windows: [pw]
-                active: host.panelOpen && host.panelShown
-                onCleared: host.close()
+                armed: host.panelOpen && host.panelShown
+                onDismissed: host.close()
             }
 
             OverviewPanel {

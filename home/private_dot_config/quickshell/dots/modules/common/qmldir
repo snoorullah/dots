@@ -6,3 +6,4 @@ FocusGrab 1.0 FocusGrab.qml
 Stale 1.0 Stale.qml
 Popout 1.0 Popout.qml
 ScriptJson 1.0 ScriptJson.qml
+DismissGrab 1.0 DismissGrab.qml
