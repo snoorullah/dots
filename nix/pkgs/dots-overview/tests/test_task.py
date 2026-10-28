@@ -86,7 +86,8 @@ class StopVerdicts(helpers.Scratch):
     def setUp(self):
         super().setUp()
         task.write_decl("s1", uuid="uuid-1234", ref="X-1", title="Fix the form", project="p")
-        task.atomic.write_json(task._p("turn", "s1"), {"v": 1, "ts": 1, "hash": "h1",
+        # the prompt comes after the declaration: a turn declared after its prompt is never judged
+        task.atomic.write_json(task._p("turn", "s1"), {"v": 1, "ts": int(time.time()) + 5, "hash": "h1",
                                                        "prompt": "write me a poem about the sea at night"})
         self.calls = []
         self.answers = ["different"]
