@@ -7,6 +7,7 @@ final: prev:
   otter-launcher  = final.callPackage ./otter-launcher.nix { };
   aether          = final.callPackage ./aether.nix { };
   timetrack       = final.callPackage ./timetrack { };
+  dots-inbox      = final.callPackage ./dots-inbox { };
   hypr-kdeconnect-fix = final.callPackage ./hypr-kdeconnect-fix.nix { };
   phosphor-icon-theme = final.callPackage ./phosphor-icon-theme { };
   dots-icon-font      = final.callPackage ./dots-icon-font { };
