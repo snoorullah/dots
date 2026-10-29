@@ -7,27 +7,29 @@ views from the database, so they converge whichever side moved.
   VAULT/time/Timesheet/YYYY-MM.md        one table, one row a day, up to and including today
   VAULT/time/Timesheet/days/YYYY-MM-DD.md  properties + the measured shifts + free notes
 
-What an edit means. A day the user types hours into gets a `day_edit` row (migrate.WORK_V6):
-their own statement of login, logout and breaks, which supersedes the measured figures for
-that day WITHOUT deleting them. Clearing Login and Logout deletes the row and the measured
-figure comes back. A change of Kind rewrites day_class (and its target) and never touches the
-hours -- an edit that only moves a non-hour cell must not freeze the measured hours into an
-"edit" the user never made.
+What an edit means. Every editable cell is an OVERRIDE of the measured value, one field at
+a time (migrate.WORK_V6): a day_edit row holds only the fields the user typed, and every
+other field stays measured, so typing a lunch figure does not freeze the day's logout. A
+cell the user empties goes back to the measured value, and a row with nothing left in it is
+deleted. A change of Kind rewrites day_class (and its target). Overrides are marked in the
+files (`*` in the table, an `edited:` property in the note) and that mark is ignored on read.
 
 Why it is built around not clobbering the user:
 
   * QUIET. A file modified within QUIET seconds is neither read nor written: the user may
     be mid-sentence, and a half-typed time is not an edit.
-  * What was last RENDERED is remembered per file (vault-rendered.json: content hash and each
-    day's canonical values). An edit is "this cell differs from what we last showed", so a
-    measured figure that moved underneath the user (hourly refresh) is not mistaken for an
-    edit, and an unchanged row is never a write.
+  * What was last RENDERED is remembered per file (vault-rendered.json: content hash, the
+    cells shown, the generated text). An edit is "this cell differs from what THIS FILE last
+    showed", so a measured figure that moved underneath the user (hourly refresh) is not
+    mistaken for an edit. A file with no such record has no edits: it is re-rendered, never
+    diffed against the database.
   * A file that fails validation is HELD: nothing in it is applied, it is never rewritten
     (the bad cell stays visible next to the toast), and it is looked at again only when
     its content changes.
-  * Render refuses to overwrite a file whose content is not what it last wrote: that is an
-    edit that has not been synced yet. Sync marks a file processed before rendering.
-  * Everything below `## Notes` in a day note is the user's, and survives every render.
+  * Render refuses to overwrite a file whose content is not what it last wrote (an edit not
+    synced yet), a file whose `## Notes` heading is gone, or one with text above the heading
+    that the generator did not write. Those are held, and the user's text is never lost.
+  * Everything below `## Notes` is the user's, and survives every render.
 
 Nothing here opens a connection: it reads and writes local files and one database.
 """
@@ -50,12 +52,10 @@ ZERO_TARGET = ("holiday", "leave_unpaid", "weekend")    # the mapping interactiv
 MINUTES = ("off", "salah", "lunch", "dinner", "washroom", "misc", "call", "unsure")
 HOURS = ("login", "logout") + MINUTES
 FIELDS = ("kind",) + HOURS
-COLUMN = {"call": "call_personal", "off": "off_minutes"}                     # field name -> day_edit column
-CATEGORY = {"call_personal": "call", "salah": "salah", "lunch": "lunch", "dinner": "dinner",
-            "washroom": "washroom", "misc": "misc"}
 
 HEADER = ["Date", "Day", "Kind", "Login", "Logout", "Off", "Salah", "Lunch", "Dinner",
           "Washroom", "Misc", "Call", "Unsure", "Net", "Target", "Source"]
+MARKER = "## Notes"
 NOTES_RE = re.compile(r"^## Notes[ \t]*$", re.M)
 DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 CELL_SPLIT = re.compile(r"(?<!\\)\|")
@@ -64,11 +64,13 @@ CELL_SPLIT = re.compile(r"(?<!\\)\|")
 # --- parsing and formatting ----------------------------------------------------------
 
 def parse_clock(text):
-    """'19:23', '9:05', '1923' or '03:28+1' -> (minutes into the day, extra days)."""
-    m = re.fullmatch(r"\s*(\d{1,2}):?(\d{2})\s*(?:\+\s*(\d))?\s*", text or "")
+    """'19:23', '9:05', '1923', '03:28+1' or '23:30-1' -> (minutes into the day, day offset,
+    whether the offset was written)."""
+    m = re.fullmatch(r"\s*(\d{1,2}):?(\d{2})\s*(?:([+-])\s*(\d))?\s*", text or "")
     if not m or int(m[1]) > 23 or int(m[2]) > 59:
         raise ValueError(f"'{(text or '').strip()}' is not a time (use HH:MM, or HH:MM+1 for next day)")
-    return int(m[1]) * 60 + int(m[2]), int(m[3] or 0)
+    extra = int(m[4] or 0) * (-1 if m[3] == "-" else 1)
+    return int(m[1]) * 60 + int(m[2]), extra, m[3] is not None
 
 
 def parse_minutes(text):
@@ -94,9 +96,10 @@ def fmt_signed(n):
 
 
 def fmt_clock(minutes):
-    """Minutes since the attendance day's midnight; past 24h carries '+N'."""
+    """Minutes since the attendance day's midnight; another day carries '+N' or '-N'."""
     extra, rem = divmod(minutes, 1440)
-    return f"{rem // 60:02d}:{rem % 60:02d}" + (f"+{extra}" if extra else "")
+    suffix = f"+{extra}" if extra > 0 else f"-{-extra}" if extra < 0 else ""
+    return f"{rem // 60:02d}:{rem % 60:02d}" + suffix
 
 
 def _clock_of(unix, day):
@@ -104,54 +107,65 @@ def _clock_of(unix, day):
     return fmt_clock((dt.date() - date.fromisoformat(day)).days * 1440 + dt.hour * 60 + dt.minute)
 
 
+def _minutes_of(clock):
+    mins, extra, _ = parse_clock(clock)
+    return mins + extra * 1440
+
+
 def _unix(day, clock):
-    mins, extra = parse_clock(clock)
+    mins, extra, _ = parse_clock(clock)
     d = date.fromisoformat(day) + timedelta(days=extra)
     return int(datetime(d.year, d.month, d.day, mins // 60, mins % 60).timestamp())
 
 
-def canon(raw, base):
-    """Parse one day's raw cell text into canonical values.
+def _clean(text):
+    """A cell as the user left it: the '*' that marks an override is not part of the value."""
+    return str(text).strip().rstrip("*").strip()
 
-    A field the file does not carry keeps its baseline value. Logout is resolved against
-    login: 'HH:MM+1' is next day, and a logout at or before the login without '+1' is
-    taken to be the next day too (a night shift typed the obvious way).
+
+def canon(raw, base):
+    """Parse one day's raw cell text into canonical values, as the cells show them.
+
+    login/logout are 'HH:MM[+N]' or None; minutes are ints or None; None is an EMPTY cell,
+    which on read means "go back to the measured value". A field the file does not carry
+    keeps its baseline value. Logout is resolved against login: a logout at or before the
+    login without an explicit '+1' is taken to be the next day (a night shift typed the
+    obvious way).
     """
     out = {}
-    kind = str(raw.get("kind", base["kind"])).strip().lower()
+    kind = _clean(raw.get("kind", base["kind"])).lower()
     if kind not in KINDS:
         raise ValueError(f"kind '{kind}' is not one of {', '.join(KINDS)}")
     out["kind"] = kind
-    login = str(raw.get("login", base["login"])).strip()
-    logout = str(raw.get("logout", base["logout"])).strip()
     lin = None
-    if login:
-        lin, extra = parse_clock(login)
-        lin += extra * 1440
-        out["login"] = fmt_clock(lin)
+    if "login" in raw:
+        s = _clean(raw["login"])
+        if s:
+            lin = parse_clock(s)
+            lin = lin[0] + lin[1] * 1440
+        out["login"] = fmt_clock(lin) if s else None
     else:
-        out["login"] = ""
-    if logout:
-        lo, extra = parse_clock(logout)
-        lo += extra * 1440
-        if not extra and lin is not None and lo <= lin:
-            lo += 1440
-        out["logout"] = fmt_clock(lo)
+        out["login"] = base["login"]
+        lin = _minutes_of(base["login"]) if base["login"] else None
+    if "logout" in raw:
+        s = _clean(raw["logout"])
+        if s:
+            lo, extra, explicit = parse_clock(s)
+            lo += extra * 1440
+            if not explicit and lin is not None and lo <= lin:
+                lo += 1440
+            out["logout"] = fmt_clock(lo)
+        else:
+            out["logout"] = None
     else:
-        out["logout"] = ""
+        out["logout"] = base["logout"]
     for k in MINUTES:
-        v = raw.get(k)
-        out[k] = base[k] if v is None else parse_minutes(str(v))
+        if k in raw:
+            s = _clean(raw[k])
+            out[k] = parse_minutes(s) if s else None
+        else:
+            out[k] = base[k]
     return out
-
-
-def _minutes_of(clock):
-    mins, extra = parse_clock(clock)
-    return mins + extra * 1440
-
-
-def hours_changed(v, b):
-    return any(v[k] != b[k] for k in HOURS)
 
 
 def split_row(line):
@@ -163,13 +177,20 @@ def split_row(line):
     return [c.strip() for c in cells]
 
 
+def above_notes(text):
+    """The part of a file the generator owns: everything before the `## Notes` heading."""
+    m = NOTES_RE.search(text)
+    return text[:m.start()] if m else text
+
+
 def parse_sheet(text, month):
     """{day: {field: cell text}} from a month table. Computed columns are ignored, a row
     whose first cell carries no date is ignored, and columns are found by header name so a
-    reordered table still reads."""
+    reordered table still reads. Only the part above `## Notes` is read: a table the user
+    keeps in their notes is theirs."""
     cols = {name.lower(): i for i, name in enumerate(HEADER)}
     out = {}
-    for line in text.replace("\r\n", "\n").split("\n"):
+    for line in above_notes(text).replace("\r\n", "\n").split("\n"):
         if not line.lstrip().startswith("|"):
             continue
         cells = split_row(line)
@@ -218,47 +239,56 @@ def parse_day_note(text, day):
 
 # --- reading the database ------------------------------------------------------------
 
+OVERRIDE = {"login": "login_unix", "logout": "logout_unix", "off": "off_minutes",
+            "call": "call_personal"}
+
+
 def load_days(conn, month, upto=None):
-    """Every day_class day of `month` (to `upto` if given), with the values the user is
-    shown: the day_edit row if there is one, else what was measured."""
+    """Every day_class day of `month` (to `upto` if given), as the user is shown it.
+
+    rec["meas"]  what was measured (login/logout as unix, minutes as ints)
+    rec["ov"]    the fields the user has overridden (a day_edit row's non-NULL columns)
+    rec["v"]     the cells: login/logout 'HH:MM[+N]' or None, minutes int or None. A zero
+                 on a day with no hours is None (an empty cell); an override is always shown
+    """
     pat = month + "-%"
     edits = {r["day"]: r for r in conn.execute("SELECT * FROM day_edit WHERE day LIKE ?", (pat,))}
-    brk, unsure = {}, {}
-    for r in conn.execute(
-            "SELECT attendance_day, category, minutes, confirmed FROM deduction"
-            " WHERE attendance_day LIKE ? AND end_unix IS NOT NULL", (pat,)):
-        if r["confirmed"]:
-            d = brk.setdefault(r["attendance_day"], {})
-            f = CATEGORY.get(r["category"])
-            if f:
-                d[f] = d.get(f, 0) + (r["minutes"] or 0)
-        else:
-            unsure[r["attendance_day"]] = unsure.get(r["attendance_day"], 0) + (r["minutes"] or 0)
+    span = {r["attendance_day"]: r for r in conn.execute(
+        "SELECT * FROM v_day_span_measured WHERE attendance_day LIKE ?", (pat,))}
+    brk = {r["attendance_day"]: r for r in conn.execute(
+        "SELECT * FROM v_day_break_measured WHERE attendance_day LIKE ?", (pat,))}
     recs = []
     for r in conn.execute("SELECT * FROM v_day_worked WHERE attendance_day LIKE ?"
                           " ORDER BY attendance_day", (pat,)):
         day = r["attendance_day"]
         if upto is not None and date.fromisoformat(day) > upto:
             continue
-        v = {"kind": r["kind"], "login": "", "logout": "", **{k: 0 for k in MINUTES}}
-        e = edits.get(day)
-        if e:
+        s, b, e = span.get(day), brk.get(day), edits.get(day)
+        meas = {"login": s["first_unix"] if s else None, "logout": s["last_unix"] if s else None,
+                "off": 0, **{k: 0 for k in MINUTES if k != "off"}}
+        if s:
+            meas["off"] = max(0, round((s["last_unix"] - s["first_unix"]) / 60) - s["span_minutes"])
+        if b:
             for k in MINUTES:
-                v[k] = e[COLUMN.get(k, k)]
-        else:
-            for k, n in brk.get(day, {}).items():
-                v[k] = int(round(n))
-            v["unsure"] = int(round(unsure.get(day, 0)))
-            if r["first_unix"] and r["last_unix"]:
-                v["off"] = max(0, round((r["last_unix"] - r["first_unix"]) / 60)
-                               - (r["span_minutes"] or 0))
-        if r["first_unix"] and r["last_unix"]:
-            v["login"] = _clock_of(r["first_unix"], day)
-            v["logout"] = _clock_of(r["last_unix"], day)
+                if k != "off":
+                    meas[k] = int(round(b[OVERRIDE.get(k, k)] or 0))
+        ov = {}
+        if e:
+            for k in HOURS:
+                if e[OVERRIDE.get(k, k)] is not None:
+                    ov[k] = e[OVERRIDE.get(k, k)]
+        eff = {**meas, **ov}
+        hours = eff["login"] is not None and eff["logout"] is not None
+        v = {"kind": r["kind"],
+             "login": _clock_of(eff["login"], day) if eff["login"] else None,
+             "logout": _clock_of(eff["logout"], day) if eff["logout"] else None}
+        for k in MINUTES:
+            v[k] = eff[k] if (k in ov or eff[k] or hours) else None
         net = r["net_minutes"]
         if net is None and (r["span_minutes"] or 0) > 0:
             net = derive.basis(r)[0]
-        recs.append({"day": day, "v": v, "row": r, "has_edit": e is not None, "net": net,
+        recs.append({"day": day, "v": v, "row": r, "meas": meas, "ov": ov, "net": net,
+                     "has_edit": bool(ov),
                      "source": "edited" if r["provenance"] == "vault" else (r["provenance"] or "")})
     return recs
 
@@ -272,31 +302,32 @@ def _rec(conn, day):
 
 # --- rendering -----------------------------------------------------------------------
 
-def _cell(v, k):
-    n = v[k]
-    if n == 0 and not (v["login"] and v["logout"]):
+def _cell(rec, k, mark=True):
+    n = rec["v"][k]
+    if n is None:
         return ""
-    return fmt_min(n)
+    s = n if k in ("login", "logout") else fmt_min(n)
+    return s + ("*" if mark and k in rec["ov"] else "")
 
 
 def _row_cells(rec):
     v = rec["v"]
     r = rec["row"]
     d = date.fromisoformat(rec["day"])
-    return [f"[[days/{rec['day']}\\|{rec['day']}]]", d.strftime("%a"), v["kind"], v["login"],
-            v["logout"]] + [_cell(v, k) for k in MINUTES] + [
+    return [f"[[days/{rec['day']}\\|{rec['day']}]]", d.strftime("%a"), v["kind"]] + [
+        _cell(rec, k) for k in HOURS] + [
         "" if rec["net"] is None else fmt_min(rec["net"]),
         fmt_min(r["target_minutes"]) if r["target_minutes"] else "", rec["source"]]
 
 
-def month_text(conn, month, recs, today):
+def month_head(conn, month, recs, today):
     y, m = (int(x) for x in month.split("-"))
     s = derive.month_summary(conn, month, today=today)
     lines = [
         "---", f"month: {month}", "---",
         f"# Timesheet · {date(y, m, 1):%B %Y}", "",
-        "Edit Kind, Login, Logout and the break cells. Net, Target and Source recompute within ~30 s.",
-        "Clear Login and Logout to go back to the measured figure. A submitted month is read-only.",
+        "Edit Kind, Login, Logout and the break cells; a * marks a value you set. Net, Target and Source",
+        "recompute within ~30 s. Empty a cell to go back to the measured value. A submitted month is read-only.",
         "",
         "| " + " | ".join(HEADER) + " |",
         "|" + "---|" * len(HEADER),
@@ -305,18 +336,16 @@ def month_text(conn, month, recs, today):
         lines.append("| " + " | ".join(_row_cells(rec)) + " |")
     lines += ["", f"**Worked** {fmt_min(s['worked_minutes'])} · **Target** "
                   f"{fmt_min(s['target_minutes'])} · **Delta** "
-                  f"{fmt_signed(s['worked_minutes'] - s['target_minutes'])}", ""]
+                  f"{fmt_signed(s['worked_minutes'] - s['target_minutes'])}", "", ""]
     return "\n".join(lines)
 
 
-def _day_head(conn, rec, month):
+def day_head(conn, rec, month):
     day, v, r = rec["day"], rec["v"], rec["row"]
     d = date.fromisoformat(day)
-    fm = ["---", f'date: "{day}"', f'kind: "{v["kind"]}"', f'login: "{v["login"]}"',
-          f'logout: "{v["logout"]}"']
-    for k in MINUTES:
-        fm.append(f'{k}: "{_cell(v, k)}"')
-    fm.append("---")
+    fm = ["---", f'date: "{day}"', f'kind: "{v["kind"]}"']
+    fm += [f'{k}: "{_cell(rec, k, mark=False)}"' for k in HOURS]
+    fm += [f'edited: "{", ".join(k for k in HOURS if k in rec["ov"])}"', "---"]
     shifts = [f"- {derive.clock(x['start_unix'])} to {derive.clock(x['end_unix'])}"
               f" ({fmt_min(round(x['seconds'] / 60))})"
               for x in conn.execute(
@@ -333,21 +362,12 @@ def _day_head(conn, rec, month):
         "| Net | Target | Source |", "|---|---|---|",
         f"| {'' if rec['net'] is None else fmt_min(rec['net'])} | "
         f"{fmt_min(r['target_minutes']) if r['target_minutes'] else ''} | {rec['source']} |", "",
-        "Measured shifts" + (" (replaced by your edit)" if rec["has_edit"] else "") + ":",
+        "Measured shifts" + (" (some replaced by your edit)" if rec["has_edit"] else "") + ":",
         *shifts, "", "Measured breaks:", *breaks, "",
         f"[[time/Timesheet/{month}|Back to the {month} sheet]]", "",
         "Edit the properties above; Net, Target and Source recompute within ~30 s.",
-        "Clear Login and Logout to go back to the measured figure. Write below as you like.", "",
-        "## Notes"]
+        "Empty a property to go back to the measured value. Write below as you like.", "", ""]
     return "\n".join(out)
-
-
-def day_text(conn, rec, month, existing):
-    """The note with the user's text below `## Notes` carried over verbatim."""
-    tail = "\n"
-    if existing is not None and (m := NOTES_RE.search(existing)):
-        tail = existing[m.end():]
-    return _day_head(conn, rec, month) + tail
 
 
 # --- state ---------------------------------------------------------------------------
@@ -357,10 +377,28 @@ def sha(data):
 
 
 def load_state():
+    """The record of what was last rendered. A missing file is a fresh start; a corrupt one
+    is kept aside as .corrupt and reported once, because without it nothing can be told
+    apart from an edit (sync treats a file with no baseline as having none)."""
     try:
-        st = json.loads(config.VAULT_STATE.read_text())
-    except (OSError, ValueError):
-        st = {}
+        raw = config.VAULT_STATE.read_text()
+    except OSError:
+        raw = None
+    st = {}
+    if raw is not None:
+        try:
+            st = json.loads(raw)
+            if not isinstance(st, dict):
+                raise ValueError("not an object")
+        except ValueError:
+            st = {}
+            try:
+                config.VAULT_STATE.replace(config.VAULT_STATE.with_name(
+                    config.VAULT_STATE.name + ".corrupt"))
+            except OSError:
+                pass
+            notify.toast("timetrack", "Timesheet state was reset",
+                         "Timesheet state was reset; edits made since the last sync were not read")
     st.setdefault("files", {})
     st.setdefault("held", {})
     return st
@@ -390,27 +428,66 @@ def _norm(text):
     return "\n".join(out)
 
 
-def _put(path, text, days, now, st, report):
-    """Write `text` if it differs, unless the user may be in it. Records what was shown."""
+def _mask(head):
+    """The generated region with the user's editable values blanked: what is left is text
+    only a person could have typed. Table data rows keep their date, properties keep their
+    key, and the computed Net/Target/Source row goes."""
+    out = []
+    for line in _norm(head).split("\n"):
+        if line.startswith("|"):
+            cells = line.strip("|").split("|")
+            if cells[0].lower() in ("date", "net") or re.fullmatch(r"-+", cells[0]):
+                out.append(line)
+            else:
+                m = DATE_RE.search(cells[0])
+                out.append("|" + (m[1] if m else "*") + "|")
+        elif (m := re.fullmatch(r"([A-Za-z_][\w-]*):.*", line)) and m[1] != "Measured":
+            out.append(m[1] + ":")
+        else:
+            out.append(line)
+    return "\n".join(l for l in out if l.strip())      # blank lines are not text
+
+
+def _hold(path, cur, st, report, body):
+    st["held"][str(path)] = sha(cur)
+    report["skipped"][str(path)] = "held"
+    notify.toast("timetrack", "Timesheet not updated", f"{path.stem}: {body}")
+
+
+def _put(path, head, days, now, st, report):
+    """Write `head` + the user's notes if that differs, unless the user may be in it, has
+    text here that is not ours, or has removed the `## Notes` marker (then the file is held
+    and never overwritten). Records what was shown."""
     key = str(path)
-    rec = {"hash": None, "days": days}
-    if path.exists():
-        cur = path.read_bytes()
-        if cur == text.encode() or _norm(cur.decode(errors="replace")) == _norm(text):
-            st["files"][key] = {"hash": sha(cur), "days": days}
+    if not path.exists():
+        text = head + MARKER + "\n"
+    else:
+        cur_b = path.read_bytes()
+        cur = cur_b.decode(errors="replace")
+        m = NOTES_RE.search(cur)
+        text = head + MARKER + (cur[m.end():] if m else "\n")
+        if cur_b == text.encode() or _norm(cur) == _norm(text):
+            st["files"][key] = {"hash": sha(cur_b), "days": days, "head": head}
             return
         if now - path.stat().st_mtime < QUIET:
             report["skipped"][key] = "quiet"
             return
-        if st["held"].get(key) == sha(cur):
+        if st["held"].get(key) == sha(cur_b):
             report["skipped"][key] = "held"
             return
-        if st["files"].get(key, {}).get("hash") != sha(cur):
+        if st["files"].get(key, {}).get("hash") != sha(cur_b):
             report["skipped"][key] = "unsynced"      # an edit sync has not read yet
             return
+        if m is None:
+            _hold(path, cur_b, st, report, "Keep the ## Notes heading; your text is safe")
+            return
+        last = st["files"].get(key, {}).get("head")
+        if last is not None and _mask(cur[:m.start()]) != _mask(last):
+            _hold(path, cur_b, st, report,
+                  "there is text here outside the table/properties; move it below ## Notes")
+            return
     _atomic(path, text)
-    rec["hash"] = sha(text)
-    st["files"][key] = rec
+    st["files"][key] = {"hash": sha(text), "days": days, "head": head}
     st["held"].pop(key, None)
     report["written"].append(key)
 
@@ -420,13 +497,11 @@ def _render(conn, month, now, st, report):
     recs = load_days(conn, month, upto=today)
     if not recs or not config.VAULT.is_dir():
         return                  # nothing to show, or no vault on this machine to put it in
-    sheet = config.TIMESHEET / f"{month}.md"
-    _put(sheet, month_text(conn, month, recs, today), {r["day"]: r["v"] for r in recs},
-         now, st, report)
+    _put(config.TIMESHEET / f"{month}.md", month_head(conn, month, recs, today),
+         {r["day"]: r["v"] for r in recs}, now, st, report)
     for rec in recs:
-        path = config.TIMESHEET_DAYS / f"{rec['day']}.md"
-        existing = path.read_text(errors="replace") if path.exists() else None
-        _put(path, day_text(conn, rec, month, existing), {rec["day"]: rec["v"]}, now, st, report)
+        _put(config.TIMESHEET_DAYS / f"{rec['day']}.md", day_head(conn, rec, month),
+             {rec["day"]: rec["v"]}, now, st, report)
 
 
 def render(conn, month, now=None):
@@ -462,40 +537,38 @@ def _reject(conn, now, surface, day, before, after, reason):
     notify.toast("timetrack", "Timesheet edit not saved", f"{day}: {reason}")
 
 
-def _check(v, b):
-    """Raise ValueError if the hours in `v` cannot be a day."""
-    if not hours_changed(v, b):
-        return "none"
-    has_in, has_out = bool(v["login"]), bool(v["logout"])
-    if has_in != has_out:
-        raise ValueError("fill both Login and Logout (or clear both to use the measured figure)")
-    if not has_in:
-        if not (b["login"] or b["logout"]):
-            raise ValueError("fill Login and Logout to record hours for this day")
-        return "clear"
-    span = _minutes_of(v["logout"]) - _minutes_of(v["login"])
-    used = sum(v[k] for k in MINUTES)
+def _overrides(rec, day, changes):
+    """The day's overrides after applying `changes` ({field: cell value or None}).
+
+    A cell equal to the measured clock keeps the measured seconds (no needless drift)."""
+    ov = dict(rec["ov"])
+    for f, val in changes.items():
+        if f == "kind":
+            continue
+        if val is None:
+            ov.pop(f, None)
+        elif f in ("login", "logout"):
+            m = rec["meas"][f]
+            ov[f] = m if (m and _clock_of(m, day) == val) else _unix(day, val)
+        else:
+            ov[f] = val
+    return ov
+
+
+def _validate(rec, ov):
+    """Raise ValueError if the EFFECTIVE day (measured, overlaid by `ov`) cannot be a day."""
+    eff = {**rec["meas"], **ov}
+    if eff["login"] is None or eff["logout"] is None:
+        if ov:
+            raise ValueError("fill both Login and Logout to record hours for this day")
+        return
+    if eff["logout"] <= eff["login"]:
+        raise ValueError("Logout must be after Login")
+    span = round((eff["logout"] - eff["login"]) / 60)
+    used = sum(eff[k] for k in MINUTES)
     if used > span:
         raise ValueError(f"breaks and off add up to {fmt_min(used)}, more than the "
                          f"{fmt_min(span)} between login and logout")
-    return "set"
-
-
-def _set(conn, day, v, cur, surface, now):
-    login_u, logout_u = None, None
-    row = cur["row"]
-    if row["first_unix"] and _clock_of(row["first_unix"], day) == v["login"]:
-        login_u = row["first_unix"]              # keep the measured seconds when untouched
-    if row["last_unix"] and _clock_of(row["last_unix"], day) == v["logout"]:
-        logout_u = row["last_unix"]
-    login_u = login_u or _unix(day, v["login"])
-    logout_u = logout_u or _unix(day, v["logout"])
-    cols = {COLUMN.get(k, k): v[k] for k in MINUTES}
-    names = ["day", "login_unix", "logout_unix", "edited_unix", "surface"] + list(cols)
-    conn.execute(
-        f"INSERT OR REPLACE INTO day_edit({', '.join(names)})"
-        f" VALUES ({', '.join('?' * len(names))})",
-        [day, login_u, logout_u, int(now), surface] + list(cols.values()))
 
 
 def _target(kind):
@@ -506,19 +579,34 @@ def _submitted(conn, month):
     return conn.execute("SELECT 1 FROM monthly_submission WHERE month = ?", (month,)).fetchone()
 
 
+def _running(conn, day):
+    return conn.execute("SELECT 1 FROM work_session WHERE attendance_day = ?"
+                        " AND closed_unix IS NULL", (day,)).fetchone()
+
+
+def _store(conn, day, ov, now, surface):
+    """Write the overrides as a day_edit row; no overrides, no row."""
+    if not ov:
+        conn.execute("DELETE FROM day_edit WHERE day = ?", (day,))
+        return
+    conn.execute("INSERT OR IGNORE INTO day_edit(day, edited_unix, surface) VALUES (?,?,?)",
+                 (day, int(now), surface))
+    sets = {OVERRIDE.get(f, f): ov.get(f) for f in HOURS}
+    conn.execute(
+        "UPDATE day_edit SET " + ", ".join(f"{c} = ?" for c in sets) + ", edited_unix = ?,"
+        " surface = ? WHERE day = ?", [*sets.values(), int(now), surface, day])
+
+
 def sync(conn, now=None):
-    """Read the user's edits back into work.db, then re-render. Returns a small report."""
+    """Read the user's edits back into work.db, then re-render. Returns a small report.
+
+    An edit is one FIELD that differs from the baseline of the file it is in (what that file
+    last showed). Only edited fields are written, so everything else stays measured."""
     now = time.time() if now is None else now
     today = date.fromtimestamp(now)
     st = load_state()
     report = {"applied": 0, "rejected": 0, "held": 0, "files": 0, "written": [], "skipped": {}}
-    cache = {}
-
-    def baseline(day):
-        mo = cache.get(day[:7])
-        if mo is None:
-            mo = cache[day[:7]] = {r["day"]: r["v"] for r in load_days(conn, day[:7])}
-        return mo.get(day)
+    months = {today.strftime("%Y-%m")}
 
     changed = []
     for path in vault_files():
@@ -526,53 +614,64 @@ def sync(conn, now=None):
         h = sha(data)
         if now - path.stat().st_mtime < QUIET or st["held"].get(key) == h:
             continue
-        if st["files"].get(key, {}).get("hash") == h:
+        ent = st["files"].get(key)
+        if ent is None:
+            # No record of what this file last showed (state lost, or a file we never wrote):
+            # nothing in it can be told from an edit, so none is read. It is re-rendered.
+            st["files"][key] = {"hash": h, "days": {}}
+            months.add(path.stem[:7])
+            continue
+        if ent.get("hash") == h:
             st["held"].pop(key, None)        # put back exactly as rendered: the mistake is gone
             continue
-        changed.append((path, h, data))
+        changed.append((path, h, data, ent))
 
-    months = {date.fromtimestamp(now).strftime("%Y-%m")}
-    winners = {}                     # day -> (mtime, surface, v, b, key)
-    for path, h, data in changed:
+    pending = {}                      # (day, field) -> [(mtime, surface, value, path key)]
+    for path, h, data, ent in changed:
         key, surface = str(path), ("month" if path.parent == config.TIMESHEET else "day")
         text = data.decode(errors="replace")
         report["files"] += 1
         parsed = (parse_sheet(text, path.stem) if surface == "month"
                   else parse_day_note(text, path.stem))
-        edits, bad = [], None
+        edits, bad = {}, None             # day -> {field: value}
+        accepted = {}
         for day, raw in parsed.items():
-            b = st["files"].get(key, {}).get("days", {}).get(day) or baseline(day)
-            if b is None:
-                continue                                   # a day class has not seeded
+            b = ent["days"].get(day)
+            rec = _rec(conn, day) if b is not None else None
+            if rec is None:
+                continue
             try:
                 v = canon(raw, b)
             except ValueError as e:
                 bad = (day, b, raw, str(e))
                 break
-            if v != b:
-                edits.append((day, v, b))
-        if not bad:
-            keep = []
-            for day, v, b in edits:
-                if _submitted(conn, day[:7]):
-                    _reject(conn, now, surface, day, b, v, "submitted")
-                    report["rejected"] += 1
-                    months.add(day[:7])
-                    continue
-                if date.fromisoformat(day) > today and hours_changed(v, b):
-                    _reject(conn, now, surface, day, b, v,
+            d = {f: v[f] for f in FIELDS if v[f] != b[f]}
+            if not d:
+                continue
+            if _submitted(conn, day[:7]):
+                _reject(conn, now, surface, day, b, v, "submitted")
+                report["rejected"] += 1
+                continue
+            if date.fromisoformat(day) > today:
+                dropped = {f: x for f, x in d.items() if f != "kind"}
+                if dropped:
+                    _reject(conn, now, surface, day, b, dropped,
                             "future day: only Kind can change before the day has happened")
                     report["rejected"] += 1
-                    v = {**v, **{k: b[k] for k in HOURS}}   # keep a Kind edit, drop the hours
-                    if v == b:
-                        continue
-                try:
-                    _check(v, b)
-                except ValueError as e:
-                    bad = (day, b, v, str(e))
-                    break
-                keep.append((day, v, b))
-            edits = keep
+                d = {f: x for f, x in d.items() if f == "kind"}
+            if d.get("logout") and _running(conn, day):
+                _reject(conn, now, surface, day, b, {"logout": d.pop("logout")},
+                        "Today is still running; set Logout after you log out")
+                report["rejected"] += 1
+            if not d:
+                continue
+            try:
+                _validate(rec, _overrides(rec, day, d))
+            except ValueError as e:
+                bad = (day, b, d, str(e))
+                break
+            edits[day] = d
+            accepted[day] = v
         if bad:
             day, b, v, reason = bad
             st["held"][key] = h
@@ -581,36 +680,59 @@ def sync(conn, now=None):
             report["held"] += 1
             continue
         mtime = path.stat().st_mtime
-        for day, v, b in edits:
-            old = winners.get(day)
-            if old is None or mtime > old[0]:
-                winners[day] = (mtime, surface, v, b)
+        for day, d in edits.items():
+            for f, val in d.items():
+                pending.setdefault((day, f), []).append((mtime, surface, val, key))
         # processed: whatever the file says now is what render may replace
         st["held"].pop(key, None)
-        st["files"][key] = {"hash": h, "days": {**st["files"].get(key, {}).get("days", {}),
-                                                **{d: v for d, v, _ in edits}}}
+        ent["hash"] = h
+        ent["days"] = {**ent["days"], **accepted}
 
-    for day, (_, surface, v, b) in sorted(winners.items()):
-        cur = _rec(conn, day)
-        if cur is None:
+    # merge field by field; only the SAME field changed to different values in both files is a
+    # conflict, and then the newer file wins
+    final = {}                        # day -> (surface, {field: value})
+    for (day, f), items in sorted(pending.items()):
+        items.sort(key=lambda x: x[0])
+        mtime, surface, val, _ = items[-1]
+        for om, osurf, oval, _k in items[:-1]:
+            if oval != val:
+                _reject(conn, now, osurf, day, None, {f: oval},
+                        f"{f} was also changed in the {surface}, which is newer")
+                report["rejected"] += 1
+        final.setdefault(day, (surface, {}))[1][f] = val
+        final[day] = (surface, final[day][1])
+
+    for day, (surface, d) in sorted(final.items()):
+        rec = _rec(conn, day)
+        if rec is None:
             continue
-        before = cur["v"]
         months.add(day[:7])
-        if v["kind"] != b["kind"]:
+        ov = _overrides(rec, day, d)
+        try:
+            _validate(rec, ov)
+        except ValueError as e:
+            _reject(conn, now, surface, day, rec["v"], d, str(e))
+            report["rejected"] += 1
+            continue
+        if "kind" in d and d["kind"] != rec["v"]["kind"]:
             conn.execute("UPDATE day_class SET kind = ?, target_minutes = ? WHERE day = ?",
-                         (v["kind"], _target(v["kind"]), day))
-            _log(conn, day, now, surface, "kind", {"kind": before["kind"]}, {"kind": v["kind"]})
+                         (d["kind"], _target(d["kind"]), day))
+            _log(conn, day, now, surface, "kind", {"kind": rec["v"]["kind"]},
+                 {"kind": d["kind"],
+                  "pinned": d["kind"] != calendar_.classify(date.fromisoformat(day))[0]})
             report["applied"] += 1
-        if hours_changed(v, b):
-            act = _check(v, b)
-            if act == "set":
-                _set(conn, day, v, cur, surface, now)
-                _log(conn, day, now, surface, "set", before, v)
-                report["applied"] += 1
-            elif act == "clear" and cur["has_edit"]:
-                conn.execute("DELETE FROM day_edit WHERE day = ?", (day,))
-                _log(conn, day, now, surface, "clear", before, _rec(conn, day)["v"])
-                report["applied"] += 1
+        fields = {f: x for f, x in d.items() if f != "kind"}
+        if not fields:
+            continue
+        sets = {f: x for f, x in fields.items() if x is not None}
+        clears = {f: None for f, x in fields.items() if x is None and f in rec["ov"]}
+        _store(conn, day, ov, now, surface)
+        if sets:
+            _log(conn, day, now, surface, "set", {f: rec["v"][f] for f in sets}, sets)
+            report["applied"] += 1
+        if clears:
+            _log(conn, day, now, surface, "clear", {f: rec["v"][f] for f in clears}, clears)
+            report["applied"] += 1
     conn.commit()
 
     for month in sorted(months):

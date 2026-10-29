@@ -161,7 +161,8 @@ check("edit applied", r["applied"], 1)
 check("login moved", w["first_unix"], unix("2026-10-05", "09:00"))
 check("span grew", w["span_minutes"], 540)
 check("provenance vault", w["provenance"], "vault")
-check("net from the edit", w["net_minutes"], 540)
+check("net is the span while no break is recorded", (w["net_minutes"], w["deduction_minutes"]), (None, None))
+check("only login stored", (edit_row("2026-10-05")["login_unix"] is not None, edit_row("2026-10-05")["logout_unix"], edit_row("2026-10-05")["lunch"]), (True, None, None))
 check("surface day", edit_row("2026-10-05")["surface"], "day")
 check("row shows edited", cells("2026-10-05")["Source"], "edited")
 check("digest changed by a day_edit", derive.input_digest(conn, "2026-10") != digest0, True)
@@ -174,11 +175,17 @@ check("break edit", (row("2026-10-05")["net_minutes"], edit_row("2026-10-05")["l
       (480, 60, "month"))
 check("note re-rendered with the new break", 'lunch: "1:00"' in day_note("2026-10-05").read_text(), True)
 
-# --- the same day in both: the newer file wins ---------------------------------------------------
+# --- the same day in both: per field; the newer file wins a clash ---------------------------------
 note_field("2026-10-05", "lunch", "0:30", secs=100)
 sheet_cell("2026-10-05", "Lunch", "0:45", secs=50)
+toasts.clear()
 r = sync()
 check("newer wins", edit_row("2026-10-05")["lunch"], 45)
+check("the loser is logged and toasted", (any("also changed" in (l["reason"] or "") for l in log("rejected")), len(toasts)), (True, 1))
+note_field("2026-10-05", "misc", "0:05")
+sheet_cell("2026-10-05", "Washroom", "0:07", secs=50)
+sync()
+check("different fields in both files both apply", (edit_row("2026-10-05")["misc"], edit_row("2026-10-05")["washroom"]), (5, 7))
 note_field("2026-10-05", "dinner", "0:20", secs=30)
 sheet_cell("2026-10-05", "Dinner", "0:10", secs=90)
 sync()
@@ -200,16 +207,16 @@ sheet_cell("2026-10-01", "Lunch", "0:40")
 sync()
 check("edited day leaves pending_gaps", [g["attendance_day"] for g in interactive.pending_gaps(conn, "2026-10")], [])
 e = edit_row("2026-10-01")
-check("edit keeps the measured seconds", (e["login_unix"], e["logout_unix"]), (unix("2026-10-01", "19:23"), unix("2026-10-01", "03:28", 1)))
-check("unsure carried as a break and flags the day",
-      (e["unsure"], row("2026-10-01")["unconfirmed"], row("2026-10-01")["deduction_minutes"]), (15, 1, 55))
+check("a break edit stores only the break", (e["login_unix"], e["logout_unix"], e["unsure"], e["lunch"]), (None, None, None, 40))
+check("measured unsure still deducts and flags the day",
+      (row("2026-10-01")["unconfirmed"], row("2026-10-01")["deduction_minutes"], row("2026-10-01")["provenance"]), (1, 55, "aw"))
 
 # --- multi-shift day: Off round-trips, and an edit beside it keeps the span -----------------------------
 s0 = row("2026-10-06")["span_minutes"]
 sheet_cell("2026-10-06", "Lunch", "0:30")
 sync()
 check("Off kept through an edit", (edit_row("2026-10-06")["off_minutes"], row("2026-10-06")["span_minutes"], row("2026-10-06")["net_minutes"]),
-      (180, s0, s0 - 30))
+      (None, s0, s0 - 30))
 check("Off cell unchanged", cells("2026-10-06")["Off"], "3:00")
 
 # --- invalid edit: held, nothing applied, toast, untouched; then fixed -------------------------------------
@@ -239,14 +246,18 @@ sheet_cell("2026-10-05", "Lunch", "0:45")
 sync()
 check("then fixed", vault.load_state()["held"], {})
 
-# --- clear login and logout: back to measured ----------------------------------------------------------------
-sheet_cell("2026-10-05", "Login", ""); sheet_cell("2026-10-05", "Logout", "")
+# --- empty a cell: back to measured, field by field --------------------------------------------------------
+sheet_cell("2026-10-05", "Login", "")
 sync()
 w = row("2026-10-05")
-check("reverted", (edit_row("2026-10-05"), w["first_unix"], w["span_minutes"], w["provenance"]),
-      (None, unix("2026-10-05", "10:00"), 480, "aw"))
+check("login back to measured, breaks stay", (w["first_unix"], w["span_minutes"], w["provenance"], edit_row("2026-10-05")["lunch"]),
+      (unix("2026-10-05", "10:00"), 480, "aw", 45))
 check("clear logged", [l["action"] for l in log("clear")][-1:], ["clear"])
-check("cell back to measured", cells("2026-10-05")["Login"], "10:00")
+for col in ("Lunch", "Dinner", "Misc", "Washroom"):
+    sheet_cell("2026-10-05", col, "")
+sync()
+check("nothing overridden: the row is gone", edit_row("2026-10-05"), None)
+check("cell back to measured", (cells("2026-10-05")["Login"], cells("2026-10-05")["Lunch"]), ("10:00", "0:00"))
 check("session still there", conn.execute("SELECT COUNT(*) FROM work_session WHERE attendance_day='2026-10-05'").fetchone()[0], 1)
 
 # --- +1 and the implicit next day ---------------------------------------------------------------------------------
@@ -255,7 +266,7 @@ note_field("2026-10-09", "login", "20:00"); note_field("2026-10-09", "logout", "
 sync()
 check("explicit +1", (row("2026-10-08")["last_unix"], row("2026-10-08")["span_minutes"]), (unix("2026-10-08", "03:30", 1), 510))
 check("implicit next day", (row("2026-10-09")["last_unix"], row("2026-10-09")["span_minutes"]), (unix("2026-10-09", "04:00", 1), 480))
-check("rendered canonically", cells("2026-10-09")["Logout"], "04:00+1")
+check("rendered canonically (marked as set)", cells("2026-10-09")["Logout"], "04:00+1*")
 for s, want in (("45", 45), ("45m", 45), ("0:45", 45), ("1h05", 65), ("1h", 60), ("", 0), ("0", 0)):
     check(f"duration {s!r}", vault.parse_minutes(s), want)
 try:
@@ -283,12 +294,17 @@ check("kind change does not freeze measured hours", (edit_row("2026-10-05"), row
 
 # --- future day: kind yes, hours no --------------------------------------------------------------------------------------
 toasts.clear()
+st = vault.load_state()                      # a row the user added by hand, with a baseline
+st["files"][str(SHEET)]["days"]["2026-10-20"] = vault._rec(conn, "2026-10-20")["v"]; vault.save_state(st)
 p = SHEET
 p.write_text(p.read_text().replace("\n**Worked**", "\n| [[days/2026-10-20\\|2026-10-20]] | Tue | holiday | 10:00 | 18:00 |  |  |  |  |  |  |  |  |  |  |  |\n\n**Worked**", 1)); age(p, 100)
 sync()
 check("future kind accepted", conn.execute("SELECT kind, target_minutes FROM day_class WHERE day='2026-10-20'").fetchone()[0:2], ("holiday", 0))
-check("future hours rejected", (edit_row("2026-10-20"), len(toasts), [l["reason"][:6] for l in log("rejected")][-1]), (None, 1, "future"))
-check("future row not rendered", cells("2026-10-20"), None)
+check("future hours rejected", (edit_row("2026-10-20"), any("future day" in t[2] for t in toasts), [l["reason"][:6] for l in log("rejected")][-1]), (None, True, "future"))
+check("a row added by hand is held, not erased", (cells("2026-10-20") is not None, str(SHEET) in vault.load_state()["held"]), (True, True))
+p.write_text(p.read_text().replace("| [[days/2026-10-20\\|2026-10-20]] | Tue | holiday | 10:00 | 18:00 |  |  |  |  |  |  |  |  |  |  |  |\n", "")); age(p, 100)
+sync()
+check("row removed: the sheet is maintained again", (cells("2026-10-20"), str(SHEET) in vault.load_state()["held"]), (None, False))
 
 # --- submitted month: rejected, restored ----------------------------------------------------------------------------------------
 vault.render(conn, "2026-09", T); settle()
@@ -300,6 +316,85 @@ r = sync()
 check("submitted rejected", (edit_row("2026-09-01"), log("rejected")[-1]["reason"], len(toasts)), (None, "submitted", 1))
 vault.render(conn, "2026-09", T)
 check("submitted month restored", (config.TIMESHEET / "2026-09.md").read_text(), orig)
+
+# --- finding 1: lost or corrupt state means no edits, never a frozen row --------------------------------------------
+session("2026-10-14", [("09:00", "11:00", 0)]); conn.commit()
+vault.render(conn, "2026-10", T); settle()
+session("2026-10-14", [("11:10", "12:00", 0)]); conn.commit()            # measured moves on
+before_span = row("2026-10-14")["span_minutes"]
+config.VAULT_STATE.unlink()
+toasts.clear()
+r = sync()
+check("state lost: no edits", (r["applied"], edit_row("2026-10-14"), row("2026-10-14")["span_minutes"]), (0, None, before_span))
+check("state lost: row re-rendered with the measured figure", cells("2026-10-14")["Logout"], "12:00")
+config.VAULT_STATE.write_text("{not json")
+toasts.clear()
+vault.load_state()
+check("corrupt state kept aside and reported once", (config.VAULT_STATE.with_name("vault-rendered.json.corrupt").exists(), len(toasts), toasts[0][2].startswith("Timesheet state was reset")), (True, 1, True))
+vault.load_state()
+check("not reported twice", len(toasts), 1)
+vault.render(conn, "2026-10", T); settle()
+
+# --- finding 2: a break edit does not freeze the logout --------------------------------------------------------------
+sheet_cell("2026-10-14", "Salah", "15")
+sync()
+session("2026-10-14", [("12:30", "18:00", 0)]); conn.commit()           # the user keeps working
+w = row("2026-10-14")
+check("afternoon work still counts", (w["last_unix"], w["span_minutes"], w["deduction_minutes"], w["net_minutes"]),
+      (unix("2026-10-14", "18:00"), 500, 15, 485))
+check("only salah stored", (edit_row("2026-10-14")["login_unix"], edit_row("2026-10-14")["logout_unix"], edit_row("2026-10-14")["off_minutes"], edit_row("2026-10-14")["salah"]), (None, None, None, 15))
+vault.render(conn, "2026-10", T); settle()
+check("override marked, measured not", (cells("2026-10-14")["Salah"], cells("2026-10-14")["Logout"], cells("2026-10-14")["Off"]), ("0:15*", "18:00", "0:40"))
+check("note lists what is edited", 'edited: "salah"' in day_note("2026-10-14").read_text(), True)
+sheet_cell("2026-10-14", "Salah", "0:15*")                              # the mark is not part of the value
+n = len(log())
+sync()
+check("the * mark is ignored on read", len(log()), n)
+
+# --- a logout cannot be edited while the day's session is open -------------------------------------------------------
+toasts.clear()
+sheet_cell("2026-10-14", "Logout", "17:00")
+sync()
+check("open session: logout rejected", (row("2026-10-14")["last_unix"], toasts[-1][2] if toasts else None),
+      (unix("2026-10-14", "18:00"), "2026-10-14: Today is still running; set Logout after you log out"))
+conn.execute("UPDATE work_session SET closed_unix = opened_unix + 1 WHERE attendance_day = '2026-10-14'"); conn.commit()
+sheet_cell("2026-10-14", "Logout", "17:00")
+sync()
+check("closed session: logout applies", row("2026-10-14")["last_unix"], unix("2026-10-14", "17:00"))
+
+# --- finding 3: the Notes heading and text outside the fields ----------------------------------------------------------
+d = day_note("2026-10-05")
+vault.render(conn, "2026-10", T); settle()
+t0 = d.read_text()
+d.write_text(t0.replace("## Notes", "## My notes\nimportant: called client re invoice 4411")); age(d, 100)
+toasts.clear()
+sync(); sync()
+check("renamed heading: text survives", "invoice 4411" in d.read_text(), True)
+check("renamed heading: held and told once", (str(d) in vault.load_state()["held"], [t[2] for t in toasts]),
+      (True, ["2026-10-05: Keep the ## Notes heading; your text is safe"]))
+d.write_text(d.read_text().replace("## My notes", "## Notes")); age(d, 100)
+sync()
+check("heading restored: file maintained again, text kept", ("invoice 4411" in d.read_text(), str(d) in vault.load_state()["held"]), (True, False))
+d.write_text(d.read_text().replace("\n# Mon", "\nmy scribble above the heading\n# Mon")); age(d, 100)
+sheet_cell("2026-10-05", "Lunch", "0:30")
+sync()
+check("text above the marker: held, never overwritten", ("my scribble above" in d.read_text(), str(d) in vault.load_state()["held"]), (True, True))
+check("the month sheet has its own Notes, kept", vault.NOTES_RE.search(SHEET.read_text()) is not None, True)
+SHEET.write_text(SHEET.read_text().rstrip("\n") + "\n| [[days/2026-10-02\\|2026-10-02]] | Fri | holiday |\n"); age(SHEET, 100)
+sheet_cell("2026-10-05", "Lunch", "0:35")
+sync()
+check("sheet notes kept and not read as rows", ("| Fri | holiday |" in SHEET.read_text(), conn.execute("SELECT kind FROM day_class WHERE day='2026-10-02'").fetchone()[0]), (True, "working"))
+
+# --- clocks on another day --------------------------------------------------------------------------------------------------
+check("negative day offset", (vault.fmt_clock(-30), vault.parse_clock("23:30-1"), vault.fmt_clock(1470)), ("23:30-1", (1410, -1, True), "00:30+1"))
+check("negative offset round-trips", vault._clock_of(vault._unix("2026-10-05", "23:30-1"), "2026-10-05"), "23:30-1")
+
+# --- a kind set back to the calendar's own is unpinned -----------------------------------------------------------------------
+sheet_cell("2026-10-07", "Kind", "working")
+sync()
+config.holidays = lambda: {date(2026, 10, 7): "x"}
+calendar_.seed_month(conn, 2026, 10)
+check("unpinned: the reseed may reclassify", conn.execute("SELECT kind FROM day_class WHERE day='2026-10-07'").fetchone()[0], "holiday")
 
 # --- wait-quiet ---------------------------------------------------------------------------------------------------------------------
 clock = {"t": T}; naps = []
