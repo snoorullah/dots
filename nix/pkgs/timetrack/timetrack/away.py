@@ -182,9 +182,7 @@ def find_gap(conn, g0, g1):
     for r in conn.execute(
             "SELECT id, start_unix, end_unix, minutes FROM deduction"
             " WHERE confirmed = 0 AND start_unix < ? AND end_unix > ?"
-            " AND attendance_day NOT IN (SELECT day FROM day_edit WHERE salah IS NOT NULL"
-            " OR lunch IS NOT NULL OR dinner IS NOT NULL OR washroom IS NOT NULL"
-            " OR misc IS NOT NULL OR call_personal IS NOT NULL OR unsure IS NOT NULL)",
+            " AND attendance_day NOT IN (SELECT day FROM day_edit WHERE unsure IS NOT NULL)",
             (g1, g0)):
         ov = min(r["end_unix"], g1) - max(r["start_unix"], g0)
         if ov > best_ov:

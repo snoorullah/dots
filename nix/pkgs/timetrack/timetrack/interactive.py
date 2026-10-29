@@ -81,9 +81,7 @@ def pending_gaps(conn, month):
         " FROM deduction WHERE attendance_day LIKE ? AND confirmed = 0"
         # a day the user stated in the vault is theirs: asking about its gaps again would
         # contradict an answer they already typed
-        " AND attendance_day NOT IN (SELECT day FROM day_edit WHERE salah IS NOT NULL"
-        " OR lunch IS NOT NULL OR dinner IS NOT NULL OR washroom IS NOT NULL"
-        " OR misc IS NOT NULL OR call_personal IS NOT NULL OR unsure IS NOT NULL)"
+        " AND attendance_day NOT IN (SELECT day FROM day_edit WHERE unsure IS NOT NULL)"
         " ORDER BY attendance_day, start_unix", (month + "-%",)))
 
 

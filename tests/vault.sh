@@ -205,11 +205,15 @@ check("notes kept across a render", p.read_text().endswith("## Notes\n\nCall wit
 # --- an edited day stops being asked about -----------------------------------------------------------
 sheet_cell("2026-10-01", "Lunch", "0:40")
 sync()
-check("edited day leaves pending_gaps", [g["attendance_day"] for g in interactive.pending_gaps(conn, "2026-10")], [])
+check("a lunch edit alone leaves the unclassified gap to answer", [g["attendance_day"] for g in interactive.pending_gaps(conn, "2026-10")], ["2026-10-01"])
 e = edit_row("2026-10-01")
 check("a break edit stores only the break", (e["login_unix"], e["logout_unix"], e["unsure"], e["lunch"]), (None, None, None, 40))
 check("measured unsure still deducts and flags the day",
       (row("2026-10-01")["unconfirmed"], row("2026-10-01")["deduction_minutes"], row("2026-10-01")["provenance"]), (1, 55, "aw"))
+sheet_cell("2026-10-01", "Unsure", "0:10")
+sync()
+check("an Unsure override stops the gap being asked about", [g["attendance_day"] for g in interactive.pending_gaps(conn, "2026-10")], [])
+check("and replaces the measured unsure", (row("2026-10-01")["deduction_minutes"], row("2026-10-01")["unconfirmed"]), (50, 1))
 
 # --- multi-shift day: Off round-trips, and an edit beside it keeps the span -----------------------------
 s0 = row("2026-10-06")["span_minutes"]
@@ -325,11 +329,12 @@ before_span = row("2026-10-14")["span_minutes"]
 config.VAULT_STATE.unlink()
 toasts.clear()
 r = sync()
+check("state lost: reported once", [t[2] for t in toasts].count("Timesheet state was reset; edits made since the last sync were not read"), 1)
 check("state lost: no edits", (r["applied"], edit_row("2026-10-14"), row("2026-10-14")["span_minutes"]), (0, None, before_span))
 check("state lost: row re-rendered with the measured figure", cells("2026-10-14")["Logout"], "12:00")
 config.VAULT_STATE.write_text("{not json")
 toasts.clear()
-vault.load_state()
+vault.save_state(vault.load_state())                     # as every real run does
 check("corrupt state kept aside and reported once", (config.VAULT_STATE.with_name("vault-rendered.json.corrupt").exists(), len(toasts), toasts[0][2].startswith("Timesheet state was reset")), (True, 1, True))
 vault.load_state()
 check("not reported twice", len(toasts), 1)
@@ -351,16 +356,43 @@ n = len(log())
 sync()
 check("the * mark is ignored on read", len(log()), n)
 
-# --- a logout cannot be edited while the day's session is open -------------------------------------------------------
+# --- a logout edit: never blocked on a past day, blocked while the live clock runs today ------------------------------
+sheet_cell("2026-10-14", "Logout", "17:00")
+sync()
+check("past day with a never-closed session: logout applies", row("2026-10-14")["last_unix"], unix("2026-10-14", "17:00"))
+session("2026-10-15", [("09:00", "11:00", 0)])
+conn.execute("INSERT INTO work_session(opened_ts,opened_unix,attendance_day,open_trigger,provenance) VALUES('x',?,?,?,?)",
+             (unix("2026-10-15", "09:00"), "2026-10-15", "clockd", "live")); conn.commit()
+vault.render(conn, "2026-10", T); settle()
 toasts.clear()
-sheet_cell("2026-10-14", "Logout", "17:00")
+sheet_cell("2026-10-15", "Logout", "10:30")
 sync()
-check("open session: logout rejected", (row("2026-10-14")["last_unix"], toasts[-1][2] if toasts else None),
-      (unix("2026-10-14", "18:00"), "2026-10-14: Today is still running; set Logout after you log out"))
-conn.execute("UPDATE work_session SET closed_unix = opened_unix + 1 WHERE attendance_day = '2026-10-14'"); conn.commit()
-sheet_cell("2026-10-14", "Logout", "17:00")
+check("today with the live clock open: logout rejected", (row("2026-10-15")["last_unix"], toasts[-1][2] if toasts else None),
+      (unix("2026-10-15", "11:00"), "2026-10-15: Today is still running; set Logout after you log out"))
+conn.execute("UPDATE work_session SET closed_unix = opened_unix + 1 WHERE provenance = 'live'"); conn.commit()
+sheet_cell("2026-10-15", "Logout", "10:30")
 sync()
-check("closed session: logout applies", row("2026-10-14")["last_unix"], unix("2026-10-14", "17:00"))
+check("live session closed: logout applies", row("2026-10-15")["last_unix"], unix("2026-10-15", "10:30"))
+
+# --- properties the user adds belong to them ---------------------------------------------------------------------------------
+n2 = day_note("2026-10-02")
+n2.write_text(n2.read_text().replace('kind: "working"', 'kind: "working"\ntags:\n  - client-x\naliases: [Fri]').replace('edited: ""', 'edited:\n  - login')); age(n2, 100)
+toasts.clear()
+conn.execute("UPDATE day_class SET target_minutes = 420 WHERE day = '2026-10-02'"); conn.commit()
+sync()
+t2 = n2.read_text()
+check("extra properties kept, note still maintained, no toast",
+      ("tags:\n  - client-x" in t2, "aliases: [Fri]" in t2, "| 7:00 |" in t2, str(n2) in vault.load_state()["held"], len(toasts)),
+      (True, True, True, False, 0))
+check("our properties not duplicated", t2.count("edited:"), 1)
+
+# --- overlapping measured runs: off is 0 in the view and in Python ----------------------------------------------------------------
+session("2026-10-12", [("10:00", "18:00", 0)]); session("2026-10-12", [("12:00", "14:00", 0)]); conn.commit()
+vault.render(conn, "2026-10", T); settle()
+check("overlap: Off shows 0", cells("2026-10-12")["Off"], "0:00")
+sheet_cell("2026-10-12", "Logout", "18:30")
+sync()
+check("overlap: logout edit accepted, span from the window", (row("2026-10-12")["span_minutes"], edit_row("2026-10-12")["off_minutes"]), (510, None))
 
 # --- finding 3: the Notes heading and text outside the fields ----------------------------------------------------------
 d = day_note("2026-10-05")

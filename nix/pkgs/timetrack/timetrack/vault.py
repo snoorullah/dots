@@ -87,6 +87,12 @@ def parse_minutes(text):
     raise ValueError(f"'{(text or '').strip()}' is not a duration (use 45, 45m, 0:45 or 1h05)")
 
 
+def rmin(seconds):
+    """Whole minutes, halves up: what SQLite's ROUND does in the views, so Python and the views
+    can never disagree on a day's off time or span."""
+    return int(seconds / 60 + 0.5)
+
+
 def fmt_min(n):
     return f"{n // 60}:{n % 60:02d}"
 
@@ -214,17 +220,12 @@ def parse_sheet(text, month):
 
 
 def parse_frontmatter(text):
-    text = text.replace("\r\n", "\n")
-    if not text.startswith("---\n"):
-        return {}
-    end = text.find("\n---", 4)
-    if end < 0:
-        return {}
+    lines, _ = _split_front(text)
     out = {}
-    for line in text[4:end].split("\n"):
+    for line in lines or []:
         m = re.fullmatch(r"\s*([A-Za-z_][\w-]*)\s*:\s*(.*?)\s*", line)
         if not m:
-            continue
+            continue                    # list items, comments, anything we do not own
         v = m[2]
         if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
             v = v[1:-1]
@@ -267,7 +268,7 @@ def load_days(conn, month, upto=None):
         meas = {"login": s["first_unix"] if s else None, "logout": s["last_unix"] if s else None,
                 "off": 0, **{k: 0 for k in MINUTES if k != "off"}}
         if s:
-            meas["off"] = max(0, round((s["last_unix"] - s["first_unix"]) / 60) - s["span_minutes"])
+            meas["off"] = max(0, rmin(s["last_unix"] - s["first_unix"]) - s["span_minutes"])
         if b:
             for k in MINUTES:
                 if k != "off":
@@ -385,6 +386,10 @@ def load_state():
     except OSError:
         raw = None
     st = {}
+    if raw is None and vault_files():
+        # files exist but the record of what they showed does not: nothing in them can be read
+        notify.toast("timetrack", "Timesheet state was reset",
+                     "Timesheet state was reset; edits made since the last sync were not read")
     if raw is not None:
         try:
             st = json.loads(raw)
@@ -428,12 +433,51 @@ def _norm(text):
     return "\n".join(out)
 
 
+def _split_front(text):
+    """(frontmatter lines without the fences, the rest) -- or (None, text) if there is none."""
+    t = text.replace("\r\n", "\n")
+    m = re.match(r"---[ \t]*\n(.*?)\n---[ \t]*(?:\n|\Z)", t, re.S)
+    if not m:
+        return None, t
+    return m[1].split("\n"), t[m.end():]
+
+
+def _body(text):
+    return _split_front(text)[1]
+
+
+def _blocks(lines):
+    """Property blocks: a `key:` line plus the indented / list lines that continue it."""
+    out = []
+    for line in lines:
+        m = re.match(r"([A-Za-z_][\w-]*)\s*:", line)
+        if m or not out:
+            out.append([m[1].lower() if m else "", [line]])
+        else:
+            out[-1][1].append(line)
+    return out
+
+
+def _keep_properties(head, existing):
+    """`head` with the properties the user added to the existing note (tags, aliases ...)
+    carried over: they are theirs, and Obsidian may also have rewritten the ones we own."""
+    mine, rest = _split_front(head)
+    theirs, _ = _split_front(existing)
+    if mine is None or theirs is None:
+        return head
+    known = {k for k, _ in _blocks(mine)}
+    extra = [ln for k, lines in _blocks(theirs) if k and k not in known for ln in lines]
+    if not extra:
+        return head
+    return "---\n" + "\n".join(mine + extra) + "\n---\n" + rest
+
+
 def _mask(head):
     """The generated region with the user's editable values blanked: what is left is text
     only a person could have typed. Table data rows keep their date, properties keep their
     key, and the computed Net/Target/Source row goes."""
     out = []
-    for line in _norm(head).split("\n"):
+    for line in _norm(_body(head)).split("\n"):
         if line.startswith("|"):
             cells = line.strip("|").split("|")
             if cells[0].lower() in ("date", "net") or re.fullmatch(r"-+", cells[0]):
@@ -441,8 +485,6 @@ def _mask(head):
             else:
                 m = DATE_RE.search(cells[0])
                 out.append("|" + (m[1] if m else "*") + "|")
-        elif (m := re.fullmatch(r"([A-Za-z_][\w-]*):.*", line)) and m[1] != "Measured":
-            out.append(m[1] + ":")
         else:
             out.append(line)
     return "\n".join(l for l in out if l.strip())      # blank lines are not text
@@ -464,6 +506,7 @@ def _put(path, head, days, now, st, report):
     else:
         cur_b = path.read_bytes()
         cur = cur_b.decode(errors="replace")
+        head = _keep_properties(head, cur)
         m = NOTES_RE.search(cur)
         text = head + MARKER + (cur[m.end():] if m else "\n")
         if cur_b == text.encode() or _norm(cur) == _norm(text):
@@ -564,7 +607,7 @@ def _validate(rec, ov):
         return
     if eff["logout"] <= eff["login"]:
         raise ValueError("Logout must be after Login")
-    span = round((eff["logout"] - eff["login"]) / 60)
+    span = rmin(eff["logout"] - eff["login"])
     used = sum(eff[k] for k in MINUTES)
     if used > span:
         raise ValueError(f"breaks and off add up to {fmt_min(used)}, more than the "
@@ -579,9 +622,12 @@ def _submitted(conn, month):
     return conn.execute("SELECT 1 FROM monthly_submission WHERE month = ?", (month,)).fetchone()
 
 
-def _running(conn, day):
-    return conn.execute("SELECT 1 FROM work_session WHERE attendance_day = ?"
-                        " AND closed_unix IS NULL", (day,)).fetchone()
+def _running(conn, day, today):
+    """Is the live clock open on this day right now? Only today can be: a past day's session
+    that was never closed (a hotkey interval, a crashed daemon) must stay editable."""
+    return day == today.isoformat() and conn.execute(
+        "SELECT 1 FROM work_session WHERE attendance_day = ? AND provenance = 'live'"
+        " AND closed_unix IS NULL", (day,)).fetchone()
 
 
 def _store(conn, day, ov, now, surface):
@@ -659,7 +705,7 @@ def sync(conn, now=None):
                             "future day: only Kind can change before the day has happened")
                     report["rejected"] += 1
                 d = {f: x for f, x in d.items() if f == "kind"}
-            if d.get("logout") and _running(conn, day):
+            if d.get("logout") and _running(conn, day, today):
                 _reject(conn, now, surface, day, b, {"logout": d.pop("logout")},
                         "Today is still running; set Logout after you log out")
                 report["rejected"] += 1

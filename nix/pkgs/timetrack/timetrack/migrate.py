@@ -654,7 +654,8 @@ FROM (
          COALESCE(e.login_unix,  m.first_unix) AS first_unix,
          COALESCE(e.logout_unix, m.last_unix)  AS last_unix,
          COALESCE(e.off_minutes,
-                  CAST(ROUND((m.last_unix - m.first_unix) / 60.0) AS INTEGER) - m.span_minutes,
+                  MAX(0, CAST(ROUND((m.last_unix - m.first_unix) / 60.0) AS INTEGER)
+                         - m.span_minutes),
                   0) AS off,
          (e.login_unix IS NOT NULL OR e.logout_unix IS NOT NULL
           OR e.off_minutes IS NOT NULL) AS edited,
