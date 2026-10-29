@@ -181,7 +181,8 @@ def find_gap(conn, g0, g1):
     best, best_ov = None, 0
     for r in conn.execute(
             "SELECT id, start_unix, end_unix, minutes FROM deduction"
-            " WHERE confirmed = 0 AND start_unix < ? AND end_unix > ?", (g1, g0)):
+            " WHERE confirmed = 0 AND start_unix < ? AND end_unix > ?"
+            " AND attendance_day NOT IN (SELECT day FROM day_edit)", (g1, g0)):
         ov = min(r["end_unix"], g1) - max(r["start_unix"], g0)
         if ov > best_ov:
             best, best_ov = dict(r), ov

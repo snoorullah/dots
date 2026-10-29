@@ -79,6 +79,9 @@ def pending_gaps(conn, month):
     return list(conn.execute(
         "SELECT id, attendance_day, start_unix, end_unix, minutes, category"
         " FROM deduction WHERE attendance_day LIKE ? AND confirmed = 0"
+        # a day the user stated in the vault is theirs: asking about its gaps again would
+        # contradict an answer they already typed
+        " AND attendance_day NOT IN (SELECT day FROM day_edit)"
         " ORDER BY attendance_day, start_unix", (month + "-%",)))
 
 

@@ -556,7 +556,97 @@ ALTER TABLE salah_log ADD COLUMN asked_unix INTEGER;
 COMMIT;
 """
 
-MIGRATIONS = {"work": [(1, WORK_V1), (2, WORK_V2), (3, WORK_V3), (4, WORK_V4), (5, WORK_V5)],
+# --- work v6 ---------------------------------------------------------------
+# The user's own statement of a day's hours, edited in Obsidian (vault.py). One row
+# SUPERSEDES that day's measured sessions and deductions in the views below, without
+# deleting any of them: removing the row reverts the day to what was measured, which is
+# what makes it safe to type over a figure. day_edit_log is append-only and records every
+# change and every refusal, so "who moved this number" always has an answer.
+#
+# `off_minutes` is time between shifts inside the login..logout window that was not work
+# (a day that ran 14:00-18:00 and 21:00-02:00 has 180 of it). It is taken out of the span;
+# the seven break columns are taken out of the net, exactly as measured deductions are.
+# `unsure` is a break the user has not classified: it deducts, and flags the day, the same
+# way an unconfirmed gap does.
+WORK_V6 = """
+BEGIN;
+DROP VIEW IF EXISTS v_day_worked;
+DROP VIEW IF EXISTS v_day_deduction;
+DROP VIEW IF EXISTS v_day_span;
+
+CREATE TABLE day_edit (
+  day           TEXT PRIMARY KEY,
+  login_unix    INTEGER NOT NULL,
+  logout_unix   INTEGER NOT NULL,
+  off_minutes   INTEGER NOT NULL DEFAULT 0,
+  salah         INTEGER NOT NULL DEFAULT 0,
+  lunch         INTEGER NOT NULL DEFAULT 0,
+  dinner        INTEGER NOT NULL DEFAULT 0,
+  washroom      INTEGER NOT NULL DEFAULT 0,
+  misc          INTEGER NOT NULL DEFAULT 0,
+  call_personal INTEGER NOT NULL DEFAULT 0,
+  unsure        INTEGER NOT NULL DEFAULT 0,
+  edited_unix   INTEGER NOT NULL,
+  surface       TEXT    NOT NULL CHECK (surface IN ('day','month')),
+  CHECK (logout_unix > login_unix),
+  CHECK (off_minutes >= 0 AND salah >= 0 AND lunch >= 0 AND dinner >= 0 AND washroom >= 0
+         AND misc >= 0 AND call_personal >= 0 AND unsure >= 0)
+);
+
+CREATE TABLE day_edit_log (
+  id          INTEGER PRIMARY KEY,
+  day         TEXT    NOT NULL,
+  ts_unix     INTEGER NOT NULL,
+  surface     TEXT    NOT NULL,
+  action      TEXT    NOT NULL CHECK (action IN ('set','clear','kind','rejected')),
+  before_json TEXT,
+  after_json  TEXT,
+  reason      TEXT
+);
+CREATE INDEX ix_del_day ON day_edit_log(day, ts_unix);
+
+CREATE VIEW v_day_span AS
+SELECT attendance_day,
+       CAST(ROUND(SUM(seconds) / 60.0) AS INTEGER) AS span_minutes,
+       MIN(start_unix) AS first_unix,
+       MAX(end_unix)   AS last_unix,
+       GROUP_CONCAT(DISTINCT provenance) AS provenance,
+       MIN(confidence) AS min_confidence
+FROM v_run_interval
+WHERE attendance_day NOT IN (SELECT day FROM day_edit)
+GROUP BY attendance_day
+UNION ALL
+SELECT day, CAST(ROUND((logout_unix - login_unix) / 60.0 - off_minutes) AS INTEGER),
+       login_unix, logout_unix, 'vault', 1.0
+FROM day_edit;
+
+CREATE VIEW v_day_deduction AS
+SELECT attendance_day,
+       CAST(ROUND(SUM(minutes)) AS INTEGER) AS deduction_minutes,
+       SUM(CASE WHEN confirmed = 0 THEN 1 ELSE 0 END) AS unconfirmed
+FROM deduction
+WHERE end_unix IS NOT NULL AND attendance_day NOT IN (SELECT day FROM day_edit)
+GROUP BY attendance_day
+UNION ALL
+SELECT day, salah + lunch + dinner + washroom + misc + call_personal + unsure,
+       CASE WHEN unsure > 0 THEN 1 ELSE 0 END
+FROM day_edit;
+
+CREATE VIEW v_day_worked AS
+SELECT c.day AS attendance_day, c.kind, c.leave_type, c.pay_affecting, c.target_minutes,
+       COALESCE(s.span_minutes, 0) AS span_minutes,
+       s.first_unix, s.last_unix, s.provenance, s.min_confidence,
+       d.deduction_minutes, d.unconfirmed,
+       CASE WHEN d.deduction_minutes IS NULL THEN NULL
+            ELSE COALESCE(s.span_minutes, 0) - d.deduction_minutes END AS net_minutes
+FROM day_class c
+LEFT JOIN v_day_span s      ON s.attendance_day = c.day
+LEFT JOIN v_day_deduction d ON d.attendance_day = c.day;
+COMMIT;
+"""
+
+MIGRATIONS = {"work": [(1, WORK_V1), (2, WORK_V2), (3, WORK_V3), (4, WORK_V4), (5, WORK_V5),
+                       (6, WORK_V6)],
               "private": [(1, PRIVATE_V1), (2, PRIVATE_V2), (3, PRIVATE_V3), (4, PRIVATE_V4),
                           (5, PRIVATE_V5), (6, PRIVATE_V6), (7, PRIVATE_V7)]}
 

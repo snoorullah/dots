@@ -1,0 +1,14 @@
+[Unit]
+Description=timetrack: the Obsidian timesheet changed (read edits back into work.db)
+
+[Path]
+# PathChanged, not PathModified: checked with a throwaway user path unit, PathChanged on a
+# directory fires for an in-place write to a file inside it (and for an atomic replace and
+# a new file), which is how Obsidian saves. The service waits for the typing to stop, so a
+# burst of autosaves costs one sync.
+PathChanged=%h/powerhouse/time/Timesheet
+PathChanged=%h/powerhouse/time/Timesheet/days
+Unit=timetrack-vault.service
+
+[Install]
+WantedBy=default.target

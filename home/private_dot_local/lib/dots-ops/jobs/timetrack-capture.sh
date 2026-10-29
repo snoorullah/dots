@@ -54,6 +54,12 @@ job_main() {
   { "$tt" term --day "$(date -d yesterday +%F)" && "$tt" term; } >/dev/null 2>&1 || \
     ops_state timetrack-capture warn "term attribution failed; see: timetrack term"
 
+  # Read the Obsidian timesheet's edits back, then re-render it so the measured changes this
+  # run just made show up there. The path unit does the first half as the user types; this is
+  # the hourly half, and a held file (the user's to fix) is a warning, never a failed capture.
+  "$tt" vault sync >/dev/null 2>&1 || \
+    ops_state timetrack-capture warn "vault sync failed; see: timetrack vault sync"
+
   out=$("$tt" doctor 2>&1); rc=$?
   summary=$(printf '%s' "$out" | tail -1)
   if [ "$rc" -ne 0 ]; then

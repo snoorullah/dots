@@ -58,6 +58,8 @@ if [ -x "$HOME/.nix-profile/bin/timetrack" ]; then
   systemctl --user enable --now timetrack-clockd.service
   # after the deadman timer above: its panels refuse to draw without the reaper
   systemctl --user enable --now timetrack-away.service
+  # edits made in the Obsidian timesheet are read back when the files change
+  systemctl --user enable --now timetrack-vault.path
 else
   echo "systemd: timetrack binary absent; clockd left disabled (nix run .#homeConfigurations...)" >&2
 fi

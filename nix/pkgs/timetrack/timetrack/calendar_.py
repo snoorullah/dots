@@ -32,6 +32,12 @@ def seed_month(conn, year, month):
     """
     holidays, week_off, hours = config.holidays(), config.week_off(), config.hours_per_day()
     kept = inserted = updated = 0
+    # a kind the user set by hand in the vault (vault.py) is an answer like any other: the
+    # hourly reseed must not turn a holiday they declared back into a working day
+    pinned = set()
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'day_edit_log'").fetchone():
+        pinned = {r[0] for r in conn.execute(
+            "SELECT DISTINCT day FROM day_edit_log WHERE action = 'kind'")}
     for dom in range(1, _cal.monthrange(year, month)[1] + 1):
         day = date(year, month, dom)
         kind, leave, target = classify(day, holidays, week_off, hours)
@@ -39,7 +45,7 @@ def seed_month(conn, year, month):
             "SELECT kind, attested_unix FROM day_class WHERE day=?", (day.isoformat(),)
         ).fetchone()
         if row is not None:
-            if row["attested_unix"] is not None or row["kind"] in (
+            if day.isoformat() in pinned or row["attested_unix"] is not None or row["kind"] in (
                 "leave_paid", "leave_unpaid", "absent", "worked_unlogged"
             ):
                 kept += 1
