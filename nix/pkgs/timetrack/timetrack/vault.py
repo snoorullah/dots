@@ -354,7 +354,7 @@ def day_head(conn, rec, month):
                   " WHERE attendance_day = ? ORDER BY start_unix", (day,))] or ["- none measured"]
     names = breaklabel.for_day(day)
     breaks = [f"- {derive.clock(x['start_unix'])} to {derive.clock(x['end_unix'])}  "
-              + (f"{names[x['start_unix']]} ({x['category']})" if x["start_unix"] in names
+              + (f"{names[x['start_unix']]} ({x['category']})" if x["confirmed"] and x["start_unix"] in names
                  else x["category"])
               + f" {fmt_min(round(x['minutes'] or 0))}" + ("" if x["confirmed"] else "  (unconfirmed)")
               for x in conn.execute(
