@@ -21,7 +21,8 @@ from pathlib import Path
 from . import config
 
 HEADERS = ("list-id", "x-github-reason", "x-github-sender", "in-reply-to", "references",
-           "auto-submitted", "precedence", "x-auto-response-suppress", "message-id")
+           "auto-submitted", "precedence", "x-auto-response-suppress", "message-id",
+           "authentication-results")
 
 
 def _nm(*args, input=None):

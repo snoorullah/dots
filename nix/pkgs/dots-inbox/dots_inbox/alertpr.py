@@ -62,6 +62,9 @@ def create(conn, name, prep_path, cfg=None):
 def offer(conn, row, summary, path, window, cfg=None):
     """Ask once. Returns 'create', 'ignore', 'skipped' (already answered this window) or None."""
     name = row["ref"].split("|", 1)[0]
+    # only an alert mail whose DKIM or DMARC passed (alerts.run logs alert_authed) may be offered
+    if not _seen(conn, "alert_authed", name, window):
+        return "skipped"
     if _seen(conn, "alert_ignored", name, window) or _seen(conn, "alert_ticketed", name, window):
         return "skipped"
     key = ask("dots-inbox", f"Prepared: {row['title']}", summary,

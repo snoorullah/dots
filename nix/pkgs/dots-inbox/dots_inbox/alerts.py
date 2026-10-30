@@ -33,18 +33,32 @@ def _re(pat, text):
     return re.search(pat, text or "", re.I) if pat else None
 
 
+AUTH_PASS = re.compile(r"\b(?:dkim|dmarc)\s*=\s*pass\b", re.I)
+
+
+def sender(m):
+    """The parsed address only: a display name like "alerts@corp <x@evil>" must not match."""
+    return (m.get("from_addr") or "").lower()
+
+
+def authenticated(m):
+    """True when the receiving server recorded a passing DKIM or DMARC check. Only an alert
+    that passes may be offered as a ticket: a forged From cannot reach the agent."""
+    return bool(AUTH_PASS.search((m.get("headers") or {}).get("authentication-results", "")))
+
+
 def classify(m, cfg):
     """None, or {'kind': 'alert'|'backup_ok'|'backup_fail', ...parsed fields}."""
     a, b = cfg.get("alerts", {}), cfg.get("backup", {})
     subj = m.get("subject", "")
-    if a.get("from") and _re(a["from"], m.get("from", "")):
+    if a.get("from") and _re(a["from"], sender(m)):
         mt = re.search(a.get("subject", DEFAULT_SUBJECT), subj, re.S)
         if mt:
             g = mt.groupdict()
             return {"kind": "alert", "severity": (g.get("severity") or "").upper(),
                     "name": g.get("name") or subj, "state": (g.get("state") or "FIRING").upper(),
                     "scope": g.get("scope") or ""}
-    if b.get("from") and _re(b["from"], m.get("from", "")):
+    if b.get("from") and _re(b["from"], sender(m)):
         if _re(b.get("fail"), subj):
             return {"kind": "backup_fail"}
         if _re(b.get("ok"), subj):
@@ -84,6 +98,8 @@ def run(conn, new, now=None):
         if c["kind"] != "alert":
             continue
         t = int(m.get("date") or wall)
+        if c["kind"] == "alert" and authenticated(m):
+            db.log(conn, "alert_authed", c["name"], m.get("subject"), ts=t)
         fresh = wall - t < stale                         # an old mail is backlog, never a toast
         name, scope = c["name"], c["scope"]
         row = conn.execute("SELECT * FROM alert_state WHERE name=? AND scope=?",

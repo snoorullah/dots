@@ -315,8 +315,12 @@ def run_one(conn, row):
     db.log(conn, "prepared", row["ref"], row["title"])
     conn.commit()
     if not config.panic():
-        if row["kind"] == "alert" and alertpr.offer(conn, row, summary, path, ALERT_WINDOW) != "skipped":
-            return True                    # the offer was the notification
+        try:
+            if row["kind"] == "alert" and alertpr.offer(conn, row, summary, path, ALERT_WINDOW) != "skipped":
+                return True                # the offer was the notification
+        except Exception as e:             # a config error must not kill the runner
+            db.log(conn, "offer_failed", row["ref"], str(e)[:200])
+            conn.commit()
         notify.toast("dots-inbox", f"Prepared: {row['title']}", summary)
     return True
 

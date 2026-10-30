@@ -42,7 +42,7 @@ FocusScope {
             Button {
                 objectName: "itemBreakdown"
                 visible: !!pg.it && !!pg.it.canBreakdown
-                text: "Break down & start"
+                text: (!!pg.it && pg.it.kind === "alert" && !!pg.it.fixRepo) ? "Fix in " + pg.it.fixRepo + " (draft PR)" : "Break down & start"
                 icon: "play_arrow"
                 dim: pg.dim
                 onClicked: Actions.breakdown(pg.it)

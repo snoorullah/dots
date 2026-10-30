@@ -23,6 +23,7 @@ from . import tw
 ALLOWED = re.compile(r"[^A-Za-z0-9 ,.:/_#()-]")
 PROJECT = re.compile(r"^[A-Za-z0-9._-]{1,40}$")
 URL = re.compile(r"^https?://[^\s'\"<>]{1,400}$")
+ALERT_STEPS = (("Fix the alert in a branch", "Show the diff and open a draft PR"))
 MIN_STEPS, MAX_STEPS, MIN_LEN, MAX_LEN = 2, 5, 8, 80
 
 
@@ -105,11 +106,15 @@ def _run(ref, start, model, opener, say, dispatch):
     if reused:
         steps, uuids = [t.get("desc", "") for t in have], [t["uuid"] for t in have]
     else:
-        say(f"Breaking down {ref}", "Asking the local model for steps...")
-        steps = validate(model(parent.get("desc", "")))
-        used_fallback = steps is None
-        if used_fallback:
-            steps = fallback(parent.get("desc", ""), ref)
+        from . import launch
+        if launch.is_alert(parent):         # the title came from a stranger's mail: no model sees it
+            steps = list(ALERT_STEPS)
+        else:
+            say(f"Breaking down {ref}", "Asking the local model for steps...")
+            steps = validate(model(parent.get("desc", "")))
+            used_fallback = steps is None
+            if used_fallback:
+                steps = fallback(parent.get("desc", ""), ref)
         attrs = {"parentref": ref}
         if PROJECT.match(parent.get("project") or ""):
             attrs["project"] = parent["project"]

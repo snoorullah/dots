@@ -93,7 +93,7 @@ Item {
         Button {
             visible: r.hasButton
             objectName: "breakdownButton"
-            text: "Break down & start"
+            text: (r.item.kind === "alert" && r.item.fixRepo) ? "Fix in " + r.item.fixRepo + " (draft PR)" : "Break down & start"
             icon: "play_arrow"
             dim: r.dim
             onClicked: Actions.breakdown(r.item)
