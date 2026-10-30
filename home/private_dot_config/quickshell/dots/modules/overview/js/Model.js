@@ -56,7 +56,8 @@ function sortItems(items) {
 }
 
 // "Next up" is work I picked (kind task); the attention list is everything
-// else. Mail never reaches the UI: the source is unavailable by decision.
+// else (an `untracked` item is attention, never waiting or failed, so it never
+// colours the pill). Mail never reaches the UI: the source is unavailable by decision.
 function splitItems(items) {
     var all = sortItems((items || []).filter(function (i) { return i && i.kind !== "mail" }))
     return {

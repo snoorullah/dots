@@ -68,6 +68,10 @@ class Work:
         self.work_projects = _split(raw.get("WORK_PROJECTS", ""))
         self.notify_body_apps = _split(raw.get("NOTIFY_BODY_APPS", ""))
         self.redact_words = _split(raw.get("REDACT_WORDS", ""))
+        try:
+            self.untracked_min = max(1, int(raw.get("UNTRACKED_MIN_MINUTES") or 30))
+        except ValueError:
+            self.untracked_min = 30
         self.report_dir = Path(os.path.expanduser(raw.get("REPORT_DIR") or "~/powerhouse/reports/daily"))
 
     @staticmethod

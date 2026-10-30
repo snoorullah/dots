@@ -22,6 +22,8 @@ as `labelled_by` so a number can always be traced to what it rests on:
     llm       what is left goes to the local model, in batches, exactly like webclass.py
     title     history from before the focus log: the workspace name only
     none      nothing resolved and no model answered
+    claim     not a rung: a segment with a project and no ticket that the user promoted to a
+              task (untracked_claim) is relabelled with it when the day is written
 
 The model is offered only OPEN tasks and may name only one it was offered, or a project that
 is already known; anything else it says is dropped. Strings are redacted before they reach
@@ -53,7 +55,7 @@ OFFERED = 60                # open tasks shown to the model
 TERMINAL_APP = re.compile(r"^(com\.mitchellh\.ghostty|ghostty|kitty|alacritty|foot|"
                           r"org\.wezfurlong\.wezterm|wezterm)", re.IGNORECASE)
 VERDICTS = ("work", "delegated", "unproductive")
-BY = ("session", "token", "branch", "repo", "llm", "title", "none")
+BY = ("session", "token", "branch", "repo", "llm", "title", "none", "claim")
 redact = webclass.redact
 
 
@@ -515,9 +517,25 @@ def merge(rows):
     return out
 
 
+def apply_claims(conn, d, segs):
+    """Segments with a project but no ticket and no task take the task the user promoted that
+    (day, project) to. Attribution only: seconds, verdict and project are untouched."""
+    try:
+        claims = {r[0]: (r[1], r[2]) for r in conn.execute(
+            "SELECT project, task_uuid, ref FROM untracked_claim WHERE day = ? AND decided = 'promoted'", (d,))}
+    except Exception:       # noqa: BLE001 -- table missing on an unmigrated db: no claims
+        return segs
+    out = []
+    for s in segs:
+        c = claims.get(s.get("project")) if s.get("project") and not s.get("ref") and not s.get("task_uuid") else None
+        out.append(dict(s, task_uuid=c[0], ref=c[1], by="claim") if c else s)
+    return out
+
+
 def write(conn, day, segs):
     """Replace one day: derived data, so a rerun is not an append."""
     d = day.isoformat()
+    segs = apply_claims(conn, d, segs)
     rows = [(d, s["start"], s["end"], int(s["seconds"]), s["pane_id"], s["terminal_id"],
              s["agent_session"], s["agent_name"], s["task_uuid"], s["ref"], s["project"],
              s["activity"], s["verdict"], s["by"], s["model"]) for s in segs]

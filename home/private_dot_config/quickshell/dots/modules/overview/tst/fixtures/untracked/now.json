@@ -1,0 +1,19 @@
+{
+ "agent": null,
+ "clock": {
+  "awayReason": "",
+  "sinceTs": 1761592800,
+  "state": "in"
+ },
+ "focus": {
+  "elapsedSec": 0,
+  "endsAt": null,
+  "startedAt": null,
+  "state": "idle",
+  "targetSec": 1500,
+  "zone": ""
+ },
+ "task": null,
+ "ts": 1761599990,
+ "v": 1
+}
