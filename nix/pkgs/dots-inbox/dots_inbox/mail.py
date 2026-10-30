@@ -23,6 +23,11 @@ from . import config
 HEADERS = ("list-id", "x-github-reason", "x-github-sender", "in-reply-to", "references",
            "auto-submitted", "precedence", "x-auto-response-suppress", "message-id",
            "authentication-results", "x-ms-exchange-organization-authas")
+# headers kept as a list of EVERY value, topmost first, under "<name>-all": the sender-auth rule
+# must see a second, forged copy of a header our own server stamped once.
+MULTI = ("authentication-results", "arc-seal", "arc-authentication-results", "from",
+         "x-ms-exchange-organization-authas", "x-ms-exchange-organization-messagedirectionality",
+         "x-forefront-antispam-report", "x-ms-exchange-crosstenant-id")
 
 
 def _nm(*args, input=None):
@@ -48,8 +53,28 @@ def _headers(path):
         return {}, None
     h = {k: str(msg.get(k, "")) for k in HEADERS if msg.get(k) is not None}
     # every Authentication-Results, topmost first: alerts.authenticated picks the one WE trust
-    h["authentication-results-all"] = [str(v) for v in msg.get_all("authentication-results") or []]
+    for k in MULTI:
+        h[k + "-all"] = [str(v) for v in msg.get_all(k) or []]
     return h, msg
+
+
+def parse_from(raw):
+    """(address, count) from the RAW From header values (a list, topmost first).
+
+    One From header with one mailbox, or nothing: a second From header (the first one wins in
+    most parsers, and which one a user's client shows is not ours to guess), several mailboxes,
+    an encoded-word or non-ASCII inside the address part (`=?utf-8?b?..?=@x` is not an address
+    anyone can match a rule against), all give an empty address. count is what was found."""
+    raw = [str(v) for v in raw or []]
+    if len(raw) != 1:
+        return "", len(raw) if raw else 0
+    found = [a for _, a in email.utils.getaddresses(raw) if a]
+    if len(found) != 1:
+        return "", len(found)
+    a = found[0].lower()
+    if "=?" in a or not a.isascii() or any(c in a for c in " \t\r\n<>\"()"):
+        return "", 1
+    return a, 1
 
 
 def messages(query, limit=None):
@@ -71,16 +96,32 @@ def get(mid):
     path = (node.get("filename") or [None])[0]
     extra, _ = _headers(path) if path else ({}, None)
     frm = hd.get("From", "")
+    raw_from = extra.get("from-all")
     folder = ""
     if path:
         rel = Path(path).relative_to(config.BOX) if str(path).startswith(str(config.BOX)) else Path(path)
         folder = str(rel.parent.parent) if rel.parent.name in ("cur", "new", "tmp") else str(rel.parent)
     thread = _nm("search", "--output=threads", f"id:{mid}").strip().removeprefix("thread:")
+    if raw_from:                                   # the file's own From, not notmuch's reading of it
+        faddr, fcount = parse_from(raw_from)
+    else:
+        faddr, fcount = (_addrs(frm) or [""])[0], len(_addrs(frm))
     return {"id": mid, "thread": thread, "file": path, "folder": folder,
-            "from": frm, "from_addr": (_addrs(frm) or [""])[0], "from_count": len(_addrs(frm)),
+            "from": frm, "from_addr": faddr, "from_count": fcount,
             "to": _addrs(hd.get("To")), "cc": _addrs(hd.get("Cc")),
             "subject": hd.get("Subject", ""), "date": int(node.get("timestamp") or 0),
             "tags": set(node.get("tags") or []), "headers": extra}
+
+
+def from_file(path):
+    """A minimal message dict read straight from one maildir file: headers only, no body, no
+    notmuch calls. For the read-only auth survey; the shape matches get() where it matters."""
+    extra, msg = _headers(path)
+    if msg is None:
+        return None
+    addr, n = parse_from(extra.get("from-all"))
+    return {"id": path, "file": path, "from": "", "from_addr": addr, "from_count": n, "headers": extra,
+            "subject": "", "date": 0, "tags": set(), "to": [], "cc": []}
 
 
 def _first(tree):

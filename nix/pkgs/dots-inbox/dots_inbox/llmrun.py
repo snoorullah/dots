@@ -20,14 +20,20 @@ own total_cost_usd the real figure replaces the estimate.
 """
 import json
 import os
+import re
 import time
 
 from . import config, db
 
 CAPS = {"haiku": 200, "sonnet": 6}       # runs per local calendar day
 USD_CAP = 1.00                           # estimated dollars per local calendar day, all models
+KIND_USD = {"slack": 0.25, "prep": 0.75, "erp": 0.10}     # per kind, so one chatty timer cannot starve the rest
 PRICE = {"haiku": (1.0, 5.0), "sonnet": (3.0, 15.0)}
-TOKENS = {"haiku": (20_000, 1_500), "sonnet": (40_000, 3_000)}      # (input, output) per run
+# (input, output) tokens one run is assumed to cost. Measured 2026-10-30 on the real CLI: the
+# Slack checker with the machine's 976 tools offered cost $0.76 for "reply ok" (762k cache-write
+# tokens); narrowed to the Slack server alone (27 tools, see slack.py) the same call cost $0.0004.
+# A real check reads a few threads: ~12k tokens in, ~1.5k out.
+TOKENS = {"haiku": (12_000, 1_500), "sonnet": (40_000, 3_000)}
 
 DDL = """CREATE TABLE IF NOT EXISTS llm_run (
   id INTEGER PRIMARY KEY, ts_unix INTEGER NOT NULL, kind TEXT NOT NULL, model TEXT NOT NULL,
@@ -50,7 +56,7 @@ def estimate(model):
 
 # argv and environment -----------------------------------------------------------------
 
-def build_argv(model, *, tools, allowed, disallowed, max_turns=None, mcp_config=None,
+def build_argv(model, *, tools, allowed, disallowed, max_turns=None, max_budget=None, mcp_config=None,
                strict_mcp=False, plugins=False):
     """Read-only by construction: dontAsk refuses whatever `allowed` does not name (the user's
     default mode would let a classifier decide on text from a stranger), --tools lists the only
@@ -60,6 +66,8 @@ def build_argv(model, *, tools, allowed, disallowed, max_turns=None, mcp_config=
     argv = ["claude", "-p", "--model", model, "--output-format", "json", "--no-session-persistence"]
     if max_turns:
         argv += ["--max-turns", str(max_turns)]
+    if max_budget:                           # claude stops the run itself; the ledger only counts
+        argv += ["--max-budget-usd", f"{max_budget:.2f}"]
     argv += ["--permission-mode", "dontAsk"]
     if plugins:
         argv += ["--settings", json.dumps({"outputStyle": "default"})]
@@ -74,9 +82,27 @@ def build_argv(model, *, tools, allowed, disallowed, max_turns=None, mcp_config=
     return argv
 
 
+def failure_reason(stdout):
+    """Why a run failed, from its stdout JSON, WITHOUT any message text: only a few whitelisted
+    keys, values reduced to a safe charset. stdout of a failed run used to be dropped, which is
+    how seven runs failed in a day with no reason on record."""
+    try:
+        doc = json.loads(stdout)
+    except (TypeError, ValueError):
+        return "no JSON on stdout" if not (stdout or "").strip() else "stdout was not JSON"
+    if not isinstance(doc, dict):
+        return "stdout was not an object"
+    bits = []
+    for k in ("subtype", "terminal_reason", "stop_reason", "api_error_status", "num_turns", "is_error"):
+        if doc.get(k) not in (None, "", False):
+            bits.append(f"{k}={re.sub(r'[^A-Za-z0-9_.-]', '', str(doc[k]))[:40]}")
+    return " ".join(bits) or "no reason given"
+
+
 def child_env(extra=None):
     """No CLAUDE.md files, no auto-memory directory (it would also create a project dir)."""
-    return {**os.environ, "CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1", "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
+    env = {k: v for k, v in os.environ.items() if k != "CLAUDE_CODE_PLUGIN_DIRS"}   # dev plugins of a live session
+    return {**env, "CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1", "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
             "DOTS_TASK_GATE": "off", **(extra or {})}
 
 
@@ -124,6 +150,13 @@ def reserve(conn, kind, model, now=None):
         if runs.get(model, 0) >= CAPS[model]:
             conn.rollback()
             _refuse(conn, kind, f"daily cap of {CAPS[model]} {model} runs reached")
+        kcap = KIND_USD.get(kind)
+        if kcap is not None:
+            kusd = conn.execute("SELECT COALESCE(SUM(COALESCE(actual_usd, est_usd)), 0) FROM llm_run "
+                                "WHERE kind=? AND ts_unix >= ?", (kind, _day_start(now))).fetchone()[0]
+            if kusd + est > kcap:
+                conn.rollback()
+                _refuse(conn, kind, f"estimated {kind} spend ${kusd:.2f} + ${est:.2f} would pass its ${kcap:.2f} daily budget")
         if usd + est > USD_CAP:
             conn.rollback()
             _refuse(conn, kind, f"estimated spend ${usd:.2f} + ${est:.2f} would pass the ${USD_CAP:.2f} daily cap")
@@ -136,6 +169,13 @@ def reserve(conn, kind, model, now=None):
         conn.rollback()
         raise
     return cur.lastrowid
+
+
+class RunFailed(RuntimeError):
+    """A spawn that ran and failed. Carries its stdout so the ledger still gets the real cost."""
+    def __init__(self, msg, stdout=""):
+        super().__init__(msg)
+        self.stdout = stdout
 
 
 def settle(conn, rowid, out):
@@ -153,6 +193,10 @@ def settle(conn, rowid, out):
 def guarded(conn, kind, model, fn):
     """Run fn() (the actual spawn) only if the switch and the ledger allow it."""
     rowid = reserve(conn, kind, model)
-    out = fn()
+    try:
+        out = fn()
+    except RunFailed as e:                   # a failed run still spent what it spent
+        settle(conn, rowid, e.stdout)
+        raise
     settle(conn, rowid, out)
     return out

@@ -28,8 +28,18 @@ from . import config, db, ledger, llmrun, notify
 
 SEND_TOOL = "mcp__plugin_slack_slack__slack_send_message"
 READ_TOOLS = ["mcp__plugin_slack_slack__slack_read_thread", "mcp__plugin_slack_slack__slack_read_channel"]
-DENY_TOOLS = [SEND_TOOL, "mcp__plugin_slack_slack__slack_send_message_draft",
-              "mcp__plugin_slack_slack__slack_schedule_message", "Bash", "Edit", "Write"]
+# every Slack tool that writes, listed by name: the narrowed run below offers 27 Slack tools and
+# dontAsk already refuses all but READ_TOOLS; this is the second lock on the same door
+WRITE_TOOLS = ["send_message", "send_message_draft", "schedule_message", "add_reaction", "create_canvas",
+               "create_conversation", "create_list", "add_list_record", "update_canvas", "update_list",
+               "update_list_record", "complete_file_upload", "get_file_upload_url"]
+DENY_TOOLS = [f"mcp__plugin_slack_slack__slack_{t}" for t in WRITE_TOOLS] + ["Bash", "Edit", "Write"]
+SERVER = "plugin:slack:slack"          # the name the user's OAuth login is stored under: it must match
+SERVER_FALLBACK = {"type": "http", "url": "https://mcp.slack.com/mcp"}
+CHECK_TURNS = 20
+CHECK_BUDGET = 0.10                      # dollars one run may spend; claude stops itself
+RECHECK_AFTER = 3600                     # an item older than a day is looked at once an hour, not every 15 min
+FRESH_S = 86400
 SPOOL = config.XDG_STATE / "dots-inbox" / "slack-pending.jsonl"
 MAX_AGE_DAYS = 14
 CLAUDE_TIMEOUT = 120
@@ -168,6 +178,16 @@ def open_items(conn, now=None):
                         "AND created_unix>?", (int(now or time.time()) - MAX_AGE_DAYS * 86400,)).fetchall()
 
 
+def due(conn, items, now=None):
+    """Look every 15 minutes while some item is under a day old; once an hour when all are older."""
+    now = int(now or time.time())
+    if any(it["created_unix"] > now - FRESH_S for it in items):
+        return True
+    conn.execute(llmrun.DDL)
+    last = conn.execute("SELECT COALESCE(MAX(ts_unix), 0) FROM llm_run WHERE kind='slack'").fetchone()[0]
+    return now - last >= RECHECK_AFTER
+
+
 def build_prompt(items):
     lines = []
     for it in items:
@@ -185,13 +205,39 @@ def build_prompt(items):
             "Use an empty replies list when nobody answered.\n\nItems:\n" + "\n".join(lines))
 
 
-def claude_argv():
-    # Slack text is untrusted. The Slack server is a plugin, so the MCP list can't be narrowed,
-    # but dontAsk refuses every tool READ_TOOLS doesn't name; the user's default mode (auto)
-    # would let a classifier decide. No built-ins at all. plugins=True because the plugin comes
-    # from user settings; llmrun still cuts transcript, CLAUDE.md, memory and output style.
+def slack_server():
+    """The Slack MCP server entry the plugin ships (url and OAuth client id), or the bare url."""
+    base = Path.home() / ".claude/plugins/cache"
+    found = sorted(base.glob("*/slack/*/.mcp.json"), key=lambda p: p.stat().st_mtime) if base.is_dir() else []
+    for p in reversed(found):
+        try:
+            s = json.loads(p.read_text())["mcpServers"]["slack"]
+            if isinstance(s, dict) and s.get("url"):
+                return s
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+    return dict(SERVER_FALLBACK)
+
+
+def write_mcp(dirpath):
+    """mcp.json holding ONLY the Slack server, under the name the stored OAuth login belongs to.
+    With --strict-mcp-config nothing else loads: not the other plugins, not the claude.ai
+    connectors. Measured on the real CLI: 976 tools / 762k tokens a request before, 27 after."""
+    path = os.path.join(dirpath, "mcp.json")
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w") as f:
+        json.dump({"mcpServers": {SERVER: slack_server()}}, f)
+    return path
+
+
+def claude_argv(mcp_config=None, max_turns=CHECK_TURNS):
+    # Slack text is untrusted. Only the Slack server is loaded (strict MCP config), dontAsk refuses
+    # every tool READ_TOOLS doesn't name (the user's default mode, auto, would let a classifier
+    # decide), the writers are denied by name too, and there are no built-ins. --setting-sources ""
+    # also drops user hooks and settings: the MCP server no longer comes from them.
     return llmrun.build_argv("haiku", tools="", allowed=",".join(READ_TOOLS),
-                             disallowed=",".join(DENY_TOOLS), plugins=True)
+                             disallowed=",".join(DENY_TOOLS), max_turns=max_turns,
+                             max_budget=CHECK_BUDGET, mcp_config=mcp_config, strict_mcp=bool(mcp_config))
 
 
 def run_claude(argv, prompt, timeout=CLAUDE_TIMEOUT):
@@ -201,7 +247,9 @@ def run_claude(argv, prompt, timeout=CLAUDE_TIMEOUT):
         r = subprocess.run(argv, input=prompt, capture_output=True, text=True, timeout=timeout,
                            env=llmrun.child_env(), cwd=cwd)     # an empty cwd: no project settings to pick up
     if r.returncode != 0:
-        raise RuntimeError(f"claude exited {r.returncode}: {r.stderr.strip()[:200]}")
+        # the reason lives in stdout's JSON (is_error, subtype); never log its message text
+        raise llmrun.RunFailed(f"claude exited {r.returncode}: {llmrun.failure_reason(r.stdout)} "
+                               f"{r.stderr.strip()[:150]}".strip(), r.stdout)
     return r.stdout
 
 
@@ -243,8 +291,13 @@ def check(conn):
     items = open_items(conn)
     if not items:
         return 0                                     # nothing to look for: no Claude call at all
+    if not due(conn, items):
+        return 0
+    import tempfile
     try:
-        out = llmrun.guarded(conn, "slack", "haiku", lambda: run_claude(claude_argv(), build_prompt(items)))
+        with tempfile.TemporaryDirectory(prefix="dots-inbox-slackcfg-", dir=os.environ.get("XDG_RUNTIME_DIR") or None) as d:
+            argv = claude_argv(write_mcp(d), max_turns=min(CHECK_TURNS, 4 + len(items)))
+            out = llmrun.guarded(conn, "slack", "haiku", lambda: run_claude(argv, build_prompt(items)))
     except llmrun.Refused as e:
         _err(f"slack-check: not run: {e}")             # items stay open; the timer tries again
         return 0
@@ -271,7 +324,7 @@ def _replied(conn, it, rep):
     db.log(conn, "reply", str(it["id"]), f"counterpart replied on Slack: {summary}")
     if config.panic():
         return
-    notify.toast("Slack", f"{rep['author']} replied on Slack",
+    notify.toast("dots-inbox", f"{rep['author']} replied on Slack",       # an own app: the log keeps no text
                  f"You asked: {it['purpose']}\nThey said: {rep['text'][:160]}", ms=15000)
     conn.execute("UPDATE item SET notified_unix=? WHERE id=?", (now, it["id"]))
     ledger.spawn_reply_act(it["id"])

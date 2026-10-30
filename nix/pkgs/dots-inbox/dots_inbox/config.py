@@ -23,7 +23,7 @@ BRIEF = STATE / "brief.md"
 CONF_DIR = XDG_CONFIG / "dots-mail"
 ACCOUNT = CONF_DIR / "account.conf"
 RULES = CONF_DIR / "rules.toml"
-AGENT_OFF = CONF_DIR / "AGENT_OFF"      # exists = no LLM run of any kind; rules, floors and toasts go on
+AGENT_OFF = CONF_DIR / "AGENT_OFF"      # exists = no LLM run of any kind (Claude AND the local model); rules, floors and toasts go on
 # the dashboard reads COUNTS only from here: no subject, sender or body ever leaves the store
 OVERVIEW_COUNTS = Path(os.environ.get("DOTS_OVERVIEW_STATE_DIR") or XDG_STATE / "dots-overview") / "inbox.json"
 PANIC = XDG_CONFIG / "timetrack" / "PANIC"     # one switch silences every prompt on the machine

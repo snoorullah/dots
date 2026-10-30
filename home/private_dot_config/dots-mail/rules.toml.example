@@ -32,14 +32,33 @@ domains = ["example.com"]
 [alerts]
 from = "alerts@monitoring\\.example\\.com"
 # authserv_id: the id YOUR receiving server writes first in Authentication-Results (look at
-# the topmost Authentication-Results of a real mail). With it set, dots-inbox records per mail
-# whether that server saw dmarc=pass for the From domain: `dots-inbox auth-report` counts them
-# per sender class. It is only MEASURED for now; nothing is enforced. Unset = result "unknown".
+# the topmost Authentication-Results of a real mail). Only the `digest` path of [auth] uses it.
 # authserv_id = "mx.example.net"
+# enforce_auth = false   # false = shadow: a RESOLVED still only clears state for an authenticated
+#                        # sender (and is logged); true = a first FIRING needs one too
 
 # subject = '^\[(?P<severity>\w+)\]\s+(?P<name>\S+)\s+\((?P<state>FIRING|RESOLVED)\)\s*[-—]\s*(?P<scope>.+?)\s*$'
 stale_hours = 6            # firing with no mail this long = stale (not notified)
 min_firing_minutes = 30    # a resolution only notifies if it fired at least this long
+
+# Sender authentication, in SHADOW (measured by `dots-inbox auth-report`, enforced nowhere).
+# Behind a mail gateway the receiving server's own dmarc= fails for every genuine outsider, so
+# the rule trusts only headers YOUR server stamped, by sender path. Every value is yours:
+# nothing about a tenant, gateway or host is written in the repo.
+#   internal  AuthAs Internal (exactly once), From domain in tenant_domains, cross-tenant id absent or yours
+#   gateway   AuthAs Anonymous + Directionality Incoming, connecting IP (CIP) in gateway_ips, and an ARC
+#             chain whose top seal is microsoft.com cv=pass, whose seal below it is gateway_sealer and
+#             carries dmarc=pass header.from=<the From domain>. ARC signatures are NOT verified here:
+#             the rule relies on the top seal's cv=pass.
+#   digest    CIP in digest_ips and your server's own dmarc=pass for the From domain (uses authserv_id)
+#   relay     CIP in relay_ips: a host that cannot authenticate; WEAK, never counts as authenticated
+# [auth]
+# tenant_domains = ["example.com"]
+# tenant_ids     = ["00000000-0000-0000-0000-000000000000"]    # X-MS-Exchange-CrossTenant-Id of your tenant
+# gateway_ips    = ["192.0.2.10", "192.0.2.11"]                # the gateway's outbound addresses
+# gateway_sealer = "gateway.example.net"                       # d= of the gateway's ARC-Seal
+# digest_ips     = []
+# relay_ips      = ["192.0.2.20"]
 
 # Optional names for the auth report: class = regex that must match the whole From address.
 # [sender_class]

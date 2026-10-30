@@ -197,7 +197,9 @@ def github(m, cfg, name="github"):
 # ---------------------------------------------------------------- local model
 
 def _ask_model(prompt):
-    """JSON text from the local model, or None when it is down. Loopback only."""
+    """JSON text from the local model, or None when it is down or AGENT_OFF is set. Loopback only."""
+    if config.AGENT_OFF.exists():
+        return None
     body = json.dumps({"model": config.LOCAL_MODEL, "stream": False, "format": "json",
                        "options": {"temperature": 0},
                        "messages": [{"role": "user", "content": prompt}]}).encode()
@@ -271,6 +273,11 @@ def describe(m):
     """(summary, body) of the toast for one message."""
     repo, pr, title = _repo_pr(m.get("subject", ""))
     name = re.sub(r"\s*<.*", "", m.get("from", "")).strip('" ') or m.get("from_addr", "")
+    addr = m.get("from_addr", "")
+    if m.get("from_count", 1) != 1:
+        name = f"{name} (several senders)"
+    elif addr and name.lower() != addr.lower():      # `alerts@corp <x@evil>` shows as the name only
+        name = f"{name} <{addr}>"
     if repo:
         reason = (m.get("headers", {}).get("x-github-reason") or "").replace("_", " ")
         return f"{repo} {pr}".strip(), f"{title}\n{reason} - {name}".strip()

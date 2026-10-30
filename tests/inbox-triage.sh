@@ -25,6 +25,7 @@ CFG = {
     "vip": ["boss@example.com", "@client.example"],
     "people": {"domains": ["example.com"]},
     "alerts": {"from": r"alerts@mon\.example"},
+    "auth": {"tenant_domains": ["mon.example"]},     # the alert sender is "internal" to this test tenant
     "backup": {"from": r"root@.*\.example\.net", "ok": "backup successful",
                "fail": "backup (failed|error)"},
     "rule": [
@@ -141,7 +142,8 @@ r = t1(msg("X <x@else.example>", "what")); check("model down -> inbox", "+inbox"
 
 # ---- alerts
 def al(state, name="NodeNotReady", scope="cluster-1", age=0, sev="CRITICAL"):
-    return msg("Alerts <alerts@mon.example>", f"[{sev}] {name} ({state}) — {scope}", age=age)
+    return msg("Alerts <alerts@mon.example>", f"[{sev}] {name} ({state}) — {scope}", age=age,
+               headers={"x-ms-exchange-organization-authas": "Internal"})
 def row(name="NodeNotReady", scope="cluster-1"):
     return conn.execute("SELECT * FROM alert_state WHERE name=? AND scope=?", (name, scope)).fetchone()
 H = 3600

@@ -233,7 +233,7 @@ def claude_argv(mcp_config=None):
     llmrun adds the rest: no transcript, no user settings, no CLAUDE.md.
     """
     return llmrun.build_argv("sonnet", tools="Read", allowed=ALLOWED, disallowed=DISALLOWED,
-                             max_turns=25, mcp_config=mcp_config, strict_mcp=True)
+                             max_turns=25, max_budget=1.50, mcp_config=mcp_config, strict_mcp=True)
 
 
 def _cluster_mcp(scratch):
@@ -272,8 +272,10 @@ def analyse(text, conn=None):
         raise RuntimeError(f"timed out after {TIMEOUT // 60} min")
     except OSError as e:
         raise RuntimeError(f"cannot run claude: {e}")
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)      # the mcp config and cwd; 248 of these piled up
     if r.returncode != 0:
-        raise RuntimeError((r.stderr or r.stdout or f"exit {r.returncode}").strip()[:300])
+        raise RuntimeError(f"claude exited {r.returncode}: {llmrun.failure_reason(r.stdout)} {(r.stderr or '').strip()[:150]}".strip()[:300])
     try:
         doc = json.loads(r.stdout)
     except ValueError:
