@@ -535,6 +535,11 @@ def main(argv=None):
     s.add_argument("--prayer", action="store_true", help="the prayer whose iqamah is near now")
     s.set_defaults(fn=cmd_away)
 
+    s = sub.add_parser("breaks", help="minutes per break label (falls back to category)")
+    s.add_argument("--day", help="YYYY-MM-DD (default: today)")
+    s.add_argument("--month", help="YYYY-MM")
+    s.set_defaults(fn=lambda a: __import__("timetrack.breaklabel", fromlist=["cmd"]).cmd(a))
+
     s = sub.add_parser("compare-aw", help="cross-validate recorded days against AW presence")
     s.add_argument("--month")
     s.set_defaults(fn=cmd_compare_aw)

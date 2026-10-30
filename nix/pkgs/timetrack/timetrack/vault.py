@@ -40,7 +40,7 @@ import re
 import time
 from datetime import date, datetime, timedelta
 
-from . import calendar_, config, derive, notify
+from . import breaklabel, calendar_, config, derive, notify
 
 QUIET = 20                  # seconds a file must sit untouched before it is read or replaced
 WAIT_POLL = 5               # --wait-quiet: seconds between looks
@@ -352,8 +352,11 @@ def day_head(conn, rec, month):
               for x in conn.execute(
                   "SELECT start_unix, end_unix, seconds FROM v_run_interval"
                   " WHERE attendance_day = ? ORDER BY start_unix", (day,))] or ["- none measured"]
-    breaks = [f"- {derive.clock(x['start_unix'])} to {derive.clock(x['end_unix'])}  {x['category']}"
-              f" {fmt_min(round(x['minutes'] or 0))}" + ("" if x["confirmed"] else "  (unconfirmed)")
+    names = breaklabel.for_day(day)
+    breaks = [f"- {derive.clock(x['start_unix'])} to {derive.clock(x['end_unix'])}  "
+              + (f"{names[x['start_unix']]} ({x['category']})" if x["start_unix"] in names
+                 else x["category"])
+              + f" {fmt_min(round(x['minutes'] or 0))}" + ("" if x["confirmed"] else "  (unconfirmed)")
               for x in conn.execute(
                   "SELECT start_unix, end_unix, category, minutes, confirmed FROM deduction"
                   " WHERE attendance_day = ? AND end_unix IS NOT NULL ORDER BY start_unix", (day,))
