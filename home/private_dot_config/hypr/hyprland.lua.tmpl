@@ -389,6 +389,7 @@ hl.bind(mod .. " + SHIFT + T",     hl.dsp.exec_cmd("qs -c dots ipc call dots.bar
 hl.bind(mod .. " + ALT + J",       hl.dsp.exec_cmd("~/.local/bin/dots-jump --last"))
 hl.bind(mod .. " + ALT + Q",       hl.dsp.exec_cmd("~/.local/bin/dots-shell toggle"))  -- quickshell <-> waybar
 hl.bind(mod .. " + ALT + D",       hl.dsp.exec_cmd("~/.nix-profile/bin/timetrack health dose"))  -- dose taken: schedules the check-ins
+hl.bind(mod .. " + ALT + M",       hl.dsp.exec_cmd("ghostty --class=dots.mail --gtk-single-instance=false -e aerc"))  -- work mail (aerc over notmuch)
 
 -- Resize submap
 hl.bind(mod .. " + R", hl.dsp.submap("resize"))

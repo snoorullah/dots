@@ -33,6 +33,12 @@ MODEL = "qwen3-coder:30b"
 LLM_TIMEOUT = 3.0
 TURN, VERDICTS = "turn", "verdicts"
 TRIVIAL_PROMPT = 18             # "continue", "yes do it": nothing to classify
+# Turns the harness starts, not the user: a subagent's report, a background-task notice,
+# a hook's feedback. Their text is boilerplate, so the model read them as "different work"
+# and the Stop check blocked turns that were plainly the declared task.
+HARNESS_PROMPT = ("Another Claude session sent a message", "<task-notification", "[SYSTEM NOTIFICATION",
+                  "Stop hook feedback", "<system-reminder>", "<agent-message", "<bash-input>",
+                  "<bash-stdout>", "<local-command")
 OFF_WORDS = ("off", "0", "false", "no")
 
 NO_TASK = ("Before editing or running commands, declare the task: `dots-task list`, then `dots-task declare <ref>` "
@@ -184,7 +190,10 @@ def on_context(event, hook, env):
                 pass
     if event == "UserPromptSubmit":
         p = str(hook.get("prompt") or "")
-        atomic.write_json(task._p(TURN, sess), {"v": 1, "ts": int(time.time()), "prompt": p[:600],
+        auto = p.lstrip().startswith(HARNESS_PROMPT)
+        at = task.read_decl(sess) if task.SESS_RE.match(sess) else None
+        atomic.write_json(task._p(TURN, sess), {"v": 1, "ts": int(time.time()), "prompt": p[:600], "auto": auto,
+                                                "decl": (at or {}).get("uuid"),
                                                 "hash": hashlib.sha256(p.encode("utf-8", "replace")).hexdigest()[:16]})
     task.refresh_token(pane, token_value(sess), timeout=1.0)
     if kill_switch(env):
@@ -232,6 +241,11 @@ def stop(hook, env, deadline):
     turn = atomic.read_json(task._p(TURN, sess))
     if not isinstance(turn, dict) or len(str(turn.get("prompt") or "").strip()) < TRIVIAL_PROMPT:
         return None
+    if turn.get("auto"):
+        return None                                 # the harness started this turn, not the user
+    if d.get("uuid") != turn.get("decl") and int(d.get("ts") or 0) > int(turn.get("ts") or 0):
+        return None                                 # moved to another task after the prompt: already answered
+    # (re-declaring the SAME task after the prompt does not count: that would be a way round the check)
     vpath = task._p(VERDICTS, sess)
     cache = atomic.read_json(vpath)
     cache = cache if isinstance(cache, dict) else {}
