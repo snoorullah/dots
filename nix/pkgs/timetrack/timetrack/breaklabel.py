@@ -40,9 +40,9 @@ def minutes(where, args=()):
     labels = by_start()
     tot = {}
     with dbs.open_work(readonly=True) as conn:
-        for r in conn.execute("SELECT start_unix, category, minutes FROM deduction"
+        for r in conn.execute("SELECT start_unix, category, minutes, confirmed FROM deduction"
                               " WHERE end_unix IS NOT NULL AND " + where, args):
-            k = labels.get(r["start_unix"]) or r["category"]
+            k = (r["confirmed"] and labels.get(r["start_unix"])) or r["category"]
             tot[k] = tot.get(k, 0) + (r["minutes"] or 0)
     return sorted(tot.items(), key=lambda kv: (-kv[1], kv[0]))
 
@@ -57,7 +57,8 @@ def cmd(a):
     rows = minutes(where, args)
     print(f"Breaks {title}")
     for k, m in rows:
-        print(f"  {k:<28} {int(m) // 60}:{int(round(m)) % 60:02d}")
+        h, mm = divmod(int(round(m)), 60)
+        print(f"  {k:<28} {h}:{mm:02d}")
     if not rows:
         print("  none recorded")
     return 0
