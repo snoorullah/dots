@@ -2,7 +2,9 @@
 Description=dots-mail: IMAP IDLE on INBOX, so new mail syncs within seconds (goimapnotify)
 Requires=dots-mail-auth.service
 After=dots-mail-auth.service
-PartOf=graphical-session.target
+ConditionPathIsMountPoint=%h/Mail
+# default.target, NOT graphical-session.target: that target is not started in every login
+# (it was inactive here), so nothing ever pulled this unit in and push mail never ran.
 
 [Service]
 Environment=PATH=%h/.nix-profile/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
@@ -11,4 +13,4 @@ Restart=always
 RestartSec=60
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=default.target

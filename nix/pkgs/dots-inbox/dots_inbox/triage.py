@@ -10,7 +10,7 @@ Order of decision, first hit wins:
   1. folder    Sent / Junk / Deleted / Drafts never reach the inbox
   2. alerts    alert and backup mail belongs to alerts.py (state machine, batched toast)
   3. own mail  a copy of the user's own message is `sent`
-  4. vip       people the user named in rules.toml: inbox + critical toast
+  4. vip       people the user named in rules.toml (exact address or @domain): inbox + critical toast
   5. rules     ordered `[[rule]]` tables in ~/.config/dots-mail/rules.toml (see the example)
   6. people    a non-automated human at a configured domain
   7. model     the local model picks a class; if it is down the mail stays in the inbox
@@ -68,19 +68,27 @@ def _folder(m):
 
 
 def _vip(m, cfg):
-    a = (m.get("from_addr") or "").lower()
+    """Exact addresses and "@domain" only, against the PARSED address (never the display name).
+    A bare word is not a domain: "client" must not match anyone."""
+    a = alerts.sender(m)
+    if "@" not in a:
+        return False
     for v in cfg.get("vip", []):
-        v = v.lower().strip()
-        if (v.startswith("@") and a.endswith(v)) or v == a or ("@" not in v and a.endswith("@" + v)):
+        v = str(v).lower().strip()
+        if v.startswith("@"):
+            if v.count("@") == 1 and len(v) > 1 and a.rsplit("@", 1)[1] == v[1:]:
+                return True
+        elif "@" in v and v == a:
             return True
     return False
 
 
 def _match(rule, m):
-    """Every key the rule names must match (regex search, case-insensitive)."""
+    """Every key the rule names must match. `from` is a FULL match on the parsed address
+    (a display name or a second address never counts); the rest are case-insensitive searches."""
     def hit(pat, text):
         return re.search(pat, text or "", re.I) is not None
-    if "from" in rule and not hit(rule["from"], m.get("from", "")):
+    if "from" in rule and not (alerts.sender(m) and alerts._full(rule["from"], alerts.sender(m))):
         return False
     if "subject" in rule and not hit(rule["subject"], m.get("subject", "")):
         return False
@@ -119,7 +127,7 @@ def decide(m, cfg, use_model=True):
     if alerts.classify(m, cfg):
         return alerts.decide(m, cfg)
     me = {config.me(), *[a.lower() for a in cfg.get("me", [])]} - {""}
-    if m.get("from_addr") in me:
+    if alerts.sender(m) in me:
         return _d("own-mail", ["sent"], inbox=False)
     if _vip(m, cfg):
         return _d("vip", ["people", "vip"], notify="critical", critical="VIP: " + m.get("from", ""))
@@ -127,7 +135,7 @@ def decide(m, cfg, use_model=True):
         if _match(rule, m):
             return _from_rule(rule, m, cfg)
     doms = [x.lower() for x in cfg.get("people", {}).get("domains", [])]
-    if doms and not _automated(m) and any(m.get("from_addr", "").endswith("@" + x) for x in doms):
+    if doms and not _automated(m) and any(alerts.sender(m).endswith("@" + x) for x in doms):
         return _d("people-domain", ["people"], notify="batch")
     if not use_model:
         return _d("model-skipped", inbox=True)
@@ -363,7 +371,8 @@ def _bulk(query):
                 folder = str(p.parent.parent) if p.parent.name in ("cur", "new", "tmp") else str(p.parent)
             frm = hd.get("From", "")
             res.append({"id": x["id"], "thread": "", "file": path, "folder": folder, "from": frm,
-                        "from_addr": (mail._addrs(frm) or [""])[0], "to": mail._addrs(hd.get("To")),
+                        "from_addr": (mail._addrs(frm) or [""])[0], "from_count": len(mail._addrs(frm)),
+                        "to": mail._addrs(hd.get("To")),
                         "cc": mail._addrs(hd.get("Cc")), "subject": hd.get("Subject", ""),
                         "date": int(x.get("timestamp") or 0), "tags": set(x.get("tags") or []),
                         "headers": extra})

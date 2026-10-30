@@ -15,7 +15,9 @@
 # addresses that are the user too (aliases); the account address is already known
 me = ["me.alias@example.com"]
 
-# a sender here is `vip`: inbox + a critical toast. Exact address, "@domain", or "domain".
+# a sender here is `vip`: inbox + a critical toast. An exact address or "@domain", matched
+# against the parsed From address only. A display name never counts, and a bare word such as
+# "client" matches nobody.
 vip = ["boss@example.com", "@important-client.example"]
 
 # mail from a person at these domains (not automated: no list-id, no bulk/auto-submitted
@@ -23,14 +25,26 @@ vip = ["boss@example.com", "@important-client.example"]
 [people]
 domains = ["example.com"]
 
-# Alert stream. `from` is a regex on the whole From header; `subject` a regex with the
+# Alert stream. `from` is a regex that must match the WHOLE parsed From address (not the
+# display name; a From with several addresses matches nothing). `subject` is a regex with the
 # named groups severity, name, state (FIRING|RESOLVED), scope. Omit `subject` for the
 # default:  [CRITICAL] SomeAlert (FIRING) - cluster-1
 [alerts]
 from = "alerts@monitoring\\.example\\.com"
+# authserv_id: the id YOUR receiving server writes first in Authentication-Results (look at
+# the topmost Authentication-Results of a real mail). With it set, dots-inbox records per mail
+# whether that server saw dmarc=pass for the From domain: `dots-inbox auth-report` counts them
+# per sender class. It is only MEASURED for now; nothing is enforced. Unset = result "unknown".
+# authserv_id = "mx.example.net"
+
 # subject = '^\[(?P<severity>\w+)\]\s+(?P<name>\S+)\s+\((?P<state>FIRING|RESOLVED)\)\s*[-—]\s*(?P<scope>.+?)\s*$'
 stale_hours = 6            # firing with no mail this long = stale (not notified)
 min_firing_minutes = 30    # a resolution only notifies if it fired at least this long
+
+# Optional names for the auth report: class = regex that must match the whole From address.
+# [sender_class]
+# teams-relay = "noreply@chat-relay\\.example"
+# erp-relay = "support@erp\\.example\\.com"
 
 # Backup job mail: success is archived silently, failure becomes an alert in the inbox.
 [backup]
@@ -49,10 +63,12 @@ fail = "backup (failed|error)|vzdump.*(failed|error)"
 notify_now = ["review_requested", "mention", "team_mention", "assign", "author", "ci_activity"]
 
 # ----------------------------------------------------------------------------------------
-# Rules. Every key you name must match; matching is a case-insensitive regex search.
+# Rules. Every key you name must match; matching is a case-insensitive regex search, except
+# `from`, which must match the WHOLE parsed address (write ".*@github\\.com", not "@github\\.com").
+# A display name is never matched: anyone can write any name in front of their own address.
 #
 #   name     label shown in `retriage --dry-run`
-#   from     whole From header ("Name <addr>")      subject   Subject
+#   from     the sender ADDRESS, full match           subject   Subject
 #   folder   maildir folder ("INBOX")               body      first 4000 chars (use rarely)
 #   header   table of header-name = regex (lower-case names: x-github-reason, list-id,
 #            auto-submitted, precedence, x-github-sender, in-reply-to, references)
@@ -67,7 +83,7 @@ notify_now = ["review_requested", "mention", "team_mention", "assign", "author",
 
 [[rule]]
 name = "github"
-from = "@github\\.com"
+from = ".*@github\\.com"
 policy = "github"
 
 [[rule]]
@@ -108,20 +124,24 @@ notify = "batch"
 
 [[rule]]
 name = "mail quarantine"
-from = "postmaster@"
+from = "postmaster@.*"
 subject = "held messages"
 add = ["security"]
 notify = "batch"
 
+# A chat relay puts the PERSON in the display name, which cannot be trusted, so this matches
+# the relay's own address, plus a header only the receiving server stamps. It says "someone
+# pinged you in chat", never who; no vip rule can name that person.
 [[rule]]
 name = "missed chat"
-from = "in Teams <"
+from = "noreply@chat-relay\\.example"
+header = { x-ms-exchange-organization-authas = "^Internal$" }
 add = ["people"]
 notify = "batch"
 
 [[rule]]
 name = "host chatter"
-from = "^root <root@"
+from = "root@.*"
 add = ["fyi"]
 inbox = false
 
@@ -134,7 +154,7 @@ notify = "batch"
 
 [[rule]]
 name = "vendor"
-from = "vendor@example\\.org|@mail\\.vendor\\.example"
+from = "vendor@example\\.org|.*@mail\\.vendor\\.example"
 add = ["vendor"]
 inbox = false
 

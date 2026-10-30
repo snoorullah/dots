@@ -33,18 +33,94 @@ def _re(pat, text):
     return re.search(pat, text or "", re.I) if pat else None
 
 
+def _full(pat, text):
+    return re.fullmatch(pat, text or "", re.I) if pat else None
+
+
+def sender(m):
+    """The parsed address only: a display name like "alerts@corp <x@evil>" must not match.
+    A From with several addresses matches nothing."""
+    return (m.get("from_addr") or "").lower() if m.get("from_count", 1) == 1 else ""
+
+
+def _strip(value):
+    """Authentication-Results text with comments (nested parens) and quoted values removed, so
+    `dkim=fail (dkim=pass)` and `smtp.mailfrom="dmarc=pass@evil"` carry no result of theirs."""
+    out, depth, quote, esc = [], 0, False, False
+    for ch in value or "":
+        if quote:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                quote = False
+            continue
+        if ch == '"' and depth == 0:
+            quote = True
+            continue
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        elif depth == 0:
+            out.append(ch)
+    return re.sub(r"\s*=\s*", "=", "".join(out))
+
+
+def _segments(clean):
+    """Split on ';' only where whitespace follows (or the text ends): a ';' glued to a value, as in
+    `smtp.mailfrom=a;dmarc=pass`, stays inside that value and cannot start a result of its own."""
+    return re.split(r";(?=\s|$)", clean)
+
+
+def _trusted_ar(m, authserv):
+    """The Authentication-Results to trust, as cleaned text, or None. Our receiving server stamps
+    its header on top of whatever arrived, so the TOPMOST header overall must carry our authserv-id;
+    anything else on top means the mail did not come in the way we expect, and an identical-looking
+    header further down is just a claim the sender made."""
+    h = m.get("headers") or {}
+    allv = h.get("authentication-results-all")
+    if allv is None:
+        allv = [h["authentication-results"]] if h.get("authentication-results") else []
+    if not allv:
+        return None
+    clean = _strip(allv[0])
+    head = _segments(clean)[0].split()
+    return clean if head and head[0].lower() == authserv.lower() else None
+
+
+def authenticated(m, cfg):
+    """True when OUR receiving server (rules.toml [alerts] authserv_id) recorded dmarc=pass
+    for a header.from equal to this mail's From domain. No configured id = never."""
+    authserv = str((cfg.get("alerts") or {}).get("authserv_id") or "").strip()
+    addr = sender(m)
+    if not authserv or "@" not in addr:
+        return False
+    clean = _trusted_ar(m, authserv)
+    if clean is None:
+        return False
+    domain = addr.rsplit("@", 1)[1]
+    for seg in _segments(clean)[1:]:
+        toks = seg.split()
+        if toks and toks[0].lower() == "dmarc=pass" and any(
+                t.lower() == f"header.from={domain}" for t in toks[1:]):
+            return True
+    return False
+
+
 def classify(m, cfg):
     """None, or {'kind': 'alert'|'backup_ok'|'backup_fail', ...parsed fields}."""
     a, b = cfg.get("alerts", {}), cfg.get("backup", {})
     subj = m.get("subject", "")
-    if a.get("from") and _re(a["from"], m.get("from", "")):
+    if a.get("from") and sender(m) and _full(a["from"], sender(m)):
         mt = re.search(a.get("subject", DEFAULT_SUBJECT), subj, re.S)
         if mt:
             g = mt.groupdict()
             return {"kind": "alert", "severity": (g.get("severity") or "").upper(),
                     "name": g.get("name") or subj, "state": (g.get("state") or "FIRING").upper(),
                     "scope": g.get("scope") or ""}
-    if b.get("from") and _re(b["from"], m.get("from", "")):
+    if b.get("from") and sender(m) and _full(b["from"], sender(m)):
         if _re(b.get("fail"), subj):
             return {"kind": "backup_fail"}
         if _re(b.get("ok"), subj):

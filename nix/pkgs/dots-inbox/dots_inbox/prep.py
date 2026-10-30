@@ -23,7 +23,7 @@ import subprocess
 import sys
 import time
 
-from . import config, db, mail, notify, slack
+from . import alerts, config, db, llmrun, mail, notify, slack
 
 DAILY_CAP = 6
 ALERT_WINDOW = 7 * 24 * 3600
@@ -110,7 +110,7 @@ def queue(conn, new=None, now=None):
         rows = conn.execute("SELECT kind, ref FROM event WHERE rowid > ? AND kind IN "
                             "('critical','alert_firing') ORDER BY rowid", (cur,)).fetchall()
     conn.execute("INSERT OR REPLACE INTO prep_cursor(id, last_rowid) VALUES(1, ?)", (top,))
-    if config.panic() or not rows:
+    if config.panic() or llmrun.agent_off() or not rows:
         return 0
     queued = 0
     for r in rows:
@@ -230,13 +230,10 @@ def claude_argv(mcp_config=None):
     --tools leaves Read as the only built-in. --strict-mcp-config drops every MCP server and
     plugin except the one in mcp_config. dontAsk refuses whatever ALLOWED does not name, where
     the user's default mode (auto) would let a classifier decide on text from a stranger's mail.
+    llmrun adds the rest: no transcript, no user settings, no CLAUDE.md.
     """
-    argv = ["claude", "-p", "--model", "sonnet", "--output-format", "json", "--max-turns", "25",
-            "--permission-mode", "dontAsk", "--tools", "Read", "--strict-mcp-config",
-            "--allowedTools", ALLOWED, "--disallowedTools", DISALLOWED]
-    if mcp_config:
-        argv += ["--mcp-config", str(mcp_config)]
-    return argv
+    return llmrun.build_argv("sonnet", tools="Read", allowed=ALLOWED, disallowed=DISALLOWED,
+                             max_turns=25, mcp_config=mcp_config, strict_mcp=True)
 
 
 def _cluster_mcp(scratch):
@@ -260,13 +257,17 @@ def _scratch():
     return tempfile.mkdtemp(prefix="dots-inbox-prep-", dir=base)
 
 
-def analyse(text):
-    """One headless, read-only call. Returns the markdown or raises RuntimeError."""
+def analyse(text, conn=None):
+    """One headless, read-only call. Returns the markdown or raises RuntimeError
+    (llmrun.Refused when the kill switch or a spend cap says no)."""
     config.PREP_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+    conn = conn or db.open_db()
     scratch = _scratch()
     try:
-        r = run(claude_argv(_cluster_mcp(scratch)), input=PROMPT + text, capture_output=True,
-                text=True, timeout=TIMEOUT, cwd=scratch)
+        argv = claude_argv(_cluster_mcp(scratch))
+        r = llmrun.guarded(conn, "prep", "sonnet", lambda: run(
+            argv, input=PROMPT + text, capture_output=True, text=True, timeout=TIMEOUT, cwd=scratch,
+            env=llmrun.child_env()))
     except subprocess.TimeoutExpired:
         raise RuntimeError(f"timed out after {TIMEOUT // 60} min")
     except OSError as e:
@@ -298,9 +299,37 @@ def _write(path, text):
     os.chmod(path, 0o600)
 
 
+def _safe(s, n=120):
+    """Text for a toast: one line, no control characters."""
+    return re.sub(r"[\x00-\x1f\x7f]+", " ", str(s or "")).strip()[:n]
+
+
+def _toast_body(row):
+    """What the 'Prepared' toast says besides the title: the sender we matched and the raw
+    subject, both from the mail itself. Never a line of the model's output: that is text an
+    outsider can steer through the mail it was asked to read."""
+    if row["kind"] != "mail":
+        return "analysis ready"
+    try:
+        m = mail.get(row["ref"])
+    except Exception:
+        m = None
+    if not m:
+        return "analysis ready"
+    return _safe(f"from {alerts.sender(m) or '(several senders)'} - {m.get('subject')}")
+
+
 def run_one(conn, row):
     try:
-        md = analyse(material(conn, row))
+        md = analyse(material(conn, row), conn)
+    except llmrun.Refused as e:
+        if llmrun.agent_off():          # switched off mid-run: keep the row for when it is back on
+            conn.execute("UPDATE prep SET status='queued' WHERE id=?", (row["id"],))
+        else:
+            conn.execute("UPDATE prep SET status='skipped', finished_unix=?, summary=? WHERE id=?",
+                         (int(time.time()), str(e)[:300], row["id"]))
+        conn.commit()
+        return False
     except Exception as e:
         conn.execute("UPDATE prep SET status='failed', finished_unix=?, summary=? WHERE id=?",
                      (int(time.time()), f"failed: {e}"[:300], row["id"]))
@@ -315,12 +344,12 @@ def run_one(conn, row):
     db.log(conn, "prepared", row["ref"], row["title"])
     conn.commit()
     if not config.panic():
-        notify.toast("dots-inbox", f"Prepared: {row['title']}", summary)
+        notify.toast("dots-inbox", _safe(f"Prepared: {row['title']}"), _toast_body(row))
     return True
 
 
 def run_all(a=None):
-    if not config.mounted():
+    if not config.mounted() or llmrun.agent_off():
         return 0
     conn = db.open_db()
     config.PREP_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -334,7 +363,7 @@ def run_all(a=None):
     conn.commit()
     while True:
         row = conn.execute("SELECT * FROM prep WHERE status='queued' ORDER BY id LIMIT 1").fetchone()
-        if not row:
+        if not row or llmrun.agent_off():
             return 0
         conn.execute("UPDATE prep SET status='running' WHERE id=?", (row["id"],))
         conn.commit()

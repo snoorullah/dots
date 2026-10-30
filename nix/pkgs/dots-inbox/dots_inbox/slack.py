@@ -24,7 +24,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import config, db, ledger, notify
+from . import config, db, ledger, llmrun, notify
 
 SEND_TOOL = "mcp__plugin_slack_slack__slack_send_message"
 READ_TOOLS = ["mcp__plugin_slack_slack__slack_read_thread", "mcp__plugin_slack_slack__slack_read_channel"]
@@ -188,16 +188,18 @@ def build_prompt(items):
 def claude_argv():
     # Slack text is untrusted. The Slack server is a plugin, so the MCP list can't be narrowed,
     # but dontAsk refuses every tool READ_TOOLS doesn't name; the user's default mode (auto)
-    # would let a classifier decide. No built-ins at all.
-    return ["claude", "-p", "--model", "haiku", "--output-format", "json",
-            "--permission-mode", "dontAsk", "--tools", "",
-            "--allowedTools", ",".join(READ_TOOLS), "--disallowedTools", ",".join(DENY_TOOLS)]
+    # would let a classifier decide. No built-ins at all. plugins=True because the plugin comes
+    # from user settings; llmrun still cuts transcript, CLAUDE.md, memory and output style.
+    return llmrun.build_argv("haiku", tools="", allowed=",".join(READ_TOOLS),
+                             disallowed=",".join(DENY_TOOLS), plugins=True)
 
 
 def run_claude(argv, prompt, timeout=CLAUDE_TIMEOUT):
     """The one seam that starts Claude. Prompt on stdin: the tool lists are variadic flags."""
-    env = {**os.environ, "DOTS_TASK_GATE": "off"}
-    r = subprocess.run(argv, input=prompt, capture_output=True, text=True, timeout=timeout, env=env)
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix="dots-inbox-slack-", dir=os.environ.get("XDG_RUNTIME_DIR") or None) as cwd:
+        r = subprocess.run(argv, input=prompt, capture_output=True, text=True, timeout=timeout,
+                           env=llmrun.child_env(), cwd=cwd)     # an empty cwd: no project settings to pick up
     if r.returncode != 0:
         raise RuntimeError(f"claude exited {r.returncode}: {r.stderr.strip()[:200]}")
     return r.stdout
@@ -242,7 +244,10 @@ def check(conn):
     if not items:
         return 0                                     # nothing to look for: no Claude call at all
     try:
-        out = run_claude(claude_argv(), build_prompt(items))
+        out = llmrun.guarded(conn, "slack", "haiku", lambda: run_claude(claude_argv(), build_prompt(items)))
+    except llmrun.Refused as e:
+        _err(f"slack-check: not run: {e}")             # items stay open; the timer tries again
+        return 0
     except (subprocess.TimeoutExpired, RuntimeError, OSError) as e:
         _err(f"slack-check: {e}")                    # no retry loop: the timer is the retry
         return 0

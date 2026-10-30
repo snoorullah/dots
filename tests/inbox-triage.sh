@@ -28,7 +28,7 @@ CFG = {
     "backup": {"from": r"root@.*\.example\.net", "ok": "backup successful",
                "fail": "backup (failed|error)"},
     "rule": [
-        {"name": "github", "from": r"@github\.com", "policy": "github"},
+        {"name": "github", "from": r".*@github\.com", "policy": "github"},
         {"name": "impersonation", "from": "support@erp.example", "subject": "being impersonated",
          "add": ["security"], "notify": "critical", "critical": "account impersonation"},
         {"name": "ticket", "from": "support@erp.example", "subject": "assigned a new task",
