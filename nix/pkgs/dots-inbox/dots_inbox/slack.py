@@ -186,7 +186,11 @@ def build_prompt(items):
 
 
 def claude_argv():
+    # Slack text is untrusted. The Slack server is a plugin, so the MCP list can't be narrowed,
+    # but dontAsk refuses every tool READ_TOOLS doesn't name; the user's default mode (auto)
+    # would let a classifier decide. No built-ins at all.
     return ["claude", "-p", "--model", "haiku", "--output-format", "json",
+            "--permission-mode", "dontAsk", "--tools", "",
             "--allowedTools", ",".join(READ_TOOLS), "--disallowedTools", ",".join(DENY_TOOLS)]
 
 

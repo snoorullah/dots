@@ -95,6 +95,9 @@ for t in ("Read(~/.ssh/**)", "Read(~/.config/**)", "Read(~/Mail/**)", "WebSearch
     check(f"denies {t}", t in dis, True)
 al = argv[argv.index("--allowedTools") + 1].split(",")
 from dots_inbox import slack as _slack
+_sa = _slack.claude_argv()
+check("slack checker: no classifier", _sa[_sa.index("--permission-mode") + 1], "dontAsk")
+check("slack checker: no built-ins", _sa[_sa.index("--tools") + 1], "")
 for t in _slack.DENY_TOOLS + ["Grep", "Glob", "mcp__plugin_slack_slack", "mcp__pnow-erp"]:
     check(f"denies {t} (shared with the slack checker)", t in dis, True)
 check("no unscoped search tool is allowed", any(x in ("Grep", "Glob") for x in al), False)
