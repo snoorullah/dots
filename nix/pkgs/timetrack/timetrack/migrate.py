@@ -575,6 +575,49 @@ CREATE INDEX away_label_day ON away_label(day);
 COMMIT;
 """
 
+# --- private v9 -------------------------------------------------------------
+# Untracked time -> ticket promotion. untracked_claim says "the unattributed time on this
+# project on this day belongs to this task" (promoted) or "stop asking" (ignored). It only
+# re-labels term_segment/term_day (labelled_by 'claim'); no minutes move. SQLite cannot alter
+# a CHECK, so term_segment is rebuilt with 'claim' allowed (rows and ids kept).
+PRIVATE_V9 = """
+BEGIN;
+CREATE TABLE untracked_claim (
+  day          TEXT NOT NULL,
+  project      TEXT NOT NULL,
+  task_uuid    TEXT NOT NULL DEFAULT '',
+  ref          TEXT NOT NULL DEFAULT '',
+  decided      TEXT NOT NULL CHECK (decided IN ('promoted','ignored')),
+  decided_unix INTEGER NOT NULL,
+  PRIMARY KEY (day, project)
+);
+CREATE TABLE term_segment_new (
+  id            INTEGER PRIMARY KEY,
+  day           TEXT    NOT NULL,
+  start_unix    INTEGER NOT NULL,
+  end_unix      INTEGER NOT NULL,
+  seconds       INTEGER NOT NULL,
+  pane_id       TEXT,
+  terminal_id   TEXT,
+  agent_session TEXT,
+  agent_name    TEXT,
+  task_uuid     TEXT,
+  ref           TEXT,
+  project       TEXT,
+  activity      TEXT    NOT NULL,
+  verdict       TEXT    NOT NULL CHECK (verdict IN ('work','delegated','unproductive')),
+  labelled_by   TEXT    NOT NULL CHECK (labelled_by IN
+                  ('session','token','branch','repo','llm','title','none','claim')),
+  model         TEXT
+);
+INSERT INTO term_segment_new SELECT * FROM term_segment;
+DROP TABLE term_segment;
+ALTER TABLE term_segment_new RENAME TO term_segment;
+CREATE INDEX ix_ts_day ON term_segment(day, start_unix);
+PRAGMA user_version = 9;
+COMMIT;
+"""
+
 # --- work v6 ---------------------------------------------------------------
 # What the user typed over in Obsidian (vault.py), FIELD BY FIELD. A day_edit row holds only
 # the fields the user overrode; every other column is NULL and means "use what was measured".
@@ -727,7 +770,8 @@ COMMIT;
 MIGRATIONS = {"work": [(1, WORK_V1), (2, WORK_V2), (3, WORK_V3), (4, WORK_V4), (5, WORK_V5),
                        (6, WORK_V6)],
               "private": [(1, PRIVATE_V1), (2, PRIVATE_V2), (3, PRIVATE_V3), (4, PRIVATE_V4),
-                          (5, PRIVATE_V5), (6, PRIVATE_V6), (7, PRIVATE_V7), (8, PRIVATE_V8)]}
+                          (5, PRIVATE_V5), (6, PRIVATE_V6), (7, PRIVATE_V7), (8, PRIVATE_V8),
+                          (9, PRIVATE_V9)]}
 
 
 def live_counts(conn):

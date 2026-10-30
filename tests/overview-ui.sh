@@ -185,6 +185,11 @@ got="$(sort "$work/stub.log")"
 want="$(printf 'dots-jump\tgh:acme/widgets#12\ndots-overview\tbreakdown\tgh:acme/widgets#12\t--start\n' | sort)"
 [ "$got" = "$want" ] && ok "5 Item page Jump and Break down exec the exact argv" || { echo "got:"; echo "$got"; echo "want:"; echo "$want"; bad "5 item actions argv"; }
 
+scene clickuntracked panel untracked PAGE=attention CLICK_NAMES=untrackedPromote,untrackedIgnore; sleep 0.3
+got="$(sort "$work/stub.log")"
+want="$(printf 'dots-overview\tuntracked\tignore\t2025-10-27\talpha\ndots-overview\tuntracked\tpromote\t2025-10-27\talpha\n' | sort)"
+[ "$got" = "$want" ] && ok "5 Make ticket and Ignore exec the exact argv" || { echo "got:"; echo "$got"; echo "want:"; echo "$want"; bad "5 untracked actions argv"; }
+
 # a missing state dir is "no data", not a crash and not a ?
 rm -rf "$work/state-empty"; mkdir -p "$work/state-empty"
 env SCENARIO=pill OUT_DIR="$out" DOTS_OVERVIEW_STATE_DIR="$work/state-empty" DOTS_OVERVIEW_NOW="$NOW" XDG_RUNTIME_DIR="$xdg" HOME="$work/home" \

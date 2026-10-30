@@ -1,0 +1,66 @@
+{
+ "counts": {
+  "failed": 0,
+  "total": 1,
+  "waiting": 0
+ },
+ "items": [
+  {
+   "actor": null,
+   "ageSec": 600,
+   "canBreakdown": false,
+   "canPromote": true,
+   "day": "2025-10-27",
+   "id": "untracked:2025-10-27:alpha",
+   "jump": null,
+   "kind": "untracked",
+   "project": "alpha",
+   "ref": null,
+   "src": "timetrack",
+   "startedAt": null,
+   "title": "2h10m on alpha, no ticket",
+   "urgency": "passive",
+   "url": null,
+   "waiting": false
+  }
+ ],
+ "sources": {
+  "erp": {
+   "detail": "",
+   "state": "off",
+   "ts": 1761599990
+  },
+  "gh": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "herdr": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "mail": {
+   "detail": "no local store",
+   "state": "unavailable",
+   "ts": 1761599990
+  },
+  "notif": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "ops": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "task": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  }
+ },
+ "ts": 1761599990,
+ "v": 1
+}

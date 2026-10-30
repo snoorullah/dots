@@ -21,6 +21,16 @@ Singleton {
         return true
     }
 
+    // action: promote | ignore. day and project come from the item, never from its title.
+    function untracked(action, item) {
+        if (action !== "promote" && action !== "ignore") return false
+        if (!item || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(String(item.day || ""))) return false
+        var p = String(item.project || "")
+        if (p === "" || p.charAt(0) === "-") return false
+        Quickshell.execDetached(["dots-overview", "untracked", action, String(item.day), p])
+        return true
+    }
+
     function jump(item) {
         var h = handle(item)
         if (h === "") return false

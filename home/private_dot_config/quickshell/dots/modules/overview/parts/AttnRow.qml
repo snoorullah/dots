@@ -17,7 +17,7 @@ Item {
     readonly property color tone: item.waiting ? Look.amber : (failed ? Look.red : Look.fgDim)
     readonly property bool flagged: !!item.waiting || failed
     readonly property var icons: ({ blocker: "block", review: "rate_review", alert: "error",
-                                    dm: "chat", task: "task_alt", erp: "receipt_long" })
+                                    dm: "chat", task: "task_alt", erp: "receipt_long", untracked: "timer" })
     readonly property string metaText: [item.ref, item.actor, Fmt.age(item.ageSec)]
         .filter(function (s) { return s !== undefined && s !== null && String(s) !== "" }).join("  ")
     readonly property bool hasButton: showBreakdown && !!item.canBreakdown
@@ -88,6 +88,23 @@ Item {
                 faint: true
                 dim: r.dim
                 anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+        Row {
+            visible: r.item.kind === "untracked" && !!r.item.canPromote
+            spacing: Look.sM
+            Button {
+                objectName: "untrackedPromote"
+                text: "Make ticket"
+                icon: "add_task"
+                dim: r.dim
+                onClicked: Actions.untracked("promote", r.item)
+            }
+            Button {
+                objectName: "untrackedIgnore"
+                text: "Ignore"
+                dim: r.dim
+                onClicked: Actions.untracked("ignore", r.item)
             }
         }
         Button {

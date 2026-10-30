@@ -8,7 +8,7 @@ Those are the only two counts the pill spends colour on.
 """
 import time
 
-from . import herdr, names, sources_notify, sources_ops, sync
+from . import herdr, names, sources_notify, sources_ops, sync, untracked
 
 URGENCY_RANK = {"critical": 0, "time": 1, "active": 2, "passive": 3}
 CLAUDE_TTL = 24 * 3600
@@ -70,7 +70,11 @@ def build(tasks, live, now=None):
     now = int(now or time.time())
     ops_items, ops_src = sources_ops.read(now)
     dm_items, dm_src = sources_notify.read(now)
-    items = from_herdr(live, now) + from_tasks(tasks, now) + dm_items + ops_items
+    try:
+        un_items = untracked.items(now)
+    except Exception:       # noqa: BLE001 -- a hint, never the reason attention.json is not written
+        un_items = []
+    items = from_herdr(live, now) + from_tasks(tasks, now) + dm_items + ops_items + un_items
     items.sort(key=lambda i: (not i["waiting"], URGENCY_RANK[i["urgency"]], i["ageSec"]))
     counts = {"waiting": sum(i["waiting"] for i in items),
               "failed": sum(1 for i in items if i["kind"] == "alert" and not i["waiting"]), "total": len(items)}

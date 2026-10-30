@@ -30,7 +30,7 @@ away.aw.write = lambda conn, **kw: None
 
 migrate.migrate()
 with dbs.open_private() as p:
-    check("private v8", p.execute("PRAGMA user_version").fetchone()[0], 8)
+    check("private v8+", p.execute("PRAGMA user_version").fetchone()[0] >= 8, True)
     check("table", [r[1] for r in p.execute("PRAGMA table_info(away_label)")],
           ["start_unix", "end_unix", "day", "key", "label", "source"])
 
