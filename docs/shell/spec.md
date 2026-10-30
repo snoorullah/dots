@@ -134,18 +134,26 @@ No inbox as the first screen. Most mail is machine alerts, so the first question
 
 ## 8. Infra
 
-Replaces the ArgoCD UI, Argonaut, Kargo and k9s. Does not replace Grafana.
+One app for the whole platform: DevOps, DevSecOps, delivery and supply chain. It replaces the ArgoCD UI, Argonaut, Kargo, the Argo Workflows and Argo Events UIs, the Forgejo admin screens and k9s. It does not replace Grafana. PR work lives in Review.
 
-| View | Contents |
-|---|---|
-| Overview | What failed and needs you, every node, capacity, recent changes |
-| Apps | Sync state, tree, diff, manifest, parameters, events, history, sync options, rollback, pause, projects, repos, sync windows |
-| Promote | Stages, freight, verification, approve, promote, roll back |
-| Resources | All kinds, logs, exec, events, YAML, restart, scale, delete, port-forward |
-| Nodes | CPU, memory, disk, cordon, drain |
-| Metrics | Range, service, key charts, quick query, link to Grafana |
-| Network, Config | Ingress to pods, certificates, ConfigMaps, secrets |
-| Alerts, Audit | Deduped alerts with reasons; who changed what, with the dry run they saw |
+| Group | View | Contents |
+|---|---|---|
+| Now | Overview | What failed and needs you, every node, capacity, recent changes |
+| Now | Alerts, Audit | Deduped alerts with reasons; who changed what, with the dry run they saw |
+| Delivery | Pipelines | CI and Argo Workflows: runs, step graph, logs, retry, templates, cron |
+| Delivery | Events | Argo Events: sensors, sources, event log, replay |
+| Delivery | Apps | Sync state, tree, diff, manifest, parameters, events, history, sync options, rollback, pause, projects, repos, sync windows |
+| Delivery | Promote | Kargo: stages, freight, verification, approve, promote, roll back |
+| Delivery | Releases | Status per environment, changelog, rollback, release calendar and windows |
+| Delivery | Environments | Every app in every environment, drift, PR previews |
+| Delivery | Tenants | Tenant apps, versions, quotas, staged upgrades, onboarding |
+| Cluster | Resources | All kinds, logs, exec, events, YAML, restart, scale, delete, port-forward |
+| Cluster | Nodes, Network, Config | Capacity, cordon, drain; ingress to pods, certificates; ConfigMaps, secrets |
+| Cluster | Metrics | Range, service, key charts, quick query, link to Grafana |
+| Source and supply | Forge | Forgejo: repos, branch rules, mirrors, runners, access |
+| Source and supply | Registry | Containers, charts and packages: versions, usage, cleanup |
+| Source and supply | Supply chain | Signatures, SBOMs, provenance, admission policy, vulnerabilities, dependency updates |
+| Source and supply | Security | Policy, who can do what, secret age and rotation, compliance benchmarks |
 
 **Every change:** a dry run first, and an audit entry. **Production:** type the object's name. **Wrong cluster:** a warning when the `kubectl` context differs from the one on screen. **Secrets:** hidden; reveal needs your password and clears after 30 seconds.
 

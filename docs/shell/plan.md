@@ -24,7 +24,7 @@
 | 7 | Mail | Read side, then drafts, then send behind the gate | One week of triage with the old client closed |
 | 8 | Calendar | Read, then RSVP, then booking links | Briefs arrive 30 minutes before meetings |
 | 9 | Review | Read, then comment and review, then merge | A full day of reviews without opening the browser |
-| 10 | Infra | Read, then actions behind dry run and typed confirm | A full on-call day without the old tools |
+| 10 | Infra | Cluster and Apps first, then Pipelines, Events, Promote, Releases, Environments and Tenants, then Forge, Registry, Supply chain and Security. Read first, then actions behind dry run and typed confirm | A full on-call day and a full release without the old tools |
 | 11 | The rest | Notes, modes, routines, themes, overlays, recording | Each listed feature in `spec.md` works |
 | 12 | Retire | Remove Waybar and the Obsidian control panel | Nothing still reads their data |
 
@@ -62,6 +62,7 @@
 | Bar labels | Logos; the active workspace keeps its name; others on hover |
 | Notifications on the bar | One bell with a dot, no count |
 | Grafana | Not replaced; Infra covers daily checks and links out |
+| Infra scope | The whole platform: delivery, source, supply chain and security in one app |
 | Lock screen | Minimal, with no task names |
 
 ## Open
