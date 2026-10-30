@@ -211,7 +211,7 @@ def declare(sess, t, env=None, kind="declare"):
     return d
 
 
-def new_task(title, project, parent=None):
+def new_task(title, project, parent=None, tags=()):
     title = clean(title)
     if not title:
         raise TaskError("a title is required")
@@ -229,7 +229,7 @@ def new_task(title, project, parent=None):
     ref = "local:" + uuidlib.uuid4().hex[:6]
     while tw.by_ref(ref):
         ref = "local:" + uuidlib.uuid4().hex[:6]
-    uid = tw.add(title, tags=("claude", "mirror"), src="claude", ref=ref, project=project, **attrs)
+    uid = tw.add(title, tags=("claude", "mirror") + tuple(tags), src="claude", ref=ref, project=project, **attrs)
     return tw.export(uid)[0]
 
 

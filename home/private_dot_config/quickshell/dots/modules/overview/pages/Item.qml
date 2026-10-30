@@ -42,10 +42,20 @@ FocusScope {
             Button {
                 objectName: "itemBreakdown"
                 visible: !!pg.it && !!pg.it.canBreakdown
-                text: "Break down & start"
-                icon: "play_arrow"
+                readonly property bool review: !!pg.it && pg.it.kind === "alert" && !!pg.it.fixStage && pg.it.fixStage !== "fix"
+                text: review ? "Review patch" : ((!!pg.it && pg.it.kind === "alert" && !!pg.it.fixRepo) ? "Fix in " + pg.it.fixRepo + " (sandboxed copy)" : "Break down & start")
+                icon: review ? "difference" : "play_arrow"
                 dim: pg.dim
-                onClicked: Actions.breakdown(pg.it)
+                onClicked: review ? Actions.alertReview(pg.it) : Actions.breakdown(pg.it)
+            }
+            Button {
+                objectName: "itemAlertPush"
+                // only after the patch was opened for review; its own click, no other path leads here
+                visible: !!pg.it && pg.it.kind === "alert" && pg.it.fixStage === "push"
+                text: "Push and open draft PR"
+                icon: "upload"
+                dim: pg.dim
+                onClicked: Actions.alertPush(pg.it)
             }
         }
     }

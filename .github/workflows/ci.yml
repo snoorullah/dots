@@ -55,6 +55,7 @@ jobs:
       - run: sudo apt-get install -y taskwarrior
       - run: bash tests/track.sh
       - run: bash tests/report.sh
+      - run: bash tests/alert-to-pr.sh
       - name: in-home.sh (sentinel mode)
         run: |
           d="$(mktemp -d)"

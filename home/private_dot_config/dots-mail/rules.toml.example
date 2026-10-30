@@ -27,10 +27,24 @@ domains = ["example.com"]
 # named groups severity, name, state (FIRING|RESOLVED), scope. Omit `subject` for the
 # default:  [CRITICAL] SomeAlert (FIRING) - cluster-1
 [alerts]
-from = "alerts@monitoring\\.example\\.com"
+from = "alerts@monitoring\\.example\\.com"      # regex, must match the WHOLE parsed From address
+# Entry gate for "Create ticket": the authserv-id YOUR receiving mail server stamps on its
+# Authentication-Results header. Only the topmost header with this id counts, and it must say
+# dmarc=pass with header.from equal to the From domain. Unset = tickets are never offered.
+authserv_id = "mx.example.net"
 # subject = '^\[(?P<severity>\w+)\]\s+(?P<name>\S+)\s+\((?P<state>FIRING|RESOLVED)\)\s*[-—]\s*(?P<scope>.+?)\s*$'
 stale_hours = 6            # firing with no mail this long = stale (not notified)
 min_firing_minutes = 30    # a resolution only notifies if it fired at least this long
+
+# Optional: where a fix for an alert goes. "Create ticket" on a prepared-alert toast makes a
+# local task in `project`. Its agent (sandboxed, no git, no network, no credentials) edits a
+# plain copy of `repo`'s origin default branch; you review the patch; a separate click pushes
+# it and opens a DRAFT PR. Alert-name glob, case-insensitive, first match wins. No match:
+# project "alerts", nothing is prepared and no agent starts.
+[alerts.repos."HighCPU*"]
+project = "platform"
+repo = "~/work/example-app"
+test = "make test"        # optional: the one command the agent runs to check its fix
 
 # Backup job mail: success is archived silently, failure becomes an alert in the inbox.
 [backup]
