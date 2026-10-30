@@ -88,7 +88,7 @@ day=$(date -d "-7 hours" +%F); f="$tmp/daily/$day.md"   # the session's day (it 
 [ ! -e "$tmp/network-marker" ] && ok "no curl/wget/xdg-open was started" || bad "network tool used: $(cat "$tmp/network-marker")"
 sed -n '/^## PRs/,$p' "$f" | grep -q '^unavailable' && ok "gh offline: PRs says unavailable" || bad "PRs section offline: $(sed -n '/^## PRs/,$p' "$f")"
 grep -q '(timesheet 6h 12m)' "$f" && ok "header carries v_day_worked's number" || bad "header: $(sed -n 3p "$f")"
-grep -q '^| `HD-123` .*| 1h 05m | 20m | 15m |' "$f" && ok "terminal time split you / agent / browser per ticket" || bad "attention row: $(grep -A6 attention "$f")"
+grep -q '^| `HD-123` .*| 1h 05m | 20m | 15m |' "$f" && ok "terminal time split you / in agent pane / browser per ticket" || bad "attention row: $(grep -A6 attention "$f")"
 grep -q '^| No ticket: work |.*2h 10m' "$f" && ok "unattributed work time is labelled" || bad "no 'No ticket' row"
 grep -qE '^Worked [0-9]+(h|m)' "$f" && ok "worked time comes from work.db (exact sums are unit-tested)" || bad "worked time wrong: $(sed -n 3p "$f")"
 grep -q '`HD-123` Fix the intake form validation — 1h 40m' "$f" && ok "closed ERP item with its clock time" || bad "HD-123 line missing"
@@ -106,7 +106,7 @@ echo "3. idempotent"
 before=$(stat -c %Y.%y "$f")
 out=$(dots-overview report 2>&1); echo "$out" | grep -q unchanged && ok "second run says unchanged" || bad "second run: $out"
 [ "$before" = "$(stat -c %Y.%y "$f")" ] && ok "file untouched (mtime identical)" || bad "file was rewritten"
-out=$(dots-overview report --reason nightly 2>&1); echo "$out" | grep -q skipped && ok "--reason nightly is a no-op when the brief exists" || bad "nightly: $out"
+out=$(dots-overview report --reason nightly 2>&1); echo "$out" | grep -qE 'unchanged|updated' && ok "--reason nightly retries a brief whose PRs are unavailable" || bad "nightly: $out"
 rm "$f"; out=$(dots-overview report --reason nightly 2>&1); echo "$out" | grep -q created && ok "--reason nightly creates it when missing" || bad "nightly create: $out"
 tw add project:work +mirror ref:HD-777 src:erp -- "A second closed thing" >/dev/null 2>&1; tw ref.is:HD-777 "done" >/dev/null 2>&1
 out=$(dots-overview report --reason logout 2>&1); echo "$out" | grep -q updated && grep -q HD-777 "$f" && ok "new content rewrites it" || bad "logout update: $out"
@@ -124,6 +124,19 @@ echo "$p" | grep -q 'me/dots' && bad "a personal-repo PR is in the brief" || ok 
 ! grep -qE -- '(^| )(-X|--method|-f|--field)( |$)|^(pr|issue) ' "$tmp/gh.log" && ok "gh was only asked to read ($(wc -l < "$tmp/gh.log") calls)" || bad "write-shaped gh call: $(cat "$tmp/gh.log")"
 rm "$tmp/gh-up"; out=$(dots-overview report 2>&1)
 echo "$out" | grep -q unchanged && grep -q 'gh:acme/r#7' "$f" && ok "gh going offline does not erase the PRs already written" || bad "offline rerun: $out"
+
+echo "3c. a hanging gh must not stop the file appearing"
+rm -f "$f"; mv "$tmp/bin/gh" "$tmp/bin/gh.real"
+printf '#!/bin/sh\nsleep 30\n' > "$tmp/bin/gh"; chmod +x "$tmp/bin/gh"
+dots-overview report --reason logout >/dev/null 2>&1 &
+hp=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f "$f" ] && break; sleep 0.3; done
+[ -f "$f" ] && grep -q '^pending' "$f" && ok "brief on disk (PRs pending) while gh hangs" || bad "no pending brief while gh hangs"
+kill "$hp" 2>/dev/null; wait "$hp" 2>/dev/null
+mv "$tmp/bin/gh.real" "$tmp/bin/gh"; touch "$tmp/gh-up"
+out=$(dots-overview report --reason nightly 2>&1); echo "$out" | grep -q updated && grep -q 'gh:acme/r#7' "$f" && ok "nightly fills a pending PRs section" || bad "nightly over pending: $out"
+out=$(dots-overview report --reason nightly 2>&1); echo "$out" | grep -q skipped && ok "nightly then skips a settled brief" || bad "nightly settled: $out"
+rm "$tmp/gh-up"
 
 echo "4. the logout trigger spawns it, detached and guarded"
 mkdir -p "$tmp/logbin"

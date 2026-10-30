@@ -20,7 +20,10 @@ EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 MAX_OPEN = 10
 MAX_PRS = 15
 PR_FIELDS = "number,title,url,repository,state,author"
+PR_LIMIT = 30
 UNAVAILABLE = "unavailable (gh offline or not signed in)"
+PENDING = "pending (asking gh)"
+TICKET = re.compile(r"^[A-Za-z][A-Za-z0-9]*(?:-\d+)+$")     # HD-123, TASK-2026-00561
 
 
 def scrub(s, cfg=None):
@@ -50,16 +53,16 @@ def _line(i, t, secs, cfg=None):
 
 
 def _work(ref, project, src, cfg):
-    if src is None:
-        src = "gh" if (ref or "").startswith("gh:") else ("erp" if ref and not ref.startswith("local:") else None)
+    if src is None:       # only a ticket-shaped ref is ERP; a stray ref falls back to the project alone
+        src = "gh" if (ref or "").startswith("gh:") else ("erp" if TICKET.match(ref or "") else None)
     return cfg.is_work_task({"ref": ref, "project": project, "src": src})
 
 
 def attention(day, cfg, tasks):
-    """{key: [you, agent, browser]} of terminal and browser seconds, company only.
+    """{key: [you, in agent pane, browser]} of terminal and browser seconds, company only.
 
     key is a ticket ref, or "No ticket: <project>" for work-project time with no ticket.
-    Agent time is a pane an agent ran in or a delegated verdict; unproductive time is not an outcome."""
+    'In agent pane' is the human focused on a pane an agent ran in, or a delegated verdict; unproductive time is not an outcome."""
     by_uuid = {t["uuid"]: t for t in tasks if t.get("uuid")}
     acc = {}
 
@@ -81,7 +84,7 @@ def attention(day, cfg, tasks):
 
 
 def _prs(day, cfg, sleep=time.sleep):
-    """{'opened': [...], 'merged': [...], 'reviewed': [...]} of company PRs, or None when gh fails."""
+    """{'opened': [...], 'merged': [...], 'reviewed': [...], 'truncated': set} of company PRs, or None when gh fails."""
     d = day.isoformat()
     try:
         if not sources_gh.quota_ok():
@@ -90,12 +93,14 @@ def _prs(day, cfg, sleep=time.sleep):
         queries = [("opened", ["--author=@me", f"--created={d}"]),
                    ("merged", ["--author=@me", f"--merged-at={d}"]),
                    ("reviewed", ["--reviewed-by=@me", f"--updated={d}"])]
-        out = {}
+        out = {"truncated": set()}
         for i, (kind, flt) in enumerate(queries):
             if i:
                 sleep(sources_gh.SLEEP)
-            rows = json.loads(sources_gh.run(["search", "prs", "--limit", "30", *flt, "--json", PR_FIELDS], 15))
+            rows = json.loads(sources_gh.run(["search", "prs", "--limit", str(PR_LIMIT), *flt, "--json", PR_FIELDS], 15))
             items = []
+            if len(rows) >= PR_LIMIT:
+                out["truncated"].add(kind)
             for r in rows:
                 repo = (r.get("repository") or {}).get("nameWithOwner")
                 if not repo or not r.get("number") or not cfg.is_work_repo(repo):
@@ -109,28 +114,55 @@ def _prs(day, cfg, sleep=time.sleep):
         return None
 
 
-def pr_section(day, cfg, prior=""):
-    """The PRs section. On failure keep the section an earlier run already wrote for this day."""
-    prs = _prs(day, cfg)
+def _prior_prs(prior):
+    m = re.search(r"^## PRs\n.*?(?=^## |\Z)", prior or "", re.S | re.M)
+    return m.group(0).rstrip("\n").split("\n") + [""] if m else None
+
+
+def prs_settled(prior):
+    """True when an earlier brief holds a real PRs section (not pending, not unavailable)."""
+    sec = _prior_prs(prior)
+    return bool(sec) and not any(UNAVAILABLE in x or PENDING in x for x in sec[:2])
+
+
+def pr_section(day, cfg, prior="", fetch=True):
+    """The PRs section. fetch=False is the write-first pass: keep what the prior brief had, else pending.
+    On gh failure keep a settled earlier section (re-scrubbed), else say unavailable."""
+    old = _prior_prs(prior)
+    prs = _prs(day, cfg) if fetch else None
     if prs is None:
-        m = re.search(r"^## PRs\n.*?(?=^## |\Z)", prior or "", re.S | re.M)
-        if m and UNAVAILABLE not in m.group(0):
-            return m.group(0).rstrip("\n").split("\n") + [""]
-        return ["## PRs", UNAVAILABLE, ""]
+        if old and (not fetch or prs_settled(prior)):
+            return [scrub(x, cfg) for x in old]
+        return ["## PRs", UNAVAILABLE if fetch else PENDING, ""]
     out = ["## PRs"]
-    for kind in ("opened", "merged", "reviewed"):
-        rows = prs[kind][:MAX_PRS]
-        out.append(f"{kind.capitalize()}:" + (" none" if not rows else ""))
-        out += [f"{i}. `{scrub(p['ref'], cfg)}` {scrub(p['title'], cfg)[:100]}" for i, p in enumerate(rows, 1)]
+    for kind, label in (("opened", "Opened"), ("merged", "Merged"),
+                        ("reviewed", "Reviewed, touched today (any PR you ever reviewed that changed today)")):
+        rows = prs[kind]
+        out.append(f"{label}:" + (" none" if not rows else ""))
+        out += [f"{i}. `{scrub(p['ref'], cfg)}` {scrub(p['title'], cfg)[:100]}" for i, p in enumerate(rows[:MAX_PRS], 1)]
+        if len(rows) > MAX_PRS:
+            out.append(f"(first {MAX_PRS} of {len(rows)} company PRs shown)")
+        if kind in prs["truncated"]:
+            out.append(f"(gh returned its limit of {PR_LIMIT}; there may be more)")
     return out + [""]
 
 
-def build(day, cfg, now=None, prior=""):
+def _sheet(ts):
+    """The header's timesheet part, worded as the timesheet's own basis column is."""
+    if ts is None:
+        return ""                    # the day is not on the sheet (or work.db is absent): say nothing
+    mins, note = ts
+    d = dur(mins * 60) or "0m"
+    return {"": f" (timesheet {d})", "net?": f" (timesheet {d} net?, a break is unconfirmed)",
+            "span": f" (timesheet: no breaks yet, span {d})"}[note]
+
+
+def build(day, cfg, now=None, prior="", fetch=True):
     now = int(now or time.time())
     t0, t1 = local_tt.day_bounds(day, now)      # the day is its session: login -> logout (or now)
     times = dict(local_tt.ref_seconds(t0, t1))
     worked = local_tt.worked_sec(t0, t1, now)
-    net = local_tt.day_net_minutes(day)
+    ts = local_tt.day_timesheet(day)
     pend = [t for t in tw.pending() if cfg.is_work_task(t)]
     done = [t for t in tw.completed_since(t0 - 1) if cfg.is_work_task(t) and t0 <= (t.get("end_ts") or 0) <= t1]
     done.sort(key=lambda t: t.get("end_ts") or 0)
@@ -150,7 +182,7 @@ def build(day, cfg, now=None, prior=""):
         return out + [""]
 
     lines = [f"# {day.isoformat()}", "",
-             f"Worked {dur(worked) or '0m'}" + (f" (timesheet {dur(net * 60) or '0m'})" if net is not None else "")
+             f"Worked {dur(worked) or '0m'}" + _sheet(ts)
              + f" · {len(done)} items closed · {len(still)} still open", "", "---", ""]
     lines += section("Closed today", done) + section("Still open", still)
     # Work an agent started with no ticket (dots-task new): local tasks the user promotes later.
@@ -175,29 +207,43 @@ def build(day, cfg, now=None, prior=""):
     if rows:
         lines += ["| ref | title | time |", "|---|---|---|"] + rows + [""]
     if att:
-        lines += ["Terminal and browser attention (you / agent / browser):",
-                  "| item | title | you | agent | browser |", "|---|---|---|---|---|"]
+        lines += ["Terminal and browser attention (you / in agent pane / browser):",
+                  "This is where you looked; the clock above is when work ran. They differ by design.",
+                  "| item | title | you | in agent pane | browser |", "|---|---|---|---|---|"]
         for k, v in sorted(att.items(), key=lambda kv: (kv[0].startswith("No ticket"), -sum(kv[1])))[:15]:
             name = scrub(k, cfg) if k.startswith("No ticket") else f"`{scrub(k, cfg)}`"
             lines += [f"| {name} | {scrub(titles.get(k, ''), cfg)[:60]} | " + " | ".join(dur(x) or "-" for x in v) + " |"]
         lines += [""]
-    lines += pr_section(day, cfg, prior)
+    lines += pr_section(day, cfg, prior, fetch)
     return "\n".join(lines).rstrip("\n") + "\n"
 
 
-def write(day, cfg, reason=None, now=None):
-    """Write the brief. Returns 'created', 'unchanged', 'updated' or 'skipped'."""
-    path = cfg.report_dir / f"{day.isoformat()}.md"
-    exists = path.exists()
-    if reason == "nightly" and exists:
-        return "skipped"             # the logout brief already ran; the fallback must not redo it
-    prior = path.read_text(encoding="utf-8") if exists else ""
-    text = build(day, cfg, now, prior)
-    if exists and prior == text:
-        return "unchanged"
+def _put(path, cfg, text, exists):
     cfg.report_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     atomic.write_text(path, text, 0o600)
     return "updated" if exists else "created"
+
+
+def write(day, cfg, reason=None, now=None):
+    """Write the brief. Returns 'created', 'unchanged', 'updated' or 'skipped'.
+
+    Written twice: first without waiting on gh (PRs kept from before, else pending), so a suspend right
+    after logout still leaves a file; then again once gh answers. Nightly skips only a brief whose PRs
+    are settled; a pending or unavailable one is rebuilt (header included)."""
+    path = cfg.report_dir / f"{day.isoformat()}.md"
+    exists = path.exists()
+    prior = path.read_text(encoding="utf-8") if exists else ""
+    if reason == "nightly" and exists and prs_settled(prior):
+        return "skipped"             # the logout brief already ran; the fallback must not redo it
+    res = "unchanged"
+    first = build(day, cfg, now, prior, fetch=False)
+    if not exists or first != prior:
+        res = _put(path, cfg, first, exists)
+    final = build(day, cfg, now, first, fetch=True)
+    if final != first:
+        _put(path, cfg, final, True)
+        res = res if res == "created" else "updated"
+    return res
 
 
 def parse_day(s):

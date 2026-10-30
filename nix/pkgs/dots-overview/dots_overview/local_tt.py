@@ -380,18 +380,32 @@ def web_ticket_day(day):
     return {r["ticket"]: r["seconds"] for r in rows}
 
 
-def day_net_minutes(day):
-    """The timesheet's own number: v_day_worked.net_minutes. None when the day or its breaks are unknown."""
+def day_timesheet(day):
+    """How the timesheet shows the day (derive.basis): (minutes, note) or None when it has no figure.
+
+    note is "" for settled net, "net?" when a break is still unconfirmed, "span" when no break is
+    recorded yet (the span stands in). Uncalibrated: the brief never applies the git factor."""
     conn = _ro(config.TT_DIR / "work.db")
     if conn is None:
         return None
     try:
-        r = conn.execute("SELECT net_minutes FROM v_day_worked WHERE attendance_day = ?", (day.isoformat(),)).fetchone()
+        try:
+            r = conn.execute("SELECT net_minutes, span_minutes, unconfirmed FROM v_day_worked"
+                             " WHERE attendance_day = ?", (day.isoformat(),)).fetchone()
+        except sqlite3.OperationalError:       # an older schema without the columns
+            r = conn.execute("SELECT net_minutes FROM v_day_worked WHERE attendance_day = ?",
+                             (day.isoformat(),)).fetchone()
     except sqlite3.Error:
         return None
     finally:
         conn.close()
-    return r["net_minutes"] if r else None
+    if not r:
+        return None
+    k = r.keys()
+    if r["net_minutes"] is not None:
+        return r["net_minutes"], ("net?" if "unconfirmed" in k and (r["unconfirmed"] or 0) else "")
+    span = (r["span_minutes"] if "span_minutes" in k else 0) or 0
+    return (span, "span") if span else None
 
 
 def _add(acc, key, sec):
