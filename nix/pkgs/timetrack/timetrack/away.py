@@ -26,7 +26,7 @@ import sys
 import time
 from datetime import date, datetime
 
-from . import config, dbs, interactive
+from . import breaklabel, config, dbs, interactive
 from .backfill import aw
 
 MIN_GAP = aw.MIN_GAP
@@ -180,7 +180,7 @@ def find_gap(conn, g0, g1):
     """The unconfirmed deduction that best matches [g0, g1), or None."""
     best, best_ov = None, 0
     for r in conn.execute(
-            "SELECT id, start_unix, end_unix, minutes FROM deduction"
+            "SELECT id, attendance_day, start_unix, end_unix, minutes FROM deduction"
             " WHERE confirmed = 0 AND start_unix < ? AND end_unix > ?"
             " AND attendance_day NOT IN (SELECT day FROM day_edit WHERE unsure IS NOT NULL)",
             (g1, g0)):
@@ -203,13 +203,16 @@ def _clock(t):
     return datetime.fromtimestamp(t).strftime("%H:%M")
 
 
-def _answer(g0, g1, key, provenance=interactive.PROVENANCE):
+def _answer(g0, g1, key, provenance=interactive.PROVENANCE, source="asked", label_key=None, label=None):
     with dbs.open_work() as conn:
         gap = find_gap(conn, g0, g1)
         if not gap:
             return False
         interactive.answer_gap(conn, gap["id"], category(key, g0), provenance=provenance)
         conn.commit()
+    # the raw key, for display only; the deduction above is the fact and stands without it
+    breaklabel.record(gap["start_unix"], gap["end_unix"], gap["attendance_day"],
+                      label_key or key, label or CHOICES[key][0], source)
     return True
 
 
@@ -222,10 +225,10 @@ def handle(g0, g1, now, launch=None):
     if key := take_intent(g0, g1):
         if key == "logout":
             return "declared:logout"     # the day ended at the logout; no gap to answer
-        return f"declared:{key}" if _answer(g0, g1, key, DECLARED) else "no-gap"
+        return f"declared:{key}" if _answer(g0, g1, key, DECLARED, "declared") else "no-gap"
 
     if g1 - g0 < PROMPT_MIN:
-        if not _answer(g0, g1, "walk", AUTO):
+        if not _answer(g0, g1, "walk", AUTO, "auto", "auto", "Short break"):
             return "no-gap"
         _toast(f"{mins} min away · counted as a short break")
         return "auto"
