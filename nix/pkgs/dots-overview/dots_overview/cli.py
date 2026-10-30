@@ -100,6 +100,12 @@ def cmd_breakdown(args):
     return 0
 
 
+def cmd_alert_task(args):
+    from . import alertpr
+    print(alertpr.create(args.name, args.project, args.prep, args.repo)["ref"])
+    return 0
+
+
 def cmd_jump(args):
     tasks = jump.load_tasks()
     t = jump.last_session(tasks) if args.last else jump.resolve(args.target, tasks)
@@ -165,6 +171,11 @@ def main(argv=None):
     p = add("breakdown", cmd_breakdown, "local llm -> subtasks, optionally start the first")
     p.add_argument("ref")
     p.add_argument("--start", action="store_true")
+    p = add("alert-task", cmd_alert_task, "local task for an alert (dots-inbox Create ticket); prints its ref")
+    p.add_argument("--name", required=True)
+    p.add_argument("--project", required=True)
+    p.add_argument("--prep", required=True, help="the prepared analysis (markdown)")
+    p.add_argument("--repo", help="local checkout the fix goes in; without it the agent stops and asks")
     p = add("jump", cmd_jump, "focus the pane / open the url for a ref, agent or task id")
     p.add_argument("target", nargs="?")
     p.add_argument("--last", action="store_true")

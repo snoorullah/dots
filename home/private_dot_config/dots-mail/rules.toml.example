@@ -32,6 +32,14 @@ from = "alerts@monitoring\\.example\\.com"
 stale_hours = 6            # firing with no mail this long = stale (not notified)
 min_firing_minutes = 30    # a resolution only notifies if it fired at least this long
 
+# Optional: where a fix for an alert goes. "Create ticket" on a prepared-alert toast makes a
+# local task in `project`; its agent works in a new worktree of `repo` and opens a DRAFT PR.
+# Alert-name glob, case-insensitive, first match wins. No match: project "alerts", no repo,
+# and the agent asks you which checkout to use.
+[alerts.repos."HighCPU*"]
+project = "platform"
+repo = "~/work/example-app"
+
 # Backup job mail: success is archived silently, failure becomes an alert in the inbox.
 [backup]
 from = "root@.*\\.example\\.net"

@@ -23,7 +23,7 @@ import subprocess
 import sys
 import time
 
-from . import config, db, mail, notify, slack
+from . import alertpr, config, db, mail, notify, slack
 
 DAILY_CAP = 6
 ALERT_WINDOW = 7 * 24 * 3600
@@ -290,6 +290,8 @@ def run_one(conn, row):
     db.log(conn, "prepared", row["ref"], row["title"])
     conn.commit()
     if not config.panic():
+        if row["kind"] == "alert" and alertpr.offer(conn, row, summary, path, ALERT_WINDOW) != "skipped":
+            return True                    # the offer was the notification
         notify.toast("dots-inbox", f"Prepared: {row['title']}", summary)
     return True
 

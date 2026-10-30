@@ -34,7 +34,7 @@ def from_tasks(tasks, now):
             continue
         age = max(0, now - (t.get("entry_ts") or now))
         if t.get("src") == "claude":
-            if age > CLAUDE_TTL:
+            if age > CLAUDE_TTL and "alert" not in tags:
                 continue
             kind, waiting, urgency = "task", False, "passive"
         else:
@@ -44,11 +44,14 @@ def from_tasks(tasks, now):
             waiting = kind == "review" or (kind == "erp" and ss in ERP_WAITS)
             urgency = "active" if waiting else "passive"
         ref = t.get("ref")
+        alert = "alert" in tags and t.get("src") == "claude"     # made by Create ticket (alertpr)
+        if alert:
+            kind, waiting, urgency = "alert", False, "active"
         items.append({
             "id": f"{kind}:{ref or t['uuid'][:8]}", "kind": kind, "title": (t.get("desc") or "")[:140],
             "ref": ref, "src": t.get("src"), "url": t.get("url"), "urgency": urgency, "waiting": waiting,
             "ageSec": age, "actor": t.get("agent"), "jump": _jump(t),
-            "canBreakdown": bool(ref) and t.get("src") in ("gh", "erp") and "sub" not in tags,
+            "canBreakdown": bool(ref) and (alert or t.get("src") in ("gh", "erp")) and "sub" not in tags,
             "startedAt": t.get("start_ts")})
     return items
 
