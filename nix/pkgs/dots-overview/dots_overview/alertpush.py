@@ -63,10 +63,13 @@ def fence(text):
 def body_for(m, proposal):
     p = defang(proposal)
     f = fence(p)
+    risky = alertrun.build_files(m.get("files") or [])
+    note = (f"Build or CI-reachable files changed: {', '.join(risky)}. Read them line by line.\n\n" if risky else "")
     return (f"Draft fix for local alert ticket {re.sub(r'[^A-Za-z0-9:_.-]', '', m.get('ref') or '')}.\n\n"
             f"Base commit: {m.get('sha')}\n"
             "Made by an agent that had no git access, no credentials and no network; a person reviewed the "
             "patch before this branch was pushed. Review it like any other contribution.\n\n"
+            f"{note}"
             "Agent proposal, verbatim and untrusted (it came from analysing an alert mail):\n\n"
             f"{f}\n{p}\n{f}\n")
 
@@ -98,6 +101,12 @@ def push(d, confirmed=False, remote=None, repo_slug=None, run=subprocess.run, gh
     digest = hashlib.sha256(patch).hexdigest()
     if digest != m.get("patch_sha256") or not alertrun.is_reviewed(d):
         raise PushError("this patch was not opened for review; use Review patch first")
+    try:
+        # the same checks extract() made, on the exact bytes about to be committed
+        alertrun.verify_patch(patch, m.get("files") or [], run)
+        proposal = alertrun.read_snapshot(d, m.get("proposal_sha256") or "")
+    except alertrun.Refused as e:
+        raise PushError("patch or proposal no longer passes: " + "; ".join(e.args[0])[:300])
     branch, sha = m.get("branch", ""), m.get("sha", "")
     if not BRANCH_RE.match(branch) or not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise PushError("bad run metadata")
@@ -117,6 +126,11 @@ def push(d, confirmed=False, remote=None, repo_slug=None, run=subprocess.run, gh
         Path(pf).write_bytes(patch)
         _git(c, "apply", "--check", pf, env=env, run=run)
         _git(c, "apply", "--index", pf, env=env, run=run)
+        raw = _git(c, "diff", "--cached", "--raw", "-z", "--no-renames", env=env, run=run).stdout.split("\0")
+        modes = [x for x in raw if x.startswith(":")]
+        if any(not re.match(r":(000000|100644) (000000|100644) ", x) for x in modes) or \
+                sorted(x for x in raw if x and not x.startswith(":")) != sorted(m.get("files") or []):
+            raise PushError("applied tree differs from the reviewed file list or has a mode change")
         cenv = alertrun.git_env({"GIT_AUTHOR_NAME": AUTHOR[0], "GIT_AUTHOR_EMAIL": AUTHOR[1],
                                  "GIT_COMMITTER_NAME": AUTHOR[0], "GIT_COMMITTER_EMAIL": AUTHOR[1]})
         msg = f"{title_for(m.get('title'))}\n\nAlert ticket {re.sub(r'[^A-Za-z0-9:_.-]', '', m.get('ref') or '')}.\n"
@@ -127,7 +141,6 @@ def push(d, confirmed=False, remote=None, repo_slug=None, run=subprocess.run, gh
             raise PushError(f"{branch} already exists on the remote; not touching it")
         _git(c, *cred, "push", "--no-verify", url, f"{new}:refs/heads/{branch}", env=env, run=run)
         bf = os.path.join(tmp, "body.md")
-        proposal = (d / "io" / "proposal.md").read_text(encoding="utf-8", errors="replace")
         Path(bf).write_text(body_for(m, proposal), encoding="utf-8")
         argv = ["gh", "pr", "create", "--draft", "--repo", slug, "--head", branch,
                 "--base", m.get("base_branch") or "main", "--title", title_for(m.get("title")), "--body-file", bf]

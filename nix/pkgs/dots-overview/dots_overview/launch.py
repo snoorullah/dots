@@ -85,7 +85,7 @@ def live_agent_for(step_uuid, snap, task):
     return None
 
 
-def launch(parent, steps, current, step_task, cfg=None, run=None, sleep=time.sleep):
+def launch(parent, steps, current, step_task, cfg=None, run=None, sleep=time.sleep, probe=None):
     """Open the tab, start Claude, send the brief prompt. Returns {'pane', 'tab', 'reused'} or
     {'error': ...}. `run` is the herdr seam tests replace."""
     cfg = cfg or config.Work()
@@ -108,6 +108,10 @@ def launch(parent, steps, current, step_task, cfg=None, run=None, sleep=time.sle
                                        alertpr.annotation(parent, "prep"), alertpr.annotation(parent, "test"))
         except (RuntimeError, OSError) as e:
             return {"error": str(e)[:300]}
+        # no proof the sandbox hides sockets, home and credentials = no agent (fails closed)
+        ok, why = (probe or alertrun.sandbox_ok)(run_dir)
+        if not ok:
+            return {"error": why or "sandbox probe failed"}
     cwd = str(run_dir / "work") if alert else cwd_for(parent.get("ref"), cfg)
     common = ["--cwd", cwd, "--env", f"DOTS_TASK_DECLARE={step_task['uuid']}", "--focus"]
     ws = hangar_id(cfg, snap)
@@ -136,6 +140,8 @@ def launch(parent, steps, current, step_task, cfg=None, run=None, sleep=time.sle
     else:
         return {"error": f"claude did not start in {pane}", "pane": pane}
     text = alertrun.prompt(run_dir) if alert else prompt_for(parent, steps, current)
+    if alert:
+        alertrun.record_agent(run_dir, pane)
     if run(["agent", "prompt", pane, text], timeout=15) is None:
         return {"error": f"the brief prompt was not delivered to {pane}", "pane": pane}
     return {"pane": pane, "tab": tab, "reused": False}
@@ -143,7 +149,7 @@ def launch(parent, steps, current, step_task, cfg=None, run=None, sleep=time.sle
 
 def open_review(d, run=None):
     """Show review.txt read-only in a new Hangar tab (less, no shell escapes). Pushes nothing.
-    Returns a one-line status."""
+    Returns "review open in <pane>" on success, else a reason."""
     run = run or herdr.run
     snap = (_json(run(["api", "snapshot"])) or {}).get("snapshot") or {}
     ws = hangar_id(config.Work(), snap)
@@ -152,6 +158,7 @@ def open_review(d, run=None):
     made = _json(run(args))
     pane = ((made or {}).get("root_pane") or {}).get("pane_id")
     if not pane:
-        return f"review text is at {Path(d) / 'review.txt'} (herdr did not open a tab)"
-    run(["pane", "run", pane, "env", "LESSSECURE=1", "less", "review.txt"])
+        return f"herdr did not open a tab; the text is at {Path(d) / 'review.txt'}"
+    if run(["pane", "run", pane, "env", "LESSSECURE=1", "less", "review.txt"]) is None:
+        return f"herdr could not run the viewer in {pane}"
     return f"review open in {pane}"

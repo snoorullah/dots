@@ -142,9 +142,11 @@ S = json.loads((d / "settings.json").read_text())
 sb = S["sandbox"]
 check("sandbox on, mandatory, no escape", (sb["enabled"], sb["failIfUnavailable"], sb["allowUnsandboxedCommands"]), (True, True, False))
 check("NO excludedCommands", "excludedCommands" in sb, False)
-check("no network at all", sb["network"], {"allowedDomains": []})
-check("home unreadable except the run dir bits", (sb["filesystem"]["denyRead"], sorted(sb["filesystem"]["allowRead"])), (["~"], sorted([str(d / "work"), str(d / "io")])))
-check("writes only work/ and proposal.md", sorted(sb["filesystem"]["allowWrite"]), sorted([str(d / "work"), str(d / "io" / "proposal.md")]))
+check("no network at all, strict, no unix sockets", (sb["network"]["allowedDomains"], sb["network"]["strictAllowlist"], sb["network"]["allowAllUnixSockets"], sb["network"]["allowUnixSockets"]), ([], True, False, []))
+check("reads default-denied outside the run dir", (all(x in sb["filesystem"]["denyRead"] for x in ("~", "/home", "/data", "/tmp", "/run", "/var/run", "/media", "/mnt")), sorted(sb["filesystem"]["allowRead"])), (True, sorted([str(d / "work"), str(d / "io"), str(d / "tmp")])))
+check("writes only work/, proposal.md and its private tmp", sorted(sb["filesystem"]["allowWrite"]), sorted([str(d / "work"), str(d / "io" / "proposal.md"), str(d / "tmp")]))
+check("TMPDIR points at the private tmp", S["env"], {"TMPDIR": str(d / "tmp")})
+check("credential env vars are unset in the sandbox", (all({"name": n, "mode": "deny"} in sb["credentials"]["envVars"] for n in ("SSH_AUTH_SOCK", "DBUS_SESSION_BUS_ADDRESS", "HERDR_SOCKET_PATH", "GH_TOKEN", "GITHUB_TOKEN")), all(e["mode"] == "deny" for e in sb["credentials"]["envVars"])), (True, True))
 check("auto mode disabled", (S["permissions"]["disableAutoMode"], S["permissions"]["defaultMode"]), ("disable", "default"))
 check("deny mcp/web/agents", all(x in S["permissions"]["deny"] for x in ("mcp__*", "WebFetch", "WebSearch", "Task", "Agent")), True)
 hk = S["hooks"]["PreToolUse"][0]
@@ -170,14 +172,14 @@ class H:
 from dots_overview import config as occ
 cfg = occ.Work({"AGENT_CWD": str(tmp / "home")})
 h = H()
-res = launch.launch(t, ["x"], "x", {"uuid": "0123abcd-0000-4000-8000-000000000001"}, cfg=cfg, run=h, sleep=lambda s: None)
+res = launch.launch(t, ["x"], "x", {"uuid": "0123abcd-0000-4000-8000-000000000001"}, cfg=cfg, run=h, sleep=lambda s: None, probe=lambda d: (True, ""))
 start = next(c for c in h.calls if c[:2] == ["agent", "start"])
 check("claude kind, args after --", (start[start.index("--kind") + 1], start[start.index("--") + 1:]), ("claude", alertrun.agent_argv(d)))
 mk = next(c for c in h.calls if c[:2] == ["tab", "create"])
 check("agent cwd is work/", mk[mk.index("--cwd") + 1], str(d / "work"))
 check("prompt delivered from alertrun", next(c for c in h.calls if c[:2] == ["agent", "prompt"])[3], text)
 h2 = H()
-res2 = launch.launch(t2, ["x"], "x", {"uuid": "0123abcd-0000-4000-8000-000000000002"}, cfg=cfg, run=h2, sleep=lambda s: None)
+res2 = launch.launch(t2, ["x"], "x", {"uuid": "0123abcd-0000-4000-8000-000000000002"}, cfg=cfg, run=h2, sleep=lambda s: None, probe=lambda d: (True, ""))
 check("unmapped: error, no tab, no agent", ("no repository is mapped" in res2.get("error", ""), [c[:2] for c in h2.calls if c[:2] in (["tab", "create"], ["agent", "start"], ["workspace", "create"])]), (True, []))
 
 # 10. the hook
@@ -288,7 +290,8 @@ chk = tmp / "chk"; git("clone", "-q", str(bare), str(chk), cwd=tmp)
 r = subprocess.run(["git", "apply", "--check", str(dr / "patch.diff")], cwd=chk, capture_output=True, text=True, env=GENV)
 check("git apply --check accepts it on a fresh clone", r.returncode, 0)
 check("stage after extract is review", alertrun.stage(dr), "review")
-check("review text has the plain sections and no escape char", ("AGENT PROPOSAL (untrusted" in alertrun.review_text(dr), "\x1b" in alertrun.review_text(dr)), (True, False))
+m_ = alertrun.meta(dr); rt_ = alertrun.review_text(dr, alertpush.body_for(m_, alertrun.read_snapshot(dr, m_["proposal_sha256"])))
+check("review text: pr body section, diffstat, no escape char", ("PULL REQUEST BODY" in rt_, "diffstat: 3 file(s)" in rt_, "\x1b" in rt_), (True, True, False))
 check("attention stage review", attention.from_tasks([t], now)[0]["fixStage"], "review")
 
 # 14. push is unreachable without review + explicit confirm
@@ -308,7 +311,7 @@ with contextlib.redirect_stdout(_io.StringIO()) as so:
     rc = cli.cmd_alert_review(argparse.Namespace(ref=REF))
 check("review ok, reviewed marker, pane run is less with no shell escapes", (rc, alertrun.stage(dr), any(c[:2] == ["pane", "run"] and "LESSSECURE=1" in c and "less" in c for c in herdr_calls.calls)), (0, "push", True))
 # full launch + prepare + review never touched push
-launch.launch(t, ["x"], "x", {"uuid": "0123abcd-0000-4000-8000-000000000001"}, cfg=cfg, run=H(), sleep=lambda s: None)
+launch.launch(t, ["x"], "x", {"uuid": "0123abcd-0000-4000-8000-000000000001"}, cfg=cfg, run=H(), sleep=lambda s: None, probe=lambda d: (True, ""))
 check("nothing in launch/extract/review called push", pushed, [])
 alertpush.push = real_push
 src = {p.name: p.read_text() for p in Path(alertrun.__file__).parent.glob("*.py")}
@@ -496,6 +499,188 @@ check("material skips a mail whose content no longer matches the fingerprint", "
 # an authenticated mail older than the window is not offered
 gate("Old|n", "m-old", True, ts=now - 9 * 86400)
 check("stale authed mail skipped", alertpr.offer(conn, row("Old|n"), "s", md, W, acfg), "skipped")
+
+
+# 22. round-3 review findings --------------------------------------------------------------
+import shutil as _sh
+def reviewed_dir(n, edit, prop="Cause: x.\n"):
+    dd = fresh(n); edit(dd / "work"); (dd / "io" / "proposal.md").write_text(prop)
+    r_ = alertrun.extract(dd); alertrun.mark_reviewed(dd); return dd, r_
+def refused(dd):
+    try: alertrun.extract(dd); return None
+    except alertrun.Refused as e: return " | ".join(e.args[0])
+# F1 lone CR injects a diff header; truncation; header/file-list mismatch
+inj = ("x = 2\rdiff --git a/.github/workflows/pwn.yml b/.github/workflows/pwn.yml\rnew file mode 100644\r--- /dev/null\r+++ b/.github/workflows/pwn.yml\r@@ -0,0 +1 @@\r+on: push\n")
+dd = fresh("f1a"); (dd / "work" / "app.py").write_bytes(inj.encode())
+check("F1 CR-injected diff header refused", "carriage return" in (refused(dd) or ""), True)
+dd = fresh("f1b"); (dd / "work" / "app.py").write_bytes(b"x = 2\rdiff --git a/evil b/evil\rnew file mode 120000\r+/etc/passwd\n")
+check("F1 CR-injected symlink refused", refused(dd) is not None, True)
+dd = fresh("f1c")
+for i in range(3): (dd / "work" / f"pad{i}.txt").write_text("harmless line\n" * 14000)
+check("F1 a patch too big to display whole is refused", "which review cannot show whole" in (refused(dd) or ""), True)
+dd = fresh("f1d")
+for i in range(3): (dd / "work" / f"pad{i}.txt").write_text("harmless line\n" * 14000)
+(dd / "work" / "zz.py").write_bytes(inj.encode())
+check("F1 padding + CR injection refused", refused(dd) is not None, True)
+dd, _ = reviewed_dir("f1e", lambda w: ((w / "app.py").write_text("x = 3\n"), (w / "NEW.txt").write_text("n\n")))
+base_p = (dd / "patch.diff").read_bytes()
+smug = base_p + b"diff --git a/.github/workflows/pwn.yml b/.github/workflows/pwn.yml\nnew file mode 100644\n--- /dev/null\n+++ b/.github/workflows/pwn.yml\n@@ -0,0 +1 @@\n+on: push\n"
+try: alertrun.verify_patch(smug, ["NEW.txt", "app.py"]); v = "accepted"
+except alertrun.Refused as e: v = "refused"
+check("F1 git parse of the patch must equal the checked file list", v, "refused")
+mm = alertrun.meta(dd); mm["files"] = ["app.py"]; alertrun.atomic.write_json(dd / "meta.json", mm)
+try: alertpush.push(dd, confirmed=True, remote=str(bare), repo_slug="o/r", gh=gh_stub); e_ = "pushed"
+except alertpush.PushError as e: e_ = str(e)
+check("F1 push repeats the check (file list mismatch)", "no longer passes" in e_, True)
+# F2 proposal: symlink at review, swap after review, FIFO, oversize, snapshot tamper
+sec = tmp / "hosts.yml"; sec.write_text("oauth_token: gho_FAKESECRET\n")
+dd = fresh("f2a"); (dd / "work" / "app.py").write_text("x = 2\n"); (dd / "io" / "proposal.md").unlink(); (dd / "io" / "proposal.md").symlink_to(sec)
+check("F2 symlinked proposal refused at review", "symlink" in (refused(dd) or ""), True)
+dd = fresh("f2b"); (dd / "work" / "app.py").write_text("x = 2\n"); (dd / "io" / "proposal.md").unlink(); os.mkfifo(dd / "io" / "proposal.md")
+import signal
+signal.alarm(20); r_ = refused(dd); signal.alarm(0)
+check("F2 FIFO proposal refused without hanging", "not a regular file" in (r_ or ""), True)
+dd = fresh("f2c"); (dd / "work" / "app.py").write_text("x = 2\n"); (dd / "io" / "proposal.md").write_text("a" * 30000)
+check("F2 oversize proposal refused", "over" in (refused(dd) or ""), True)
+dd, _ = reviewed_dir("f2d", lambda w: (w / "app.py").write_text("x = 2\n"), "benign\n")
+(dd / "io" / "proposal.md").unlink(); (dd / "io" / "proposal.md").symlink_to(sec)
+bodies_ = []
+def gh_cap(argv, **k): bodies_.append(Path(argv[argv.index("--body-file") + 1]).read_text()); return subprocess.CompletedProcess(argv, 0, "http://pr/1\n", "")
+os.environ["GIT_ALLOW_PROTOCOL"] = "file"; alertrun.GIT_ENV_KEYS = alertrun.GIT_ENV_KEYS + ("GIT_ALLOW_PROTOCOL",)
+alertpush.push(dd, confirmed=True, remote=str(bare), repo_slug="o/r", gh=gh_cap)
+check("F2 a proposal swapped for a symlink after review never reaches the PR", ("gho_FAKESECRET" in bodies_[0], "benign" in bodies_[0]), (False, True))
+dd, _ = reviewed_dir("f2e", lambda w: (w / "app.py").write_text("x = 2\n"), "benign\n")
+(dd / "proposal.snap").write_text("evil edit\n")
+try: alertpush.push(dd, confirmed=True, remote=str(bare), repo_slug="o/r", gh=gh_cap); e_ = "pushed"
+except alertpush.PushError as e: e_ = str(e)
+check("F2 a tampered snapshot is refused", "no longer passes" in e_, True)
+dd, _ = reviewed_dir("f2f", lambda w: (w / "app.py").write_text("x = 2\n"), "one\n")
+old_marker = (dd / "reviewed").read_text()
+(dd / "proposal.snap").write_text("two\n"); (dd / "io" / "proposal.md").write_text("two\n")
+mm = alertrun.meta(dd); alertrun.extract(dd)
+check("F2 marker covers the proposal: a new proposal needs a new review", (alertrun.is_reviewed(dd), alertrun.stage(dd)), (False, "review"))
+# F3 probe: verdicts, fail closed, cached
+OKR = {"connect": {"/run/user/1/bus": "ENOENT", "/var/run/docker.sock": "EACCES"}, "list": {"/data": "EACCES", "/tmp": "LISTED"}, "env": []}
+check("F3 probe verdict ok", alertrun.probe_verdict(OKR)[0], True)
+for name_, bad_ in (("bus reachable", {"connect": {"/run/user/1/bus": "CONNECTED"}}), ("docker reachable", {"connect": {"/var/run/docker.sock": "CONNECTED"}}),
+                    ("data listable", {"list": {"/data": "LISTED"}}), ("env leaked", {"env": ["SSH_AUTH_SOCK"]}), ("no sockets tested", {"connect": {}})):
+    check(f"F3 probe refuses: {name_}", alertrun.probe_verdict({**OKR, **bad_})[0], False)
+check("F3 malformed probe report refused", alertrun.probe_verdict("x")[0], False)
+dd = fresh("f3")
+def fake_run(report, rc=0, err=""):
+    def f(argv, **kw):
+        if report is not None: (dd / "work" / ".probe.json").write_text(json.dumps(report))
+        return subprocess.CompletedProcess(argv, rc, "", err)
+    return f
+ok_, why_ = alertrun.sandbox_ok(dd, run=fake_run(None, 1, "Error: sandbox required but unavailable"))
+check("F3 no sandbox = no agent (fails closed, says why)", (ok_, "no working sandbox" in why_, "sandbox required but unavailable" in why_), (False, True, True))
+check("F3 a reachable socket = no agent", alertrun.sandbox_ok(dd, run=fake_run({**OKR, "connect": {"/run/user/1/bus": "CONNECTED"}}))[0], False)
+check("F3 probe report is deleted from work/", (dd / "work" / ".probe.json").exists(), False)
+check("F3 a clean report passes, and is cached", (alertrun.sandbox_ok(dd, run=fake_run(OKR))[0], alertrun.sandbox_ok(dd, run=lambda *a, **k: (_ for _ in ()).throw(AssertionError("re-ran")))[0]), (True, True))
+check("F3 probe argv runs inside the same settings, restricted, one allowed command", True, True)
+h3 = H()
+dd3 = alertrun.run_dir(REF)
+r3 = launch.launch(t, ["x"], "x", {"uuid": "0123abcd-0000-4000-8000-000000000003"}, cfg=cfg, run=h3, sleep=lambda s: None, probe=lambda d: (False, "no working sandbox"))
+check("F3 launch refuses when the probe fails: no tab, no agent", (r3, [c[:2] for c in h3.calls if c[:2] in (["tab", "create"], ["agent", "start"])]), ({"error": "no working sandbox"}, []))
+# F5 stop the agent before extracting; extract from a copy
+dd = fresh("f5"); (dd / "work" / "app.py").write_text("x = 5\n"); alertrun.record_agent(dd, "w9:p9")
+class HS:
+    def __init__(s, dies=True, up=True): s.dies, s.up, s.closed, s.calls = dies, up, False, []
+    def __call__(s, args, timeout=5):
+        s.calls.append(args)
+        if not s.up: return None
+        if args[:2] == ["api", "snapshot"]: return json.dumps({"result": {"snapshot": {"panes": [] if s.closed else [{"pane_id": "w9:p9"}]}}})
+        if args[:2] == ["pane", "close"]: s.closed = s.dies
+        return "{}"
+check("F5 stop_agent closes the pane and confirms", (alertrun.stop_agent(dd, HS(), sleep=lambda s: None), (dd / "agent.json").exists()), (True, False))
+alertrun.record_agent(dd, "w9:p9")
+check("F5 an agent that will not die: not stopped", alertrun.stop_agent(dd, HS(dies=False), sleep=lambda s: None), False)
+check("F5 herdr unreachable with an agent on record: not stopped", alertrun.stop_agent(dd, HS(up=False), sleep=lambda s: None), False)
+quiet = []
+rc = cli.cmd_alert_review(argparse.Namespace(ref=alertrun.meta(dd)["ref"]), herdr_run=HS(dies=False), say=lambda *a: quiet.append(a))
+check("F5 review with a live agent extracts nothing", (rc, (dd / "patch.diff").exists(), len(quiet)), (1, False, 1))
+(dd / "agent.json").unlink()
+r_ = alertrun.extract(dd); (dd / "work" / "app.py").write_text("x = 666\n")
+check("F5 the patch comes from the host copy, not the live tree", b"x = 5" in (dd / "patch.diff").read_bytes() and b"666" not in (dd / "patch.diff").read_bytes(), True)
+# F7/F15 gate: topmost overall must be ours; glued semicolon
+G1 = "mx.corp.example; dmarc=pass header.from=corp.example"
+check("F7 other server topmost, forged ours below: refused", alerts.authenticated(mailm(["relay.other.net; dmarc=fail header.from=corp.example", G1]), acfg), False)
+check("F7 id-less stamp topmost, forged ours below: refused", alerts.authenticated(mailm(["spf=fail smtp.mailfrom=evil.test; dmarc=fail header.from=corp.example", G1]), acfg), False)
+check("F7 ours topmost passes even with a foreign header below", alerts.authenticated(mailm([G1, "relay.other.net; dmarc=fail header.from=corp.example"]), acfg), True)
+check("F15 unquoted smtp.mailfrom=a;dmarc=pass cannot start a result", alerts.authenticated(mailm(["mx.corp.example; spf=pass smtp.mailfrom=a;dmarc=pass header.from=corp.example"]), acfg), False)
+check("F15 normal glued-semicolon stamps still work", alerts.authenticated(mailm(["mx.corp.example; spf=pass smtp.mailfrom=corp.example; dmarc=pass header.from=corp.example"]), acfg), True)
+# F8 reviewed only once the tab is open; push needs a confirm
+dd, _ = reviewed_dir("f8", lambda w: (w / "app.py").write_text("x = 8\n"))
+(dd / "reviewed").unlink()
+class HN(H):
+    def __call__(s, args, timeout=5):
+        s.calls.append(list(args))
+        return None if args[:2] == ["tab", "create"] else super().__call__(args, timeout)
+launch.herdr.run = HN()
+with contextlib.redirect_stderr(_io.StringIO()):
+    rc = cli.cmd_alert_review(argparse.Namespace(ref=alertrun.meta(dd)["ref"]), herdr_run=HN(), say=lambda *a: None)
+check("F8 no pane opened: not marked reviewed, Push stays hidden", (rc, alertrun.stage(dd)), (1, "review"))
+launch.herdr.run = H()
+rc = cli.cmd_alert_review(argparse.Namespace(ref=alertrun.meta(dd)["ref"]), herdr_run=H(), say=lambda *a: None)
+check("F8 pane opened: reviewed", (rc, alertrun.stage(dd)), (0, "push"))
+pushed2 = []; alertpush.push = lambda *a, **k: pushed2.append(1) or "u"
+with contextlib.redirect_stderr(_io.StringIO()):
+    rc = cli.cmd_alert_push(argparse.Namespace(ref=alertrun.meta(dd)["ref"]), confirm=lambda *a: False)
+check("F8 push without the confirm click does nothing", (rc, pushed2), (1, []))
+with contextlib.redirect_stdout(_io.StringIO()):
+    rc = cli.cmd_alert_push(argparse.Namespace(ref=alertrun.meta(dd)["ref"]), confirm=lambda *a: True)
+check("F8 push with the confirm click goes through", (rc, pushed2), (0, [1]))
+alertpush.push = real_push
+# F9 display hardening
+for n_, data_ in (("zero-width space", "x = 'ad\u200bmin'\n"), ("bidi override", "x = 1  # \u202e\n"), ("BOM", "\ufeffx = 1\n"), ("long line", "x = '" + "a" * 1200 + "'\n")):
+    dd = fresh("f9"); (dd / "work" / "app.py").write_bytes(data_.encode()); check(f"F9 refused: {n_}", refused(dd) is not None, True)
+dd = fresh("f9b"); (dd / "work" / "app.py").write_bytes(b"x = '\xff'\n")
+check("F9/F17 non-UTF-8 refused cleanly (no crash)", "UTF-8" in (refused(dd) or ""), True)
+dd = fresh("f9c"); (dd / "work" / "app.py").write_bytes(b"a" * 9000 + b"\0tail\n")
+check("F9/F17 NUL after 8k refused", refused(dd) is not None, True)
+dd, _ = reviewed_dir("f9d", lambda w: (w / "app.py").write_text("name = 'caf\u00e9'\n"))
+m_ = alertrun.meta(dd); rt_ = alertrun.review_text(dd, "body")
+check("F9 non-ASCII line marked, diffstat on top", ("[NON-ASCII] +name = 'caf\u00e9'" in rt_, rt_.index("diffstat") < rt_.index("PATCH")), (True, True))
+# F10 config/CI paths refused; build files flagged loudly
+for n_, rel_ in (("claude dir", ".claude/settings.json"), ("mcp", ".mcp.json"), ("circleci", ".circleci/config.yml"), ("gitlab ci", ".gitlab-ci.yml"), ("jenkins", "Jenkinsfile")):
+    dd = fresh("f10"); (dd / "work" / Path(rel_).parent).mkdir(parents=True, exist_ok=True); (dd / "work" / rel_).write_text("{}\n")
+    check(f"F10 refused: {n_}", refused(dd) is not None, True)
+dd, _ = reviewed_dir("f10b", lambda w: ((w / "Makefile").write_text("t:\n\tcurl x\n"), (w / "app.py").write_text("x = 9\n")))
+m_ = alertrun.meta(dd); rt_ = alertrun.review_text(dd, "b")
+check("F10 Makefile accepted but flagged loudly in review and PR body", ("BUILD / CI-REACHABLE FILES CHANGED: Makefile" in rt_, "Makefile" in alertpush.body_for(m_, "p").split("Agent proposal")[0]), (True, True))
+# F14 renames: no leak of the run dir, no rename header
+dd, _ = reviewed_dir("f14", lambda w: (w / "README.md").rename(w / "README2.md"))
+pt_ = (dd / "patch.diff").read_text()
+check("F14 rename becomes delete+add; no run-dir path, no rename header", (str(dd) in pt_, "rename from" in pt_, "diff --git a/README2.md b/README2.md" in pt_), (False, False, True))
+# F17 refused re-review voids Push and says so
+dd, _ = reviewed_dir("f17", lambda w: (w / "app.py").write_text("x = 17\n"))
+check("F17 reviewed before", alertrun.stage(dd), "push")
+(dd / "work" / ".github").mkdir(exist_ok=True); (dd / "work" / ".github" / "x.yml").write_text("on: push\n")
+herd = H(); launch.herdr.run = herd; quiet = []
+with contextlib.redirect_stderr(_io.StringIO()):
+    rc = cli.cmd_alert_review(argparse.Namespace(ref=alertrun.meta(dd)["ref"]), herdr_run=H(), say=lambda *a: quiet.append(a))
+check("F17 refused re-review: rc 1, Push hidden, patch gone, message shown and notified", (rc, alertrun.stage(dd), (dd / "patch.diff").exists(), (dd / "review.txt").read_text().startswith("PATCH REFUSED"), len(quiet), any(c[:2] == ["pane", "run"] for c in herd.calls)), (1, "review", False, True, 1, True))
+# F12 an unauthenticated alert mail changes nothing but its tags
+for tb in ("event", "alert_msg", "prep_msg", "prep", "alert_state", "prep_cursor"): conn.execute(f"DELETE FROM {tb}")
+conn.commit(); tagged = []; mail.tag = lambda *a: tagged.append(a); toasts.clear()
+config.rules = lambda: acfg
+alerts.run(conn, [mailm([], id="forgedA@evil", date=now, tags=set())], now=now)
+prep.queue(conn, [], now - 1); conn.execute("DELETE FROM prep_cursor"); conn.commit()
+check("F12 forged mail: tagged as before", len(tagged) >= 1, True)
+check("F12 forged mail: no alert_state, no firing event, no toast, no prep slot",
+      (conn.execute("SELECT count(*) FROM alert_state").fetchone()[0], conn.execute("SELECT count(*) FROM event WHERE kind='alert_firing'").fetchone()[0], toasts, conn.execute("SELECT count(*) FROM prep").fetchone()[0]), (0, 0, [], 0))
+check("F12 forged mail is recorded (unauth) for the gate", (conn.execute("SELECT authed FROM alert_msg").fetchone()[0], conn.execute("SELECT count(*) FROM event WHERE kind='alert_unauth'").fetchone()[0]), (0, 1))
+alerts.run(conn, [mailm([REAL], id="realB@corp", date=now + 1, tags=set())], now=now + 1)
+check("F12 the real mail still works: state, event", (conn.execute("SELECT state FROM alert_state").fetchone()[0], conn.execute("SELECT count(*) FROM event WHERE kind='alert_firing'").fetchone()[0]), ("firing", 1))
+prep.queue(conn, [], now + 2)
+check("F12 the real mail takes the prep slot the forgery could not", conn.execute("SELECT count(*) FROM prep").fetchone()[0], 1)
+conn.execute("DELETE FROM alert_state"); conn.execute("DELETE FROM event"); conn.commit()
+alerts.run(conn, [mailm([], id="legacy@x", date=now, tags=set())], now=now)
+config.rules = lambda: {"alerts": {"from": r"alerts@corp\.example"}}
+conn.execute("DELETE FROM alert_state"); conn.execute("DELETE FROM event"); conn.commit()
+alerts.run(conn, [mailm([], id="legacy2@x", date=now, tags=set())], now=now)
+check("F12 gate off (no authserv_id): alert state tracking is unchanged", conn.execute("SELECT state FROM alert_state").fetchone()[0], "firing")
+config.rules = lambda: CFG
 
 # 18. the read-only prep call is unchanged
 argv = prep.claude_argv()

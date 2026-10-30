@@ -118,6 +118,11 @@ def queue(conn, new=None, now=None):
         if not ref:
             continue
         kind = "alert" if r["kind"] == "alert_firing" else "mail"
+        if kind == "alert":
+            # an alert mail that failed the entry gate never takes a prep slot or feeds an analysis
+            bad = conn.execute("SELECT 1 FROM alert_msg WHERE event_rowid=? AND authed=0", (r["rid"],)).fetchone()
+            if bad:
+                continue
         old = conn.execute("SELECT id, status, created_unix FROM prep WHERE ref=?", (ref,)).fetchone()
         if kind == "alert":
             name = ref.split("|", 1)[0]

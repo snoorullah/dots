@@ -70,19 +70,26 @@ def _strip(value):
     return re.sub(r"\s*=\s*", "=", "".join(out))
 
 
+def _segments(clean):
+    """Split on ';' only where whitespace follows (or the text ends): a ';' glued to a value, as in
+    `smtp.mailfrom=a;dmarc=pass`, stays inside that value and cannot start a result of its own."""
+    return re.split(r";(?=\s|$)", clean)
+
+
 def _trusted_ar(m, authserv):
-    """The topmost Authentication-Results whose authserv-id is the configured one, as
-    (cleaned text) or None. Headers from any other id are somebody else's claim."""
+    """The Authentication-Results to trust, as cleaned text, or None. Our receiving server stamps
+    its header on top of whatever arrived, so the TOPMOST header overall must carry our authserv-id;
+    anything else on top means the mail did not come in the way we expect, and an identical-looking
+    header further down is just a claim the sender made."""
     h = m.get("headers") or {}
     allv = h.get("authentication-results-all")
     if allv is None:
         allv = [h["authentication-results"]] if h.get("authentication-results") else []
-    for v in allv:
-        clean = _strip(v)
-        head = clean.split(";", 1)[0].split()
-        if head and head[0].lower() == authserv.lower():
-            return clean
-    return None
+    if not allv:
+        return None
+    clean = _strip(allv[0])
+    head = _segments(clean)[0].split()
+    return clean if head and head[0].lower() == authserv.lower() else None
 
 
 def authenticated(m, cfg):
@@ -96,7 +103,7 @@ def authenticated(m, cfg):
     if clean is None:
         return False
     domain = addr.rsplit("@", 1)[1]
-    for seg in clean.split(";")[1:]:
+    for seg in _segments(clean)[1:]:
         toks = seg.split()
         if toks and toks[0].lower() == "dmarc=pass" and any(
                 t.lower() == f"header.from={domain}" for t in toks[1:]):
@@ -161,6 +168,7 @@ def run(conn, new, now=None):
     stale = int(float(cfg.get("alerts", {}).get("stale_hours", 6)) * 3600)
     minfire = int(float(cfg.get("alerts", {}).get("min_firing_minutes", 30)) * 60)
     wall = now or time.time()
+    gate_on = bool(str(cfg.get("alerts", {}).get("authserv_id") or "").strip())
     fired, resolved = [], []
     mine = [(m, classify(m, cfg)) for m in new]
     mine = sorted((x for x in mine if x[1]), key=lambda x: x[0].get("date", 0))
@@ -177,6 +185,12 @@ def run(conn, new, now=None):
             continue
         t = int(m.get("date") or wall)
         ok = all_copies_pass(m, cfg)
+        if gate_on and not ok:
+            # tagging above is unchanged; but an unauthenticated mail must not move alert state, fire
+            # a toast, take the prep slot or feed the analysis. Recorded by Message-ID for the gate.
+            _msg(conn, m, c["name"], c["scope"], False, int(m.get("date") or wall), None)
+            db.log(conn, "alert_unauth", m.get("id"), c["name"], ts=int(m.get("date") or wall))
+            continue
         fresh = wall - t < stale                         # an old mail is backlog, never a toast
         name, scope = c["name"], c["scope"]
         row = conn.execute("SELECT * FROM alert_state WHERE name=? AND scope=?",

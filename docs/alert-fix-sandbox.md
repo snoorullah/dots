@@ -48,3 +48,17 @@ Every other program stays restricted.
 
 Home is unreadable inside the sandbox (`denyRead ~`) except the run dir.
 A test command that needs a toolchain under `~` will fail there.
+
+---
+
+**Before every agent start** the overview runs a probe inside the same sandbox.
+It must show that the agent cannot connect to the session bus, docker, ssh-agent or herdr sockets,
+cannot list `/data`, and sees none of the scrubbed credential variables.
+No proof, no agent. Without the profile the probe cannot run, so nothing starts.
+The probe uses one short `claude -p --model haiku` call that may run only that script.
+
+Inside the sandbox reads are denied for `~`, `/home`, `/data`, `/tmp`, `/run`, `/media`, `/mnt` and `/srv`.
+`TMPDIR` points at a private `tmp/` in the run dir.
+
+**Config.** `rules.toml` needs `[alerts] authserv_id`, or no ticket is ever offered.
+A keyring-backed `gh` credential helper may need `DBUS_SESSION_BUS_ADDRESS` for the host push (not the agent). Unverified.
