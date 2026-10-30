@@ -127,6 +127,10 @@ def main():
     ], flat=False, empty_act=False))
     write("focus-90", bundle(ts, [], focus=running(375), flat=False, empty_act=False))
     write("focus-200", bundle(ts, [], focus=running(833), flat=False, empty_act=False))
+    # untracked project time offered as a ticket: day/project ride on the item, not in the title
+    un = item("untracked:2025-10-27:alpha", "untracked", "passive", False, "2h10m on alpha, no ticket", jump=False, actor=None)
+    un.update({"ref": None, "src": "timetrack", "url": None, "canPromote": True, "day": "2025-10-27", "project": "alpha"})
+    write("untracked", bundle(ts, [un], task=False))
     # the live-update test starts from "nominal" and swaps in this attention.json
     write("live-next", bundle(ts, waiting[:2]))
     print("fixtures written to", OUT)

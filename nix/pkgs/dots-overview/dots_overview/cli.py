@@ -11,7 +11,7 @@ import sys
 import time
 
 from . import (activity, atomic, attention, breakdown, config, detect, doctor, gate, heatmap, herdr, ingest, jump,
-               local_tt, names, nowstate, report, sync, task, tw)
+               local_tt, names, nowstate, report, sync, task, tw, untracked)
 
 OUT = {"now": "now.json", "activity": "activity.json", "attention": "attention.json",
        "heatmap": "heatmap.json", "mirror": "mirror.json", "meta": "meta.json"}
@@ -134,6 +134,26 @@ def cmd_focus(args):
     return 0
 
 
+def cmd_untracked(args):
+    try:
+        if args.action == "list":
+            for c in untracked.candidates():
+                print(f"{c['day']}  {c['project']:<20} {untracked._dur(c['sec'])}")
+            return 0
+        if not (args.day and args.project):
+            print("dots-overview untracked: needs <day> <project>", file=sys.stderr)
+            return 2
+        if args.action == "promote":
+            t, created = untracked.promote(args.day, args.project, args.title)
+            print(f"{'created' if created else 'already promoted:'} {t.get('ref')}")
+        else:
+            print("ignored" if untracked.ignore(args.day, args.project) else "already promoted; left alone")
+    except (untracked.UntrackedError, task.TaskError) as e:
+        print(f"dots-overview untracked: {e}", file=sys.stderr)
+        return 1
+    return cmd_fast(args, ("attention",))        # the item appears/disappears now, not in a minute
+
+
 def cmd_notifylog(args):
     from . import notifylog
     return notifylog.main()
@@ -176,6 +196,11 @@ def main(argv=None):
     p.add_argument("action", choices=["start", "stop", "break"])
     p.add_argument("--minutes", type=int)
     p.add_argument("--zone")
+    p = add("untracked", cmd_untracked, "untracked project time -> a local task (list | promote | ignore)")
+    p.add_argument("action", choices=["list", "promote", "ignore"])
+    p.add_argument("day", nargs="?")
+    p.add_argument("project", nargs="?")
+    p.add_argument("--title")
     add("notifylog", cmd_notifylog, "eavesdrop on notifications into notifications.jsonl (foreground)")
     p = add("task", lambda a: task.main(a.rest), "dots-task: declare the task this Claude session works on")
     p.add_argument("rest", nargs=argparse.REMAINDER)

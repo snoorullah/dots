@@ -50,6 +50,7 @@ jobs:
       - run: bash tests/term.sh
       - run: bash tests/away.sh
       - run: bash tests/break-labels.sh
+      - run: bash tests/untracked.sh
       - run: bash tests/locality.sh
       # Work tracking (dots-overview) and the daily brief. Stub gh/herdr/timew, scratch Taskwarrior,
       # no network; only `task` itself has to be real.
