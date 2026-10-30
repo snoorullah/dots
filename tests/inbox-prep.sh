@@ -81,6 +81,12 @@ argv = prep.claude_argv()
 check("model", argv[argv.index("--model") + 1], "sonnet")
 check("no opus anywhere", any("opus" in a.lower() for a in argv), False)
 dis = argv[argv.index("--disallowedTools") + 1].split(",")
+# read-only by construction: the only built-in is Read, no server but the one we hand it, and
+# nothing falls through to the auto-mode classifier
+assert argv[argv.index("--tools") + 1] == "Read", "only Read"
+assert "--strict-mcp-config" in argv, "no inherited MCP servers or plugins"
+assert argv[argv.index("--permission-mode") + 1] == "dontAsk", "no classifier"
+assert "--mcp-config" not in argv, "no config unless one was written"
 for t in ("Bash", "Edit", "Write", "NotebookEdit", "WebFetch", "mcp__plugin_slack_slack__slack_send_message",
           "mcp__pnow-erp__create_document", "mcp__pnow-erp__update_document", "mcp__pnow-erp__delete_document",
           "mcp__pnow-erp__submit_document", "mcp__pnow-erp__cancel_document"):

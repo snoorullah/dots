@@ -224,9 +224,33 @@ def _alert_material(conn, row):
 
 # runner -------------------------------------------------------------------------------
 
-def claude_argv():
-    return ["claude", "-p", "--model", "sonnet", "--output-format", "json", "--max-turns", "25",
+def claude_argv(mcp_config=None):
+    """Read-only by construction, not by a deny list that has to name every server.
+
+    --tools leaves Read as the only built-in. --strict-mcp-config drops every MCP server and
+    plugin except the one in mcp_config. dontAsk refuses whatever ALLOWED does not name, where
+    the user's default mode (auto) would let a classifier decide on text from a stranger's mail.
+    """
+    argv = ["claude", "-p", "--model", "sonnet", "--output-format", "json", "--max-turns", "25",
+            "--permission-mode", "dontAsk", "--tools", "Read", "--strict-mcp-config",
             "--allowedTools", ALLOWED, "--disallowedTools", DISALLOWED]
+    if mcp_config:
+        argv += ["--mcp-config", str(mcp_config)]
+    return argv
+
+
+def _cluster_mcp(scratch):
+    """Write a config holding only the read-only cluster server; None if it isn't set up."""
+    try:
+        with open(os.path.expanduser("~/.claude.json")) as f:
+            server = json.load(f)["mcpServers"]["k8s-ro"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    path = os.path.join(scratch, "mcp.json")
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w") as f:
+        json.dump({"mcpServers": {"k8s-ro": server}}, f)
+    return path
 
 
 def _scratch():
@@ -239,9 +263,10 @@ def _scratch():
 def analyse(text):
     """One headless, read-only call. Returns the markdown or raises RuntimeError."""
     config.PREP_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+    scratch = _scratch()
     try:
-        r = run(claude_argv(), input=PROMPT + text, capture_output=True, text=True,
-                timeout=TIMEOUT, cwd=_scratch())
+        r = run(claude_argv(_cluster_mcp(scratch)), input=PROMPT + text, capture_output=True,
+                text=True, timeout=TIMEOUT, cwd=scratch)
     except subprocess.TimeoutExpired:
         raise RuntimeError(f"timed out after {TIMEOUT // 60} min")
     except OSError as e:
