@@ -17,6 +17,8 @@ inbox; a failure is an alert the user must see, so it gets the inbox and a toast
 What an alert mail looks like is the user's business (rules.toml `[alerts]` and
 `[backup]`); nothing here knows a sender, a cluster or a product.
 """
+import hashlib
+import json
 import re
 import sys
 import time
@@ -102,6 +104,27 @@ def authenticated(m, cfg):
     return False
 
 
+def fingerprint(m):
+    """Identity of this physical message: its file bytes, else the fields the gate reads."""
+    try:
+        with open(m["file"], "rb") as fh:
+            return hashlib.sha256(fh.read()).hexdigest()
+    except (KeyError, TypeError, OSError):
+        h = m.get("headers") or {}
+        blob = json.dumps([m.get("from_addr"), m.get("subject"), m.get("date"),
+                           h.get("authentication-results-all"), h.get("authentication-results")], default=str)
+        return hashlib.sha256(blob.encode()).hexdigest()
+
+
+def all_copies_pass(m, cfg):
+    """The mail AND every other file notmuch merged under its Message-ID must pass the gate and
+    agree on subject and sender; one failing copy fails the id."""
+    if not authenticated(m, cfg):
+        return False
+    return all(authenticated(c, cfg) and c.get("subject") == m.get("subject")
+               and c.get("from_addr") == m.get("from_addr") for c in m.get("copies") or [])
+
+
 def classify(m, cfg):
     """None, or {'kind': 'alert'|'backup_ok'|'backup_fail', ...parsed fields}."""
     a, b = cfg.get("alerts", {}), cfg.get("backup", {})
@@ -153,7 +176,7 @@ def run(conn, new, now=None):
         if c["kind"] != "alert":
             continue
         t = int(m.get("date") or wall)
-        ok = authenticated(m, cfg)
+        ok = all_copies_pass(m, cfg)
         fresh = wall - t < stale                         # an old mail is backlog, never a toast
         name, scope = c["name"], c["scope"]
         row = conn.execute("SELECT * FROM alert_state WHERE name=? AND scope=?",
@@ -193,12 +216,13 @@ def run(conn, new, now=None):
 
 
 def _msg(conn, m, name, scope, ok, t, rowid):
-    """Record this mail by Message-ID with its gate result (and the firing event it caused)."""
+    """Record this physical mail (Message-ID + fingerprint) with its gate result and the firing
+    event it caused. A second mail with the same id but other content gets its OWN row."""
     if not m.get("id"):
         return
-    conn.execute("INSERT INTO alert_msg(msgid,name,scope,authed,ts_unix,event_rowid) VALUES(?,?,?,?,?,?) "
-                 "ON CONFLICT(msgid) DO UPDATE SET event_rowid=COALESCE(excluded.event_rowid,event_rowid)",
-                 (m["id"], name, scope, int(ok), t, rowid))
+    conn.execute("INSERT INTO alert_msg(msgid,fp,name,scope,authed,ts_unix,event_rowid) VALUES(?,?,?,?,?,?,?) "
+                 "ON CONFLICT(msgid,fp) DO UPDATE SET event_rowid=COALESCE(excluded.event_rowid,event_rowid)",
+                 (m["id"], fingerprint(m), name, scope, int(ok), t, rowid))
 
 
 def firing(conn, now=None):

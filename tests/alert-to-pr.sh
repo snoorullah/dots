@@ -72,8 +72,8 @@ def events(kind): return conn.execute("SELECT ref FROM event WHERE kind=?", (kin
 def ptasks(): return [t for t in tw.pending() if "alert" in (t.get("tags") or [])]
 def gate(ref, msgid, authed, ts=None):
     name, scope = (ref.split("|") + [""])[:2]
-    conn.execute("INSERT OR REPLACE INTO alert_msg(msgid,name,scope,authed,ts_unix) VALUES(?,?,?,?,?)", (msgid, name, scope, int(authed), ts or now))
-    conn.execute("INSERT OR REPLACE INTO prep_msg(ref,msgid) VALUES(?,?)", (ref, msgid))
+    conn.execute("INSERT OR REPLACE INTO alert_msg(msgid,fp,name,scope,authed,ts_unix) VALUES(?,?,?,?,?,?)", (msgid, "fp-" + msgid, name, scope, int(authed), ts or now))
+    conn.execute("INSERT OR REPLACE INTO prep_msg(ref,msgid,fp) VALUES(?,?,?)", (ref, msgid, "fp-" + msgid))
     conn.commit()
 W = 7 * 86400
 
@@ -423,8 +423,9 @@ conn.execute("DELETE FROM prep_cursor"); conn.commit()
 prep.queue(conn, [], now)
 r1 = conn.execute("SELECT ref FROM prep").fetchone()
 check("prep made from the real mail, linked by Message-ID", (r1 and r1["ref"], conn.execute("SELECT msgid FROM prep_msg").fetchone()[0]), ("DiskFull|node1", "real@corp"))
-bodies = {"real@corp": "REAL BODY", "forged@evil": "FORGED BODY"}
-mail.get = lambda mid: ({"id": mid, "subject": subj, "date": now, "body": bodies[mid], "headers": {}} if mid in bodies else None)
+bodies = {"real@corp": real, "forged@evil": mailm([], id="forged@evil", date=now + 8 * 86400, tags=set())}
+real["body"] = "REAL BODY"; bodies["forged@evil"]["body"] = "FORGED BODY"
+mail.get = lambda mid: (dict(bodies[mid]) if mid in bodies else None)
 mail.body = lambda m, limit=20000: m["body"]
 prep.mail.get = mail.get
 mat = prep._alert_material(conn, conn.execute("SELECT * FROM prep").fetchone())
@@ -438,15 +439,60 @@ forged = mailm([], id="forged@evil", date=later, tags=set())
 alerts.run(conn, [forged], now=later)
 prep.queue(conn, [], later)
 rows = {r["ref"]: r for r in conn.execute("SELECT * FROM prep")}
-check("alert_msg: forgery recorded unauthenticated, real recorded authenticated", dict(conn.execute("SELECT msgid, authed FROM alert_msg").fetchall()), {"real@corp": 1, "forged@evil": 0})
+check("alert_msg: forgery recorded unauthenticated, real recorded authenticated", {r[0]: r[1] for r in conn.execute("SELECT msgid, authed FROM alert_msg")}, {"real@corp": 1, "forged@evil": 0})
 asks.clear(); alertpr.ask = lambda *a, **k: (asks.append("asked"), None)[1]
 for rr in conn.execute("SELECT * FROM prep").fetchall():
     if conn.execute("SELECT msgid FROM prep_msg WHERE ref=?", (rr["ref"],)).fetchone()[0] == "forged@evil":
         check("forgery after a real alert: never offered", (alertpr.offer(conn, rr, "s", md, W, acfg), asks), ("skipped", []))
 check("a forgery got no prep_msg pointing at the real mail", [r[0] for r in conn.execute("SELECT msgid FROM prep_msg")].count("real@corp") <= 1, True)
 # even if the forgery's prep row reused the real ref, the gate follows the Message-ID it was made from
-conn.execute("INSERT OR REPLACE INTO prep_msg(ref,msgid) VALUES('DiskFull|node1','forged@evil')"); conn.commit()
+conn.execute("INSERT OR REPLACE INTO prep_msg(ref,msgid,fp) VALUES('DiskFull|node1','forged@evil',?)", (alerts.fingerprint(bodies["forged@evil"]),)); conn.commit()
 check("same ref re-pointed at the forged mail: skipped", alertpr.offer(conn, conn.execute("SELECT * FROM prep WHERE ref='DiskFull|node1'").fetchone(), "s", md, W, acfg), "skipped")
+# duplicate Message-ID: the attacker picks the id, so the id alone proves nothing
+def dupcase(order):
+    for tb in ("event", "alert_msg", "prep_msg", "prep", "alert_state"): conn.execute(f"DELETE FROM {tb}")
+    conn.execute("DELETE FROM prep_cursor"); conn.commit()
+    r_ = mailm([REAL], id="dup@corp", date=now, tags=set(), file=None)
+    f_ = mailm([], id="dup@corp", date=now, tags=set(), subject=subj)       # same id, no auth, other content
+    f_["from"] = "Alerts <alerts@corp.example>"; f_["headers"] = {"authentication-results-all": ["evil.example; dmarc=pass header.from=corp.example"]}
+    batch = [r_, f_] if order == "real-first" else [f_, r_]
+    for mm_ in batch: alerts.run(conn, [dict(mm_)], now=now)
+    prep.queue(conn, [], now); prep.queue(conn, [], now)
+    return r_, f_
+for order in ("real-first", "forged-first"):
+    r_, f_ = dupcase(order)
+    rows_ = conn.execute("SELECT msgid, fp, authed FROM alert_msg").fetchall()
+    check(f"dup id ({order}): two physical rows, one authed one not", sorted(x["authed"] for x in rows_), [0, 1] if len(rows_) == 2 else None)
+    check(f"dup id ({order}): the forgery never inherits the real row", {x["fp"]: x["authed"] for x in rows_}.get(alerts.fingerprint(f_)), 0)
+    asks.clear(); alertpr.ask = lambda *a, **k: (asks.append("asked"), None)[1]
+    pr_ = conn.execute("SELECT * FROM prep").fetchall()
+    check(f"dup id ({order}): a prep exists", len(pr_) >= 1, True)
+    for rr in pr_:
+        check(f"dup id ({order}): offer refused while a second physical mail shares the id", (alertpr.offer(conn, rr, "s", md, W, acfg), asks), ("skipped", []))
+    # prep reads only the exact mail that passed
+    bodies2 = {"dup@corp": dict(r_, body="REAL")}
+    mail.get = lambda mid: dict(bodies2[mid]) if mid in bodies2 else None
+    mat2 = prep._alert_material(conn, pr_[0]) if pr_ else ""
+    pm_ = conn.execute("SELECT fp FROM prep_msg").fetchone()
+    check(f"dup id ({order}): prep_msg points at the mail its own event came from", pm_["fp"] in (alerts.fingerprint(r_), alerts.fingerprint(f_)), True)
+# a notmuch id with several files: one failing copy fails the id
+r2 = mailm([REAL], id="multi@corp", date=now, tags=set())
+r2["copies"] = [{"file": "/x", "from_addr": "alerts@corp.example", "from_count": 1, "subject": subj, "headers": {"authentication-results-all": []}}]
+check("a merged duplicate file that fails the gate fails the id", (alerts.all_copies_pass(r2, acfg), alerts.all_copies_pass(mailm([REAL]), acfg)), (False, True))
+r2["copies"][0]["headers"] = {"authentication-results-all": [REAL]}
+check("all copies passing and identical passes", alerts.all_copies_pass(r2, acfg), True)
+r2["copies"][0]["subject"] = "[CRITICAL] Other (FIRING) - n"
+check("a copy with another subject fails the id", alerts.all_copies_pass(r2, acfg), False)
+# prep material refuses a message that has extra copies, or whose bytes changed
+conn.execute("DELETE FROM prep_msg"); conn.execute("INSERT INTO prep(kind,ref,title,status,created_unix) VALUES('alert','Mx|n','Mx','done',?)", (now,))
+conn.execute("INSERT INTO prep_msg(ref,msgid,fp) VALUES('Mx|n','multi@corp',?)", (alerts.fingerprint(r2),)); conn.commit()
+mail.get = lambda mid: dict(r2, body="MULTI")
+check("material skips a mail with duplicate copies", "MULTI" in prep._alert_material(conn, conn.execute("SELECT * FROM prep WHERE ref='Mx|n'").fetchone()), False)
+r2["copies"] = []; mail.get = lambda mid: dict(r2, body="MULTI")
+check("material reads it once the copies are gone and fp matches", "MULTI" in prep._alert_material(conn, conn.execute("SELECT * FROM prep WHERE ref='Mx|n'").fetchone()), True)
+mail.get = lambda mid: dict(r2, body="MULTI", subject="changed")
+check("material skips a mail whose content no longer matches the fingerprint", "MULTI" in prep._alert_material(conn, conn.execute("SELECT * FROM prep WHERE ref='Mx|n'").fetchone()), False)
+
 # an authenticated mail older than the window is not offered
 gate("Old|n", "m-old", True, ts=now - 9 * 86400)
 check("stale authed mail skipped", alertpr.offer(conn, row("Old|n"), "s", md, W, acfg), "skipped")

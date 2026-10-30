@@ -53,9 +53,14 @@ def _seen(conn, kind, name, window):
 
 
 def authed(conn, ref, window):
-    r = conn.execute("SELECT m.authed, m.ts_unix FROM prep_msg p JOIN alert_msg m ON m.msgid=p.msgid "
-                     "WHERE p.ref=?", (ref,)).fetchone()
-    return bool(r and r["authed"] and r["ts_unix"] > time.time() - window)
+    """The mail this prep was made from passed the gate, is fresh, and is the ONLY physical mail
+    seen under its Message-ID: any other copy (before or after) refuses the offer."""
+    pm = conn.execute("SELECT msgid, fp FROM prep_msg WHERE ref=?", (ref,)).fetchone()
+    if not pm:
+        return False
+    rows = conn.execute("SELECT fp, authed, ts_unix FROM alert_msg WHERE msgid=?", (pm["msgid"],)).fetchall()
+    return (len(rows) == 1 and rows[0]["fp"] == pm["fp"] and bool(rows[0]["authed"])
+            and rows[0]["ts_unix"] > time.time() - window)
 
 
 def create(conn, name, prep_path, cfg=None):

@@ -66,20 +66,23 @@ CREATE TABLE IF NOT EXISTS event (
 );
 CREATE INDEX IF NOT EXISTS ix_event_ts ON event(ts_unix);
 
--- One row per alert mail, keyed by Message-ID: whether its sender passed the entry gate.
--- Offering a ticket needs THIS mail to be authed, never "some mail with this name was".
+-- One row per PHYSICAL alert mail: (Message-ID, content fingerprint). An attacker picks their own
+-- Message-ID, so the id alone never carries an authentication result.
 CREATE TABLE IF NOT EXISTS alert_msg (
-  msgid        TEXT PRIMARY KEY,
+  msgid        TEXT NOT NULL,
+  fp           TEXT NOT NULL,
   name         TEXT NOT NULL,
   scope        TEXT NOT NULL,
   authed       INTEGER NOT NULL,
   ts_unix      INTEGER NOT NULL,
-  event_rowid  INTEGER               -- the alert_firing event this mail caused, if any
+  event_rowid  INTEGER,              -- the alert_firing event this mail caused, if any
+  PRIMARY KEY (msgid, fp)
 );
--- which Message-ID a prep row was made from
+-- which exact mail a prep row was made from
 CREATE TABLE IF NOT EXISTS prep_msg (
   ref    TEXT PRIMARY KEY,
-  msgid  TEXT NOT NULL
+  msgid  TEXT NOT NULL,
+  fp     TEXT NOT NULL
 );
 """
 

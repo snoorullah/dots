@@ -70,6 +70,14 @@ def get(mid):
     hd = node.get("headers", {})
     path = (node.get("filename") or [None])[0]
     extra, _ = _headers(path) if path else ({}, None)
+    # notmuch merges duplicates of one Message-ID into one message with several files; every
+    # other copy is kept so the alert gate can judge ALL of them
+    copies = []
+    for other in (node.get("filename") or [])[1:]:
+        oh, om = _headers(other)
+        ofrm = str(om.get("From", "")) if om is not None else ""
+        copies.append({"file": other, "from_addr": (_addrs(ofrm) or [""])[0], "from_count": len(_addrs(ofrm)),
+                       "subject": str(om.get("Subject", "")) if om is not None else "", "headers": oh})
     frm = hd.get("From", "")
     folder = ""
     if path:
@@ -79,7 +87,7 @@ def get(mid):
     return {"id": mid, "thread": thread, "file": path, "folder": folder,
             "from": frm, "from_addr": (_addrs(frm) or [""])[0], "from_count": len(_addrs(frm)),
             "to": _addrs(hd.get("To")), "cc": _addrs(hd.get("Cc")),
-            "subject": hd.get("Subject", ""), "date": int(node.get("timestamp") or 0),
+            "copies": copies, "subject": hd.get("Subject", ""), "date": int(node.get("timestamp") or 0),
             "tags": set(node.get("tags") or []), "headers": extra}
 
 

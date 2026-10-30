@@ -23,7 +23,7 @@ import subprocess
 import sys
 import time
 
-from . import alertpr, config, db, mail, notify, slack
+from . import alertpr, alerts, config, db, mail, notify, slack
 
 DAILY_CAP = 6
 ALERT_WINDOW = 7 * 24 * 3600
@@ -147,9 +147,10 @@ def queue(conn, new=None, now=None):
                          "VALUES(?,?,?,?,?,?)", (kind, ref, title, status, now, summary))
         queued += status == "queued"
         if kind == "alert":     # remember WHICH mail this analysis is about
-            mm = conn.execute("SELECT msgid FROM alert_msg WHERE event_rowid=?", (r["rid"],)).fetchone()
+            mm = conn.execute("SELECT msgid, fp FROM alert_msg WHERE event_rowid=?", (r["rid"],)).fetchone()
             if mm:
-                conn.execute("INSERT OR REPLACE INTO prep_msg(ref, msgid) VALUES(?,?)", (ref, mm["msgid"]))
+                conn.execute("INSERT OR REPLACE INTO prep_msg(ref, msgid, fp) VALUES(?,?,?)",
+                             (ref, mm["msgid"], mm["fp"]))
     conn.commit()
     if queued:
         _spawn(now)
@@ -215,8 +216,10 @@ def _alert_material(conn, row):
         out.append(f"- {_fmt(e['ts_unix'])} {e['kind']} {e['ref']} {e['detail'] or ''}".rstrip())
     try:
         # the mail this prep was made from, by Message-ID; never "the latest mail with this name"
-        pm = conn.execute("SELECT msgid FROM prep_msg WHERE ref=?", (row["ref"],)).fetchone()
-        found = [m for m in [mail.get(pm["msgid"])] if m] if pm else []
+        pm = conn.execute("SELECT msgid, fp FROM prep_msg WHERE ref=?", (row["ref"],)).fetchone()
+        m = mail.get(pm["msgid"]) if pm else None
+        # only the exact physical mail that passed; a duplicate-id copy is never read
+        found = [m] if m and not m.get("copies") and alerts.fingerprint(m) == pm["fp"] else []
     except Exception:
         found = []
     if found:
