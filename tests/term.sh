@@ -39,8 +39,9 @@ for which, opener in (("work", dbs.open_work), ("private", dbs.open_private)):
             c.executescript(sql); c.execute(f"PRAGMA user_version = {v:d}")
         c.commit()
 rep = migrate.migrate()
-check("private upgraded 3 -> 4", rep["private"], (3, [4]))
-check("rerun is a no-op", migrate.migrate()["private"], (4, []))
+LATEST = max(v for v, _ in migrate.MIGRATIONS["private"])
+check("private upgraded 3 -> latest", rep["private"], (3, list(range(4, LATEST + 1))))
+check("rerun is a no-op", migrate.migrate()["private"], (LATEST, []))
 tables = lambda c: {r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
 with dbs.open_private(readonly=True) as c:
     check("private tables", {"focus_span", "term_segment", "term_day", "term_label_cache"} <= tables(c), True)
@@ -260,8 +261,10 @@ span(T(13), T(13, 30), cwd="/w/other", pane_id="w1:p5", ws_label="delta", pane_l
 span(T(15), T(15, 20), cwd="/w/other", pane_id="w1:p6", ws_label="epsilon", pane_label="idle") # unresolved, agent ran
 
 llm_calls, seen_items = [], []
+offered_ids = []
 def fake_llm(batch, tasks, projects, model):
     llm_calls.append(len(batch))
+    offered_ids.append({t["id"] for t in tasks})
     out = {}
     for b in batch:
         seen_items.append(b["item"])
@@ -345,6 +348,20 @@ before = len(llm_calls)
 rows2 = termclass.classify(day, now=T(23))
 check("labels cached: no second model call", len(llm_calls), before)
 check("rerun replaces, not appends", len(rows2), len(rows))
+
+# a task made from untracked time (a promoted claim) is not offered to the labeller
+check("baseline: runbook task offered", "cccc3333" in offered_ids[0], True)
+with dbs.open_private() as c:
+    c.execute("DELETE FROM term_label_cache")
+    c.execute("INSERT INTO untracked_claim(day, project, task_uuid, ref, decided, decided_unix)"
+              " VALUES('1999-01-01','beta','cccc3333-0000','','promoted',0)"); c.commit()
+offered_ids.clear()
+termclass.classify(day, now=T(23))
+check("promoted task not offered", [("cccc3333" in o) for o in offered_ids], [False] * len(offered_ids))
+check("labeller was called", len(offered_ids) > 0, True)
+with dbs.open_private() as c:
+    c.execute("DELETE FROM untracked_claim"); c.execute("DELETE FROM term_label_cache"); c.commit()
+termclass.classify(day, now=T(23))       # restore the cache the later checks expect
 
 with dbs.open_private() as c:
     c.execute("DELETE FROM term_label_cache"); c.commit()
