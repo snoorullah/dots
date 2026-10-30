@@ -41,20 +41,35 @@ eval "$(starship init zsh)"
 # pushes the live values into the systemd user manager at startup (hyprland.lua), so read
 # them from there. Also runs when the inherited value is STALE (a Hyprland restart changes
 # the socket and the signature), which is why the test is the socket, not the variable.
-if [ ! -S "${XDG_RUNTIME_DIR:-/run/user/$UID}/${WAYLAND_DISPLAY:-wayland-0}" ] && command -v systemctl >/dev/null; then
-  for _kv in ${(f)"$(systemctl --user show-environment 2>/dev/null)"}; do
-    case $_kv in
-      WAYLAND_DISPLAY=*|DISPLAY=*|HYPRLAND_INSTANCE_SIGNATURE=*|XDG_CURRENT_DESKTOP=*) export "$_kv" ;;
+#
+# A pane herdr restores at boot starts its shell BEFORE Hyprland, so checking once at startup
+# is not enough: that shell then sits at its prompt for hours and everything run from it
+# still has no session. So check again before every prompt and every command. Costs one
+# stat, and systemctl runs only when a compositor is up and this shell does not have it.
+_dots_graphical_env() {
+  local run=${XDG_RUNTIME_DIR:-/run/user/$UID} kv
+  [[ -S $run/${WAYLAND_DISPLAY:-wayland-0} ]] && return
+  local -a socks=( $run/wayland-<->(N=) )
+  (( $#socks )) && (( $+commands[systemctl] )) || return
+  for kv in ${(f)"$(systemctl --user show-environment 2>/dev/null)"}; do
+    case $kv in
+      WAYLAND_DISPLAY=*|DISPLAY=*|HYPRLAND_INSTANCE_SIGNATURE=*|XDG_CURRENT_DESKTOP=*) export "$kv" ;;
     esac
   done
-  unset _kv
-fi
+  # the X fallback below may have pointed this shell at the greeter's auth file
+  [[ -S $run/${WAYLAND_DISPLAY:-wayland-0} ]] && unset XAUTHORITY
+}
+_dots_graphical_env
+autoload -Uz add-zsh-hook
+add-zsh-hook precmd _dots_graphical_env
+add-zsh-hook preexec _dots_graphical_env
 
 # X11 display + xauth (GDM puts xauth under $XDG_RUNTIME_DIR/gdm)
 # Needed for xclip/clipboard-image paste in Claude Code, Electron apps, etc.
 if [ -z "$WAYLAND_DISPLAY" ]; then
   for _xsock in /tmp/.X11-unix/X*; do
-    [ -S "$_xsock" ] && export DISPLAY=":${_xsock##*/X}" && break
+    # -O: only a display of ours. The login greeter's X1024 is gdm's and refuses us.
+    [ -S "$_xsock" ] && [ -O "$_xsock" ] && export DISPLAY=":${_xsock##*/X}" && break
   done
   unset _xsock
   for _xauth in "/run/user/$(id -u)/gdm/Xauthority" "$HOME/.Xauthority"; do
