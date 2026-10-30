@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # The daily brief: company work only, idempotent, 0600, and no network call of any kind.
 #
-# Runs the real CLI against a scratch Taskwarrior and a scratch work.db, with HTTP_PROXY
-# pointing at a dead port, GH_TOKEN unset, and `gh`/`curl`/`xdg-open` stubs that record
-# their own invocation. If the brief ever reaches for the network, a marker file appears.
+# Runs the real CLI against a scratch Taskwarrior, work.db and private.db, with HTTP_PROXY
+# pointing at a dead port, GH_TOKEN unset, and `curl`/`wget`/`xdg-open` stubs that record
+# their own invocation. The only network the journal may use is read-only `gh`: a stub that
+# logs argv, answers canned PRs when $tmp/gh-up exists and fails (offline) otherwise.
 set -uo pipefail
 root="$(git rev-parse --show-toplevel)"
 pkg="$root/nix/pkgs/dots-overview"
@@ -13,9 +14,26 @@ ok()  { echo "  ok   $1"; }
 bad() { echo "  FAIL $1"; fails=$((fails + 1)); }
 
 mkdir -p "$tmp/bin" "$tmp/task" "$tmp/tt"
-for n in gh curl wget xdg-open; do
+for n in curl wget xdg-open; do
   printf '#!/bin/sh\necho "$0 $*" >> "%s/network-marker"\nexit 1\n' "$tmp" > "$tmp/bin/$n"; chmod +x "$tmp/bin/$n"
 done
+cat > "$tmp/bin/gh" <<GH
+#!/bin/sh
+echo "\$*" >> "$tmp/gh.log"
+[ -f "$tmp/gh-up" ] || { echo "offline" >&2; exit 1; }
+case "\$1 \$2" in
+  "api rate_limit") echo 30 ;;
+  "api user") echo me ;;
+  "search prs")
+    case "\$*" in
+      *--merged-at*) echo '[{"number":6,"title":"Fix lint","repository":{"nameWithOwner":"acme/r"},"author":{"login":"me"}}]' ;;
+      *--reviewed-by*) echo '[{"number":9,"title":"Their change","repository":{"nameWithOwner":"acme/r"},"author":{"login":"bob"}}]' ;;
+      *) echo '[{"number":7,"title":"Add retries","repository":{"nameWithOwner":"acme/r"},"author":{"login":"me"}},{"number":2,"title":"Mine","repository":{"nameWithOwner":"me/dots"},"author":{"login":"me"}}]' ;;
+    esac ;;
+  *) echo "gh stub: unexpected: \$*" >&2; exit 2 ;;
+esac
+GH
+chmod +x "$tmp/bin/gh"
 printf '#!/bin/sh\nPYTHONPATH="%s" exec python3 -m dots_overview "$@"\n' "$pkg" > "$tmp/bin/dots-overview"; chmod +x "$tmp/bin/dots-overview"
 export PATH="$tmp/bin:$PATH"
 export HTTP_PROXY=http://127.0.0.1:1 HTTPS_PROXY=http://127.0.0.1:1 ALL_PROXY=http://127.0.0.1:1
@@ -32,11 +50,23 @@ from datetime import datetime
 c = sqlite3.connect(sys.argv[1])
 c.executescript("""CREATE TABLE work_session (id INTEGER PRIMARY KEY, opened_unix INTEGER, closed_unix INTEGER, attendance_day TEXT);
 CREATE TABLE deduction (id INTEGER PRIMARY KEY, session_id INTEGER, start_unix INTEGER, end_unix INTEGER);
-CREATE TABLE v_run_interval (ticket TEXT, start_unix INTEGER, end_unix INTEGER);""")
+CREATE TABLE v_run_interval (ticket TEXT, start_unix INTEGER, end_unix INTEGER);
+CREATE TABLE v_day_worked (attendance_day TEXT, net_minutes INTEGER);""")
 d = time.time() - 7 * 3600     # logged in 7 h ago, logs out in 10 min (the tasks below close inside it): the day is the session
 c.execute("INSERT INTO work_session VALUES (1, ?, ?, ?)", (d, time.time() + 600, datetime.fromtimestamp(d).strftime("%Y-%m-%d")))
 c.execute("INSERT INTO v_run_interval VALUES ('HD-123', ?, ?)", (d + 3600, d + 3600 + 6000))
+day = datetime.fromtimestamp(d).strftime("%Y-%m-%d")
+c.execute("INSERT INTO v_day_worked VALUES (?, 372)", (day,))
 c.commit()
+p = sqlite3.connect(sys.argv[1].replace("work.db", "private.db"))
+p.executescript("""CREATE TABLE term_day (day TEXT, task_uuid TEXT DEFAULT '', ref TEXT DEFAULT '', project TEXT DEFAULT '',
+  agent_name TEXT DEFAULT '', verdict TEXT, seconds INTEGER);
+CREATE TABLE web_ticket_day (day TEXT, ticket TEXT, seconds INTEGER);""")
+p.executemany("INSERT INTO term_day VALUES (?,?,?,?,?,?,?)", [
+  (day, "", "HD-123", "work", "", "work", 3900), (day, "", "HD-123", "work", "claude", "delegated", 1200),
+  (day, "", "", "work", "", "work", 7800), (day, "", "", "personal", "", "work", 5000)])
+p.execute("INSERT INTO web_ticket_day VALUES (?, 'HD-123', 900)", (day,))
+p.commit()
 EOF
 
 tw add project:work +mirror ref:HD-123 src:erp -- "Fix the intake form validation" >/dev/null 2>&1
@@ -55,7 +85,11 @@ day=$(date -d "-7 hours" +%F); f="$tmp/daily/$day.md"   # the session's day (it 
 [ -f "$f" ] && ok "writes REPORT_DIR/$day.md" || bad "no brief at $f"
 [ "$(stat -c %a "$f")" = 600 ] && ok "file is 0600" || bad "file mode $(stat -c %a "$f")"
 [ "$(stat -c %a "$tmp/daily")" = 700 ] && ok "directory is 0700" || bad "dir mode"
-[ ! -e "$tmp/network-marker" ] && ok "no gh/curl/wget/xdg-open was started" || bad "network tool used: $(cat "$tmp/network-marker")"
+[ ! -e "$tmp/network-marker" ] && ok "no curl/wget/xdg-open was started" || bad "network tool used: $(cat "$tmp/network-marker")"
+sed -n '/^## PRs/,$p' "$f" | grep -q '^unavailable' && ok "gh offline: PRs says unavailable" || bad "PRs section offline: $(sed -n '/^## PRs/,$p' "$f")"
+grep -q '(timesheet 6h 12m)' "$f" && ok "header carries v_day_worked's number" || bad "header: $(sed -n 3p "$f")"
+grep -q '^| `HD-123` .*| 1h 05m | 20m | 15m |' "$f" && ok "terminal time split you / agent / browser per ticket" || bad "attention row: $(grep -A6 attention "$f")"
+grep -q '^| No ticket: work |.*2h 10m' "$f" && ok "unattributed work time is labelled" || bad "no 'No ticket' row"
 grep -qE '^Worked [0-9]+(h|m)' "$f" && ok "worked time comes from work.db (exact sums are unit-tested)" || bad "worked time wrong: $(sed -n 3p "$f")"
 grep -q '`HD-123` Fix the intake form validation — 1h 40m' "$f" && ok "closed ERP item with its clock time" || bad "HD-123 line missing"
 grep -q '`gh:acme/r#886` Detection rules' "$f" && ok "closed company repo item is listed" || bad "acme item missing"
@@ -80,6 +114,16 @@ out=$(dots-overview report --reason logout 2>&1); echo "$out" | grep -q updated 
 dots-overview report --date yesterday >/dev/null 2>&1 && ok "--date yesterday works" || bad "--date yesterday"
 dots-overview report --date not-a-date >/dev/null 2>&1; [ $? -ne 0 ] && ok "a bad date is an error, not a file" || bad "bad date accepted"
 [ ! -e "$tmp/network-marker" ] && ok "still no network tool started" || bad "network tool used"
+
+echo "3b. PRs, with gh up"
+touch "$tmp/gh-up"; rm "$f"
+dots-overview report >/dev/null 2>&1
+p=$(sed -n '/^## PRs/,$p' "$f")
+echo "$p" | grep -q 'gh:acme/r#7. Add retries' && echo "$p" | grep -q 'gh:acme/r#6. Fix lint' && echo "$p" | grep -q 'gh:acme/r#9. Their change' && ok "opened, merged and reviewed PRs listed" || bad "PRs: $p"
+echo "$p" | grep -q 'me/dots' && bad "a personal-repo PR is in the brief" || ok "personal repo PR left out"
+! grep -qE -- '(^| )(-X|--method|-f|--field)( |$)|^(pr|issue) ' "$tmp/gh.log" && ok "gh was only asked to read ($(wc -l < "$tmp/gh.log") calls)" || bad "write-shaped gh call: $(cat "$tmp/gh.log")"
+rm "$tmp/gh-up"; out=$(dots-overview report 2>&1)
+echo "$out" | grep -q unchanged && grep -q 'gh:acme/r#7' "$f" && ok "gh going offline does not erase the PRs already written" || bad "offline rerun: $out"
 
 echo "4. the logout trigger spawns it, detached and guarded"
 mkdir -p "$tmp/logbin"
