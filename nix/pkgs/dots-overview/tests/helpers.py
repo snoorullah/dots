@@ -11,7 +11,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE))
 
-from dots_overview import config, herdr, local_tt, tw  # noqa: E402
+from dots_overview import config, herdr, local_tt, sources_gh, tw  # noqa: E402
 
 
 class Scratch(unittest.TestCase):
@@ -33,6 +33,12 @@ class Scratch(unittest.TestCase):
         # herdr and timewarrior are the machine's real ones; tests see neither
         herdr.run, real_run = (lambda *a, **k: None), herdr.run
         self.addCleanup(setattr, herdr, "run", real_run)
+        # gh is offline unless a test installs its own stub
+        def _offline(*a, **k):
+            raise sources_gh.GhError("offline (test)")
+        sources_gh.run, real_gh = _offline, sources_gh.run
+        sources_gh.SLEEP = 0
+        self.addCleanup(setattr, sources_gh, "run", real_gh)
         # a poisoned proxy: anything that tries the network goes nowhere
         self._env = dict(os.environ)
         os.environ.update({"HTTP_PROXY": "http://127.0.0.1:1", "HTTPS_PROXY": "http://127.0.0.1:1",

@@ -1,4 +1,5 @@
 """The daily brief: company items only, idempotent, 0600, no personal data."""
+import json
 import sqlite3
 import stat
 import time
@@ -6,7 +7,7 @@ import unittest
 from datetime import datetime
 
 import helpers
-from dots_overview import config, local_tt, report
+from dots_overview import config, local_tt, report, sources_gh
 
 # built from parts: the literal never appears in shipped source (only tests/lint.sh's denylist names it)
 HANDLE = "web" + "sleak"
@@ -27,6 +28,46 @@ def make_db(path, day_epoch):
     c.execute("INSERT INTO v_run_interval VALUES ('gh:acme/r#886', ?, ?)", (day_epoch + 11 * 3600, day_epoch + 11 * 3600 + 600))
     c.commit()
     c.close()
+
+def make_private(path, day):
+    c = sqlite3.connect(path)
+    c.executescript("""
+      CREATE TABLE term_day (day TEXT, task_uuid TEXT DEFAULT '', ref TEXT DEFAULT '', project TEXT DEFAULT '',
+                             agent_name TEXT DEFAULT '', verdict TEXT, seconds INTEGER);
+      CREATE TABLE web_ticket_day (day TEXT, ticket TEXT, seconds INTEGER);
+    """)
+    d = day.isoformat()
+    rows = [(d, "", "HD-123", "work", "", "work", 3900),               # you, on a ticket
+            (d, "", "HD-123", "work", "claude", "delegated", 1200),    # an agent, same ticket
+            (d, "", "", "work", "", "work", 7800),                     # work project, no ticket
+            (d, "", "", "personal", "", "work", 5000),                 # personal: never listed
+            (d, "", "HD-123", "work", "", "unproductive", 3000),       # not an outcome
+            (d, "", "gh:me/dots#3", "", "", "work", 4000),             # personal repo
+            (d, "", "HD-5", "work", "", "work", 30)]                   # under a minute: noise
+    c.executemany("INSERT INTO term_day VALUES (?,?,?,?,?,?,?)", rows)
+    c.executemany("INSERT INTO web_ticket_day VALUES (?,?,?)", [(d, "HD-123", 900), (d, "gh:me/dots#3", 600)])
+    c.commit()
+    c.close()
+
+
+PRS = {"opened": [{"number": 7, "title": "Add retries", "repository": {"nameWithOwner": "acme/r"}, "author": {"login": "me"}},
+                  {"number": 2, "title": "Personal thing", "repository": {"nameWithOwner": "me/dots"}, "author": {"login": "me"}}],
+       "merged": [{"number": 6, "title": "Fix lint ada@example.com", "repository": {"nameWithOwner": "acme/r"}, "author": {"login": "me"}}],
+       "reviewed": [{"number": 9, "title": "Their change", "repository": {"nameWithOwner": "acme/r"}, "author": {"login": "bob"}},
+                    {"number": 7, "title": "Add retries", "repository": {"nameWithOwner": "acme/r"}, "author": {"login": "me"}}]}
+
+
+def gh_stub(log):
+    def run(args, timeout=30):
+        log.append(list(args))
+        if args[:2] == ["api", "rate_limit"]:
+            return "30"
+        if args[:2] == ["api", "user"]:
+            return "me"
+        flags = " ".join(args)
+        kind = "merged" if "--merged-at" in flags else "reviewed" if "--reviewed-by" in flags else "opened"
+        return json.dumps(PRS[kind])
+    return run
 
 
 class Brief(helpers.Scratch):
@@ -87,6 +128,7 @@ class Brief(helpers.Scratch):
 
     def test_write_is_0600_idempotent_and_nightly_is_a_noop(self):
         t = self.t0 + 23 * 3600
+        sources_gh.run = gh_stub([])
         self.assertEqual(report.write(self.day, self.cfg, "logout", now=t), "created")
         path = self.cfg.report_dir / f"{self.day.isoformat()}.md"
         self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
@@ -108,6 +150,184 @@ class Brief(helpers.Scratch):
         text = report.build(self.day, self.cfg, now=self.t0 + 23 * 3600)
         self.assertIn("0 items closed", text)
         self.assertIn("Nothing.", text)
+
+    def test_terminal_and_browser_attention_split_you_agent_browser(self):
+        make_private(config.TT_DIR / "private.db", self.day)
+        text = self.build()
+        self.assertIn("| `HD-123` | Fix the intake form validation | 1h 05m | 20m | 15m |", text)
+        self.assertIn("| No ticket: work |  | 2h 10m | - | - |", text)
+        for leak in ("personal", "gh:me/dots#3", "HD-5`", "50m |"):       # personal, noise, unproductive 3000s
+            self.assertNotIn(leak, text)
+
+    def test_unattributed_time_is_labelled_not_dropped(self):
+        make_private(config.TT_DIR / "private.db", self.day)
+        self.assertRegex(self.build(), r"No ticket: work \|[^\n]*2h 10m")
+
+    def test_no_private_db_means_no_attention_table(self):
+        text = self.build()
+        self.assertNotIn("Terminal and browser attention", text)
+        self.assertIn("## Time by item", text)               # the clock table is still there
+
+    def test_header_carries_the_timesheet_number(self):
+        c = sqlite3.connect(config.TT_DIR / "work.db")
+        c.execute("CREATE TABLE v_day_worked (attendance_day TEXT, net_minutes INTEGER)")
+        c.execute("INSERT INTO v_day_worked VALUES (?, 372)", (self.day.isoformat(),))
+        c.commit()
+        c.close()
+        self.assertIn("Worked 7h (timesheet 6h 12m) · 2 items closed", self.build())
+
+    def test_prs_opened_merged_reviewed_company_only_read_only(self):
+        log = []
+        sources_gh.run = gh_stub(log)
+        text = self.build()
+        sec = text.split("## PRs")[1]
+        self.assertIn("Opened:\n1. `gh:acme/r#7` Add retries", sec)
+        self.assertIn("Merged:\n1. `gh:acme/r#6` Fix lint [email]", sec)
+        self.assertIn("Reviewed, touched today", sec)
+        self.assertIn("1. `gh:acme/r#9` Their change", sec.split("Reviewed")[1])
+        self.assertNotIn("me/dots", sec)                      # personal repo
+        self.assertNotIn("#7` Add retries", sec.split("Reviewed")[1])   # my own PR is not a review
+        self.assertEqual(sorted(a[0] for a in log), ["api", "api", "search", "search", "search"])
+        self.assertIn(f"--created={self.day.isoformat()}", " ".join(log[2]))
+        self.assertFalse([a for a in log if any(x in ("-X", "--method", "comment", "review", "close") for x in a)])
+
+    def test_offline_gh_says_unavailable_and_the_rest_renders(self):
+        text = self.build()                                   # helpers: gh raises GhError
+        self.assertIn("## PRs\nunavailable", text)
+        self.assertIn("2 items closed", text)
+        self.assertIn("`HD-123` Fix the intake form validation — 1h 40m", text)
+
+    def test_unavailable_never_overwrites_an_earlier_pr_section(self):
+        t = self.t0 + 23 * 3600
+        sources_gh.run = gh_stub([])
+        self.assertEqual(report.write(self.day, self.cfg, "logout", now=t), "created")
+        sources_gh.run = lambda *a, **k: (_ for _ in ()).throw(sources_gh.GhError("offline"))
+        self.assertEqual(report.write(self.day, self.cfg, None, now=t), "unchanged")
+        self.assertIn("gh:acme/r#7", (self.cfg.report_dir / f"{self.day.isoformat()}.md").read_text())
+
+    def test_pr_section_is_scrubbed_and_idempotent(self):
+        sources_gh.run = gh_stub([])
+        t = self.t0 + 23 * 3600
+        report.write(self.day, self.cfg, "logout", now=t)
+        self.assertEqual(report.write(self.day, self.cfg, None, now=t), "unchanged")
+        self.assertNotIn("ada@", (self.cfg.report_dir / f"{self.day.isoformat()}.md").read_text())
+
+    # --- review fixes ---
+    def sheet(self, sql, *args):
+        c = sqlite3.connect(config.TT_DIR / "work.db")
+        c.execute("DROP VIEW IF EXISTS v_day_worked")
+        c.execute("DROP TABLE IF EXISTS v_day_worked")
+        c.executescript("CREATE TABLE v_day_worked (attendance_day TEXT, net_minutes INTEGER,"
+                        " span_minutes INTEGER, unconfirmed INTEGER)")
+        c.execute(sql, args)
+        c.commit()
+        c.close()
+
+    def header(self):
+        return self.build().split("\n")[2]
+
+    def test_header_null_net_shows_the_span_as_no_breaks_yet(self):
+        self.sheet("INSERT INTO v_day_worked VALUES (?, NULL, 450, 0)", self.day.isoformat())
+        self.assertIn("(timesheet: no breaks yet, span 7h 30m)", self.header())
+
+    def test_header_unconfirmed_day_is_marked_like_the_timesheet(self):
+        self.sheet("INSERT INTO v_day_worked VALUES (?, 372, 450, 1)", self.day.isoformat())
+        self.assertIn("(timesheet 6h 12m net?", self.header())
+
+    def test_header_confirmed_day_is_a_plain_number(self):
+        self.sheet("INSERT INTO v_day_worked VALUES (?, 372, 450, 0)", self.day.isoformat())
+        self.assertIn("(timesheet 6h 12m) ·", self.header())
+
+    def test_header_null_net_and_no_span_says_nothing(self):
+        self.sheet("INSERT INTO v_day_worked VALUES (?, NULL, 0, 0)", self.day.isoformat())
+        self.assertNotIn("timesheet", self.header())
+
+    def test_missing_view_and_old_schema_do_not_break_the_brief(self):
+        self.assertNotIn("timesheet", self.header())            # make_db has no v_day_worked
+        c = sqlite3.connect(config.TT_DIR / "work.db")
+        c.execute("CREATE TABLE v_day_worked (attendance_day TEXT, net_minutes INTEGER)")
+        c.execute("INSERT INTO v_day_worked VALUES (?, 372)", (self.day.isoformat(),))
+        c.commit()
+        c.close()
+        self.assertIn("(timesheet 6h 12m)", self.header())      # old schema: net only
+        (config.TT_DIR / "work.db").unlink()
+        self.assertIn("2 items closed", self.build())            # no work.db at all
+
+    def test_missing_private_tables_leave_the_clock_table(self):
+        c = sqlite3.connect(config.TT_DIR / "private.db")
+        c.execute("CREATE TABLE unrelated (x)")
+        c.commit()
+        c.close()
+        text = self.build()
+        self.assertNotIn("Terminal and browser attention", text)
+        self.assertIn("## Time by item", text)
+
+    def test_attention_column_and_note_are_honest(self):
+        make_private(config.TT_DIR / "private.db", self.day)
+        text = self.build()
+        self.assertIn("| in agent pane |", text)
+        self.assertIn("They differ by design", text)
+
+    def test_stray_ref_is_not_company_work(self):
+        make_private(config.TT_DIR / "private.db", self.day)
+        c = sqlite3.connect(config.TT_DIR / "private.db")
+        c.execute("INSERT INTO term_day VALUES (?, '', 'groceries', '', '', 'work', 4000)", (self.day.isoformat(),))
+        c.commit()
+        c.close()
+        self.assertNotIn("groceries", self.build())
+
+    def path(self):
+        return self.cfg.report_dir / f"{self.day.isoformat()}.md"
+
+    def test_file_is_written_before_gh_is_asked(self):
+        seen = []
+
+        def run(args, timeout=30):
+            seen.append(self.path().exists() and "pending" in self.path().read_text())
+            raise sources_gh.GhError("hang then die")
+        sources_gh.run = run
+        report.write(self.day, self.cfg, "logout", now=self.t0 + 23 * 3600)
+        self.assertEqual(seen, [True])                      # on disk, PRs pending, before gh's first call
+        self.assertIn("unavailable", self.path().read_text())   # and rewritten once gh answered
+
+    def test_nightly_rewrites_unavailable_then_keeps_settled(self):
+        t = self.t0 + 23 * 3600
+        report.write(self.day, self.cfg, "logout", now=t)       # gh offline
+        self.assertIn("unavailable", self.path().read_text())
+        self.assertEqual(report.write(self.day, self.cfg, "nightly", now=t), "unchanged")   # retried, still offline
+        sources_gh.run = gh_stub([])
+        self.assertEqual(report.write(self.day, self.cfg, "nightly", now=t), "updated")
+        self.assertIn("gh:acme/r#7", self.path().read_text())
+        self.assertEqual(report.write(self.day, self.cfg, "nightly", now=t), "skipped")
+
+    def test_nightly_rewrites_a_pending_brief(self):
+        p = self.path()
+        p.parent.mkdir(parents=True)
+        p.write_text("# x\n\n## PRs\n" + report.PENDING + "\n")
+        sources_gh.run = gh_stub([])
+        self.assertEqual(report.write(self.day, self.cfg, "nightly", now=self.t0 + 23 * 3600), "updated")
+
+    def test_preserved_pr_section_is_rescrubbed(self):
+        p = self.path()
+        p.parent.mkdir(parents=True)
+        p.write_text("# x\n\n## PRs\nOpened:\n1. `gh:acme/r#7` mail ada@example.com " + HANDLE + "x\n")
+        text = report.build(self.day, self.cfg, now=self.t0 + 23 * 3600, prior=p.read_text())
+        self.assertIn("gh:acme/r#7", text)
+        self.assertNotIn("ada@", text)
+        self.assertNotIn(HANDLE, text)
+
+    def test_truncation_is_stated_when_gh_hits_its_limit(self):
+        many = [{"number": n, "title": "t", "repository": {"nameWithOwner": "acme/r"}, "author": {"login": "me"}}
+                for n in range(100, 100 + report.PR_LIMIT)]
+        stub = gh_stub([])
+        sources_gh.run = lambda a, timeout=30: json.dumps(many) if a[:2] == ["search", "prs"] else stub(a, timeout)
+        sec = self.build().split("## PRs")[1]
+        self.assertIn(f"gh returned its limit of {report.PR_LIMIT}", sec)
+        self.assertIn("(first 15 of 30 company PRs shown)", sec)
+
+    def test_no_truncation_note_when_under_the_limit(self):
+        sources_gh.run = gh_stub([])
+        self.assertNotIn("limit", self.build().split("## PRs")[1])
 
     def test_dur(self):
         self.assertEqual([report.dur(s) for s in (0, 59, 60, 3599, 3600, 3660, 22320)], ["", "", "1m", "59m", "1h", "1h 01m", "6h 12m"])
