@@ -104,10 +104,10 @@ def queue(conn, new=None, now=None):
     top = conn.execute("SELECT COALESCE(MAX(rowid),0) FROM event").fetchone()[0]
     if cur is None:
         # first run: look only at the last few minutes, never replay old history
-        rows = conn.execute("SELECT kind, ref FROM event WHERE ts_unix >= ? AND kind IN "
+        rows = conn.execute("SELECT kind, ref, rowid AS rid FROM event WHERE ts_unix >= ? AND kind IN "
                             "('critical','alert_firing') ORDER BY rowid", (now - 600,)).fetchall()
     else:
-        rows = conn.execute("SELECT kind, ref FROM event WHERE rowid > ? AND kind IN "
+        rows = conn.execute("SELECT kind, ref, rowid AS rid FROM event WHERE rowid > ? AND kind IN "
                             "('critical','alert_firing') ORDER BY rowid", (cur,)).fetchall()
     conn.execute("INSERT OR REPLACE INTO prep_cursor(id, last_rowid) VALUES(1, ?)", (top,))
     if config.panic() or not rows:
@@ -146,6 +146,10 @@ def queue(conn, new=None, now=None):
             conn.execute("INSERT INTO prep(kind, ref, title, status, created_unix, summary) "
                          "VALUES(?,?,?,?,?,?)", (kind, ref, title, status, now, summary))
         queued += status == "queued"
+        if kind == "alert":     # remember WHICH mail this analysis is about
+            mm = conn.execute("SELECT msgid FROM alert_msg WHERE event_rowid=?", (r["rid"],)).fetchone()
+            if mm:
+                conn.execute("INSERT OR REPLACE INTO prep_msg(ref, msgid) VALUES(?,?)", (ref, mm["msgid"]))
     conn.commit()
     if queued:
         _spawn(now)
@@ -210,9 +214,9 @@ def _alert_material(conn, row):
                           (name, name + "|%")):
         out.append(f"- {_fmt(e['ts_unix'])} {e['kind']} {e['ref']} {e['detail'] or ''}".rstrip())
     try:
-        # an alert name comes from a mail subject: keep only a safe set before it meets a query
-        safe = re.sub(r"[^A-Za-z0-9_.-]", "", name)[:80]
-        found = mail.messages(f'tag:alert and subject:"{safe}"', limit=1) if safe else []
+        # the mail this prep was made from, by Message-ID; never "the latest mail with this name"
+        pm = conn.execute("SELECT msgid FROM prep_msg WHERE ref=?", (row["ref"],)).fetchone()
+        found = [m for m in [mail.get(pm["msgid"])] if m] if pm else []
     except Exception:
         found = []
     if found:

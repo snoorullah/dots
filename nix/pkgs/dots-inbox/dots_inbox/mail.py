@@ -47,6 +47,8 @@ def _headers(path):
     except OSError:
         return {}, None
     h = {k: str(msg.get(k, "")) for k in HEADERS if msg.get(k) is not None}
+    # every Authentication-Results, topmost first: alerts.authenticated picks the one WE trust
+    h["authentication-results-all"] = [str(v) for v in msg.get_all("authentication-results") or []]
     return h, msg
 
 
@@ -75,7 +77,7 @@ def get(mid):
         folder = str(rel.parent.parent) if rel.parent.name in ("cur", "new", "tmp") else str(rel.parent)
     thread = _nm("search", "--output=threads", f"id:{mid}").strip().removeprefix("thread:")
     return {"id": mid, "thread": thread, "file": path, "folder": folder,
-            "from": frm, "from_addr": (_addrs(frm) or [""])[0],
+            "from": frm, "from_addr": (_addrs(frm) or [""])[0], "from_count": len(_addrs(frm)),
             "to": _addrs(hd.get("To")), "cc": _addrs(hd.get("Cc")),
             "subject": hd.get("Subject", ""), "date": int(node.get("timestamp") or 0),
             "tags": set(node.get("tags") or []), "headers": extra}

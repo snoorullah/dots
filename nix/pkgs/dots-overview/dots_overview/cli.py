@@ -102,7 +102,47 @@ def cmd_breakdown(args):
 
 def cmd_alert_task(args):
     from . import alertpr
-    print(alertpr.create(args.name, args.project, args.prep, args.repo)["ref"])
+    print(alertpr.create(args.name, args.project, args.prep, args.repo, args.test)["ref"])
+    return 0
+
+
+def _alert_dir(ref):
+    from . import alertrun
+    d = alertrun.run_dir(ref)
+    if not (d / "meta.json").exists():
+        raise SystemExit(f"no alert run for {ref}; click Fix first")
+    return d
+
+
+def cmd_alert_review(args):
+    """Extract the agent's patch (host code, refuses anything forbidden), then open a read-only
+    view in a pane. Pushes nothing."""
+    from . import alertrun, launch
+    d = _alert_dir(args.ref)
+    try:
+        r = alertrun.extract(d)
+    except alertrun.Refused as e:
+        for why in e.args[0]:
+            print(f"refused: {why}", file=sys.stderr)
+        return 1
+    if r.get("empty"):
+        print("the agent changed nothing")
+        return 0
+    (d / "review.txt").write_text(alertrun.review_text(d), encoding="utf-8")
+    alertrun.mark_reviewed(d)
+    print(launch.open_review(d))
+    return 0
+
+
+def cmd_alert_push(args):
+    """The separate, explicit click: push the reviewed patch and open a DRAFT PR."""
+    from . import alertpush
+    d = _alert_dir(args.ref)
+    try:
+        print(alertpush.push(d, confirmed=True))
+    except alertpush.PushError as e:
+        print(f"not pushed: {e}", file=sys.stderr)
+        return 1
     return 0
 
 
@@ -175,7 +215,12 @@ def main(argv=None):
     p.add_argument("--name", required=True)
     p.add_argument("--project", required=True)
     p.add_argument("--prep", required=True, help="the prepared analysis (markdown)")
-    p.add_argument("--repo", help="local checkout the fix goes in; without it the agent stops and asks")
+    p.add_argument("--repo", help="local checkout the fix is made from; without it nothing is prepared")
+    p.add_argument("--test", help="the one command the agent runs to check its fix")
+    p = add("alert-review", cmd_alert_review, "extract the agent's patch and open it read-only; pushes nothing")
+    p.add_argument("ref")
+    p = add("alert-push", cmd_alert_push, "push the reviewed patch and open a DRAFT PR (a separate click)")
+    p.add_argument("ref")
     p = add("jump", cmd_jump, "focus the pane / open the url for a ref, agent or task id")
     p.add_argument("target", nargs="?")
     p.add_argument("--last", action="store_true")

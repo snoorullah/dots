@@ -28,17 +28,17 @@ def _path(p, what, must_dir):
     return str(p)
 
 
-def create(name, project, prep, repo=None):
+def create(name, project, prep, repo=None, test=None):
     """One task for the alert; returns the task dict. A repeat for the same prep file
     returns the existing task instead of making a second one."""
     prep = _path(prep, "prep", False)
     config.STATE_DIR.mkdir(parents=True, exist_ok=True)
     with open(config.STATE_DIR / "alert-task.lock", "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)         # check-then-add must not interleave
-        return _create(name, project, prep, repo)
+        return _create(name, project, prep, repo, test)
 
 
-def _create(name, project, prep, repo):
+def _create(name, project, prep, repo, test=None):
     for t in tw.pending():
         if "alert" in (t.get("tags") or []) and any(
                 (a.get("description") or "") == f"prep: {prep}" for a in t.get("annotations") or []):
@@ -48,6 +48,8 @@ def _create(name, project, prep, repo):
     tw.annotate(t["uuid"], f"prep: {prep}")
     if repo:
         tw.annotate(t["uuid"], f"repo: {_path(repo, 'repo', True)}")
+        if test and "\n" not in test and "\r" not in test and "\0" not in test and len(test) <= 200:
+            tw.annotate(t["uuid"], f"test: {test.strip()}")      # from the owner's rules.toml
     return tw.export(t["uuid"])[0]
 
 

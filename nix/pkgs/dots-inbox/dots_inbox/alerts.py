@@ -33,32 +33,87 @@ def _re(pat, text):
     return re.search(pat, text or "", re.I) if pat else None
 
 
-AUTH_PASS = re.compile(r"\b(?:dkim|dmarc)\s*=\s*pass\b", re.I)
+def _full(pat, text):
+    return re.fullmatch(pat, text or "", re.I) if pat else None
 
 
 def sender(m):
-    """The parsed address only: a display name like "alerts@corp <x@evil>" must not match."""
-    return (m.get("from_addr") or "").lower()
+    """The parsed address only: a display name like "alerts@corp <x@evil>" must not match.
+    A From with several addresses matches nothing."""
+    return (m.get("from_addr") or "").lower() if m.get("from_count", 1) == 1 else ""
 
 
-def authenticated(m):
-    """True when the receiving server recorded a passing DKIM or DMARC check. Only an alert
-    that passes may be offered as a ticket: a forged From cannot reach the agent."""
-    return bool(AUTH_PASS.search((m.get("headers") or {}).get("authentication-results", "")))
+def _strip(value):
+    """Authentication-Results text with comments (nested parens) and quoted values removed, so
+    `dkim=fail (dkim=pass)` and `smtp.mailfrom="dmarc=pass@evil"` carry no result of theirs."""
+    out, depth, quote, esc = [], 0, False, False
+    for ch in value or "":
+        if quote:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                quote = False
+            continue
+        if ch == '"' and depth == 0:
+            quote = True
+            continue
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        elif depth == 0:
+            out.append(ch)
+    return re.sub(r"\s*=\s*", "=", "".join(out))
+
+
+def _trusted_ar(m, authserv):
+    """The topmost Authentication-Results whose authserv-id is the configured one, as
+    (cleaned text) or None. Headers from any other id are somebody else's claim."""
+    h = m.get("headers") or {}
+    allv = h.get("authentication-results-all")
+    if allv is None:
+        allv = [h["authentication-results"]] if h.get("authentication-results") else []
+    for v in allv:
+        clean = _strip(v)
+        head = clean.split(";", 1)[0].split()
+        if head and head[0].lower() == authserv.lower():
+            return clean
+    return None
+
+
+def authenticated(m, cfg):
+    """True when OUR receiving server (rules.toml [alerts] authserv_id) recorded dmarc=pass
+    for a header.from equal to this mail's From domain. No configured id = never."""
+    authserv = str((cfg.get("alerts") or {}).get("authserv_id") or "").strip()
+    addr = sender(m)
+    if not authserv or "@" not in addr:
+        return False
+    clean = _trusted_ar(m, authserv)
+    if clean is None:
+        return False
+    domain = addr.rsplit("@", 1)[1]
+    for seg in clean.split(";")[1:]:
+        toks = seg.split()
+        if toks and toks[0].lower() == "dmarc=pass" and any(
+                t.lower() == f"header.from={domain}" for t in toks[1:]):
+            return True
+    return False
 
 
 def classify(m, cfg):
     """None, or {'kind': 'alert'|'backup_ok'|'backup_fail', ...parsed fields}."""
     a, b = cfg.get("alerts", {}), cfg.get("backup", {})
     subj = m.get("subject", "")
-    if a.get("from") and _re(a["from"], sender(m)):
+    if a.get("from") and _full(a["from"], sender(m)):
         mt = re.search(a.get("subject", DEFAULT_SUBJECT), subj, re.S)
         if mt:
             g = mt.groupdict()
             return {"kind": "alert", "severity": (g.get("severity") or "").upper(),
                     "name": g.get("name") or subj, "state": (g.get("state") or "FIRING").upper(),
                     "scope": g.get("scope") or ""}
-    if b.get("from") and _re(b["from"], sender(m)):
+    if b.get("from") and _full(b["from"], sender(m)):
         if _re(b.get("fail"), subj):
             return {"kind": "backup_fail"}
         if _re(b.get("ok"), subj):
@@ -98,13 +153,13 @@ def run(conn, new, now=None):
         if c["kind"] != "alert":
             continue
         t = int(m.get("date") or wall)
-        if c["kind"] == "alert" and authenticated(m):
-            db.log(conn, "alert_authed", c["name"], m.get("subject"), ts=t)
+        ok = authenticated(m, cfg)
         fresh = wall - t < stale                         # an old mail is backlog, never a toast
         name, scope = c["name"], c["scope"]
         row = conn.execute("SELECT * FROM alert_state WHERE name=? AND scope=?",
                            (name, scope)).fetchone()
         was_firing = bool(row and row["state"] == "firing" and t - row["last_unix"] < stale)
+        _msg(conn, m, name, scope, ok, t, None)
         if c["state"] == "FIRING":
             if was_firing:
                 conn.execute("UPDATE alert_state SET repeats=repeats+1, last_unix=max(last_unix,?)"
@@ -116,6 +171,7 @@ def run(conn, new, now=None):
                          "last_unix,repeats,notified_unix) VALUES(?,?,?,'firing',?,?,1,?)",
                          (name, scope, c["severity"], t, t, t if tell else None))
             db.log(conn, "alert_firing", f"{name}|{scope}", m.get("subject"), ts=t)
+            _msg(conn, m, name, scope, ok, t, conn.execute("SELECT last_insert_rowid()").fetchone()[0])
             if tell:
                 fired.append((name, scope))
         elif row and row["state"] == "firing":
@@ -134,6 +190,15 @@ def run(conn, new, now=None):
         more = len(lines) - 6
         _nt.toast("Mail", f"Alerts: {len(fired)} firing, {len(resolved)} resolved",
                   "\n".join(lines[:6] + ([f"+{more} more"] if more > 0 else [])))
+
+
+def _msg(conn, m, name, scope, ok, t, rowid):
+    """Record this mail by Message-ID with its gate result (and the firing event it caused)."""
+    if not m.get("id"):
+        return
+    conn.execute("INSERT INTO alert_msg(msgid,name,scope,authed,ts_unix,event_rowid) VALUES(?,?,?,?,?,?) "
+                 "ON CONFLICT(msgid) DO UPDATE SET event_rowid=COALESCE(excluded.event_rowid,event_rowid)",
+                 (m["id"], name, scope, int(ok), t, rowid))
 
 
 def firing(conn, now=None):

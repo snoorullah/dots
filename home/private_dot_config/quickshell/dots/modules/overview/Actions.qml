@@ -21,6 +21,23 @@ Singleton {
         return true
     }
 
+    // Alert tickets: the agent edits a plain copy; these two are the human's steps after it.
+    // Review extracts the patch and opens it read-only. Push is a SEPARATE click and nothing
+    // else ever calls it.
+    function alertReview(item) {
+        var h = handle(item)
+        if (h === "") return false
+        Quickshell.execDetached(["dots-overview", "alert-review", h])
+        return true
+    }
+
+    function alertPush(item) {
+        var h = handle(item)
+        if (h === "") return false
+        Quickshell.execDetached(["dots-overview", "alert-push", h])
+        return true
+    }
+
     function jump(item) {
         var h = handle(item)
         if (h === "") return false

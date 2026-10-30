@@ -9,7 +9,7 @@ Those are the only two counts the pill spends colour on.
 import os
 import time
 
-from . import alertpr, atomic, config, herdr, names, sources_notify, sources_ops, sync
+from . import alertpr, alertrun, atomic, config, herdr, names, sources_notify, sources_ops, sync
 
 URGENCY_RANK = {"critical": 0, "time": 1, "active": 2, "passive": 3}
 CLAUDE_TTL = 24 * 3600
@@ -55,7 +55,9 @@ def from_tasks(tasks, now):
             "canBreakdown": bool(ref) and (alert or t.get("src") in ("gh", "erp")) and "sub" not in tags,
             "startedAt": t.get("start_ts"),
             # the repo an alert ticket will be fixed in (label for the button), else None
-            "fixRepo": os.path.basename((alertpr.annotation(t, "repo") or "").rstrip("/")) or None if alert else None})
+            "fixRepo": os.path.basename((alertpr.annotation(t, "repo") or "").rstrip("/")) or None if alert else None,
+            # fix (no agent run yet) | review (patch to look at) | push (reviewed: push button too)
+            "fixStage": alertrun.stage(alertrun.run_dir(ref)) if alert and ref else None})
     return items
 
 

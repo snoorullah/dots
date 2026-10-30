@@ -23,7 +23,7 @@ from . import tw
 ALLOWED = re.compile(r"[^A-Za-z0-9 ,.:/_#()-]")
 PROJECT = re.compile(r"^[A-Za-z0-9._-]{1,40}$")
 URL = re.compile(r"^https?://[^\s'\"<>]{1,400}$")
-ALERT_STEPS = (("Fix the alert in a branch", "Show the diff and open a draft PR"))
+ALERT_STEPS = ("Fix the alert in a sandbox copy", "Review the patch, then push as a draft PR")
 MIN_STEPS, MAX_STEPS, MIN_LEN, MAX_LEN = 2, 5, 8, 80
 
 

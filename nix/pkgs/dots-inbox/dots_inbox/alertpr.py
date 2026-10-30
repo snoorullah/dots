@@ -9,7 +9,8 @@ Which project and checkout an alert belongs to is the user's business, in rules.
   [alerts.repos."HighCPU*"]     # alert-name glob, first match wins
   project = "platform"
   repo = "~/work/some-checkout"
-No match: the task is made in project `alerts` with no repo, and the agent asks.
+  test = "make test"            # optional: the one command the agent runs to check its fix
+No match: the task is made in project `alerts` with no repo and nothing is prepared.
 """
 import fnmatch
 import os
@@ -36,9 +37,25 @@ def mapping(name, cfg=None):
     return DEFAULT_PROJECT, None
 
 
+def test_cmd(name, cfg=None):
+    """The mapped test command for an alert name, or None."""
+    repos = ((cfg if cfg is not None else config.rules()).get("alerts", {}).get("repos") or {})
+    if isinstance(repos, dict):
+        for glob, v in repos.items():
+            if isinstance(v, dict) and fnmatch.fnmatchcase(name.lower(), str(glob).lower()):
+                return str(v.get("test") or "").strip() or None
+    return None
+
+
 def _seen(conn, kind, name, window):
     return conn.execute("SELECT 1 FROM event WHERE kind=? AND ref=? AND ts_unix > ?",
                         (kind, name, int(time.time()) - window)).fetchone() is not None
+
+
+def authed(conn, ref, window):
+    r = conn.execute("SELECT m.authed, m.ts_unix FROM prep_msg p JOIN alert_msg m ON m.msgid=p.msgid "
+                     "WHERE p.ref=?", (ref,)).fetchone()
+    return bool(r and r["authed"] and r["ts_unix"] > time.time() - window)
 
 
 def create(conn, name, prep_path, cfg=None):
@@ -47,6 +64,9 @@ def create(conn, name, prep_path, cfg=None):
     argv = ["dots-overview", "alert-task", "--name", name, "--project", project, "--prep", str(prep_path)]
     if repo:
         argv += ["--repo", repo]
+        tc = test_cmd(name, cfg)
+        if tc:
+            argv += ["--test", tc]
     try:
         r = run(argv, capture_output=True, text=True, timeout=30, stdin=subprocess.DEVNULL)
     except (OSError, subprocess.SubprocessError) as e:
@@ -62,8 +82,10 @@ def create(conn, name, prep_path, cfg=None):
 def offer(conn, row, summary, path, window, cfg=None):
     """Ask once. Returns 'create', 'ignore', 'skipped' (already answered this window) or None."""
     name = row["ref"].split("|", 1)[0]
-    # only an alert mail whose DKIM or DMARC passed (alerts.run logs alert_authed) may be offered
-    if not _seen(conn, "alert_authed", name, window):
+    # only the very mail this prep was made from, and only if it passed the entry gate
+    # (alerts.authenticated: our authserv-id, dmarc=pass aligned with From). Keyed by Message-ID:
+    # an earlier real alert of the same name authorises nothing about a later mail.
+    if not authed(conn, row["ref"], window):
         return "skipped"
     if _seen(conn, "alert_ignored", name, window) or _seen(conn, "alert_ticketed", name, window):
         return "skipped"
