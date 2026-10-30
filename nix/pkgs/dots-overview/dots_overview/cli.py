@@ -7,6 +7,7 @@ Each stage is wrapped on its own, so a failing source degrades ONE file's conten
 adds a line to meta.json) instead of stopping the other five from being written.
 """
 import argparse
+import sqlite3
 import sys
 import time
 
@@ -148,7 +149,7 @@ def cmd_untracked(args):
             print(f"{'created' if created else 'already promoted:'} {t.get('ref')}")
         else:
             print("ignored" if untracked.ignore(args.day, args.project) else "already promoted; left alone")
-    except (untracked.UntrackedError, task.TaskError) as e:
+    except (untracked.UntrackedError, task.TaskError, tw.TwError, sqlite3.OperationalError) as e:
         print(f"dots-overview untracked: {e}", file=sys.stderr)
         return 1
     return cmd_fast(args, ("attention",))        # the item appears/disappears now, not in a minute

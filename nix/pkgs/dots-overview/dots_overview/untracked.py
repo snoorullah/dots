@@ -94,7 +94,7 @@ def _open():
     path = config.TT_DIR / "private.db"
     if not path.exists():
         raise UntrackedError("no private.db yet")
-    conn = sqlite3.connect(path, timeout=5)
+    conn = sqlite3.connect(path, timeout=30, isolation_level=None)     # explicit BEGIN IMMEDIATE below
     if not conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'untracked_claim'").fetchone():
         conn.close()
         raise UntrackedError("private.db is not migrated (timetrack migrate)")
@@ -102,9 +102,10 @@ def _open():
 
 
 def relabel(conn, day, project, task_uuid, ref):
-    """Point the day's unattributed segments on a project at a task, then rebuild term_day."""
+    """Point the day's unattributed human work segments on a project at a task, then rebuild term_day."""
     conn.execute(
-        f"UPDATE term_segment SET task_uuid = ?, ref = ?, labelled_by = 'claim' WHERE day = ? AND project = ? AND {UNATTRIBUTED}",
+        f"UPDATE term_segment SET task_uuid = ?, ref = ?, labelled_by = 'claim' WHERE day = ? AND project = ? AND {UNATTRIBUTED}"
+        " AND COALESCE(agent_name,'') = '' AND verdict = 'work'",
         (task_uuid, ref, day, project))
     conn.execute("DELETE FROM term_day WHERE day = ?", (day,))
     conn.execute(
@@ -114,21 +115,29 @@ def relabel(conn, day, project, task_uuid, ref):
 
 
 def promote(day, project, title=None, now=None):
-    """Create the local task and the claim. Returns (task, created). A second call is a no-op."""
+    """Create the local task and the claim. Returns (task, created). A second call is a no-op.
+    BEGIN IMMEDIATE first: racing callers queue here, so the check-then-create is one step."""
     _check(day, project)
     conn = _open()
     try:
-        have = _claims(conn, day).get(project)
-        if have and have[0] == "promoted":
-            return {"uuid": have[1], "ref": have[2]}, False
-        if not any(c["day"] == day and c["project"] == project for c in candidates(now, 0)) and not have:
-            raise UntrackedError(f"no untracked time on {project} on {day}")
-        t = task.new_task(title or f"{project}: untracked work {day}", project)
-        conn.execute("INSERT OR REPLACE INTO untracked_claim(day, project, task_uuid, ref, decided, decided_unix)"
-                     " VALUES(?,?,?,?,?,?)", (day, project, t["uuid"], t.get("ref") or "", "promoted", int(now or time.time())))
-        relabel(conn, day, project, t["uuid"], t.get("ref") or "")
-        conn.commit()
-        return t, True
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            have = _claims(conn, day).get(project)
+            if have and have[0] == "promoted":
+                conn.execute("ROLLBACK")
+                return {"uuid": have[1], "ref": have[2]}, False
+            if not have and not any(c["day"] == day and c["project"] == project for c in candidates(now, 0)):
+                raise UntrackedError(f"no untracked time on {project} on {day}")
+            t = task.new_task(title or f"{project}: untracked work {day}", project)
+            conn.execute("INSERT OR REPLACE INTO untracked_claim(day, project, task_uuid, ref, decided, decided_unix)"
+                         " VALUES(?,?,?,?,?,?)", (day, project, t["uuid"], t.get("ref") or "", "promoted", int(now or time.time())))
+            relabel(conn, day, project, t["uuid"], t.get("ref") or "")
+            conn.execute("COMMIT")
+            return t, True
+        except BaseException:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
     finally:
         conn.close()
 
@@ -137,11 +146,18 @@ def ignore(day, project, now=None):
     _check(day, project)
     conn = _open()
     try:
-        if _claims(conn, day).get(project, ("",))[0] == "promoted":
-            return False
-        conn.execute("INSERT OR REPLACE INTO untracked_claim(day, project, task_uuid, ref, decided, decided_unix)"
-                     " VALUES(?,?,'','','ignored',?)", (day, project, int(now or time.time())))
-        conn.commit()
-        return True
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            if _claims(conn, day).get(project, ("",))[0] == "promoted":
+                conn.execute("ROLLBACK")
+                return False
+            conn.execute("INSERT OR REPLACE INTO untracked_claim(day, project, task_uuid, ref, decided, decided_unix)"
+                         " VALUES(?,?,'','','ignored',?)", (day, project, int(now or time.time())))
+            conn.execute("COMMIT")
+            return True
+        except BaseException:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
     finally:
         conn.close()

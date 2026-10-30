@@ -448,7 +448,11 @@ def classify(day, now=None, use_llm=True):
             pc["item"], pc["k"] = it, item_key(it)
             left.setdefault(pc["k"], {"k": pc["k"], "item": it})
         projects = known_projects(tasks)
-        offered = [t for t in tasks if t.get("open")][:OFFERED]
+        try:        # a task made from untracked time belongs to that one day, not to other days
+            promoted = {r[0] for r in conn.execute("SELECT task_uuid FROM untracked_claim WHERE decided = 'promoted'")}
+        except Exception:       # noqa: BLE001 -- table missing on an unmigrated db
+            promoted = set()
+        offered = [t for t in tasks if t.get("open") and t["uuid"] not in promoted][:OFFERED]
         cache = {}
         if left:
             cache = {r[0]: json.loads(r[1]) for r in conn.execute(
@@ -518,7 +522,7 @@ def merge(rows):
 
 
 def apply_claims(conn, d, segs):
-    """Segments with a project but no ticket and no task take the task the user promoted that
+    """Human work segments with a project but no ticket and no task take the task the user promoted that
     (day, project) to. Attribution only: seconds, verdict and project are untouched."""
     try:
         claims = {r[0]: (r[1], r[2]) for r in conn.execute(
@@ -527,7 +531,8 @@ def apply_claims(conn, d, segs):
         return segs
     out = []
     for s in segs:
-        c = claims.get(s.get("project")) if s.get("project") and not s.get("ref") and not s.get("task_uuid") else None
+        human = not s.get("agent_name") and s.get("verdict") == "work"      # only what candidates() offered
+        c = claims.get(s.get("project")) if human and s.get("project") and not s.get("ref") and not s.get("task_uuid") else None
         out.append(dict(s, task_uuid=c[0], ref=c[1], by="claim") if c else s)
     return out
 

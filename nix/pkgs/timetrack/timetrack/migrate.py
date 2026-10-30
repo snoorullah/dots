@@ -614,6 +614,7 @@ INSERT INTO term_segment_new SELECT * FROM term_segment;
 DROP TABLE term_segment;
 ALTER TABLE term_segment_new RENAME TO term_segment;
 CREATE INDEX ix_ts_day ON term_segment(day, start_unix);
+PRAGMA user_version = 9;
 COMMIT;
 """
 
