@@ -63,10 +63,16 @@ def _mk(call, strs, urgency):
     return {"app": strs[0], "summary": strs[2], "body": strs[3], "urgency": {0: "low", 1: "normal", 2: "critical"}.get(urgency, "normal")}
 
 
+# dots-inbox's own toasts. Their text is mail (sender, subject) that already lives in the
+# encrypted mail store, so the plaintext log keeps the fact of a toast and nothing of its text.
+OWN_APPS = ("mail", "dots-inbox")
+
+
 def record(event, cfg, now=None):
     """Reduce an event to what policy allows and shape it as a log line."""
     keep_body = event["app"].lower() in [a.lower() for a in cfg.notify_body_apps]
-    return {"ts": int(now or time.time()), "app": event["app"], "summary": event["summary"],
+    own = event["app"].lower() in OWN_APPS
+    return {"ts": int(now or time.time()), "app": event["app"], "summary": "" if own else event["summary"],
             "body": event["body"] if keep_body and event["body"] else None,
             "urgency": event["urgency"], "id": time.time_ns() // 1000000}
 

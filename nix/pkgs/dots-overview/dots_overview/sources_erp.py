@@ -14,13 +14,17 @@ An allow-list alone is not enough, so the call also passes --disallowedTools fro
 ERP_MCP_DENY (every write-capable tool, by pattern) and --permission-mode default, and
 refuses to run at all when ERP_MCP_DENY is empty.
 """
+import datetime
 import json
 import os
 import re
 import stat
 import subprocess
+import tempfile
 import urllib.parse
 import urllib.request
+
+from . import atomic, config
 
 # doctype -> (ref prefix, srcstate kind, title field, closed statuses)
 DOCTYPES = {
@@ -106,8 +110,64 @@ def fetch_token(cfg, opener=urllib.request.urlopen):
     return items
 
 
+# The same guarantees dots-inbox gives its own spawns (nix/pkgs/dots-inbox/dots_inbox/llmrun.py), kept
+# small and duplicated on purpose: this package cannot import that one. AGENT_OFF is the same file.
+def agent_off():
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    return os.path.exists(os.path.join(base, "dots-mail", "AGENT_OFF"))
+
+
+MCP_MODEL = "haiku"                  # never an unnamed default: that is a model the owner banned
+MCP_RUNS_CAP = 8                     # a day; the 4 h timer wants 6
+MCP_USD_CAP = 0.30                   # estimated dollars a day (est per run below)
+MCP_EST_USD = 0.03                   # one narrowed haiku run; the old, unnarrowed one cost ~$0.76
+MCP_TURNS, MCP_BUDGET = 12, 0.25     # claude stops itself at either
+
+
+def _spend_file():
+    return config.STATE_DIR / "erp-mcp-spend.json"
+
+
+def reserve_mcp(now=None):
+    """Raise ErpError when AGENT_OFF is set or today's cap is spent; else count this run first,
+    so a crash or timeout still counts."""
+    if agent_off():
+        raise ErpError("agent switched off (AGENT_OFF)")
+    day = (now or datetime.datetime.now()).strftime("%Y-%m-%d")
+    st = atomic.read_json(_spend_file(), {}) or {}
+    if st.get("day") != day:
+        st = {"day": day, "runs": 0, "usd": 0.0}
+    if st["runs"] >= MCP_RUNS_CAP or st["usd"] + MCP_EST_USD > MCP_USD_CAP:
+        raise ErpError(f"daily cap reached ({st['runs']} runs, ~${st['usd']:.2f})")
+    st["runs"] += 1
+    st["usd"] = round(st["usd"] + MCP_EST_USD, 4)
+    atomic.write_json(_spend_file(), st)
+
+
+def _only_servers(tools, scratch):
+    """A --mcp-config holding just the MCP servers the allow-list names (from the user's own
+    ~/.claude.json), so the run is offered those tools and not the other ~950. None when a
+    server is not defined there (a plugin's): then nothing can be narrowed."""
+    names = {m.group(1) for t in tools if (m := re.match(r"mcp__(.+?)__", t))}
+    try:
+        with open(os.path.expanduser("~/.claude.json")) as f:
+            have = json.load(f)["mcpServers"]
+        picked = {n: have[n] for n in names}
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if not picked:
+        return None
+    path = os.path.join(scratch, "mcp.json")
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w") as f:
+        json.dump({"mcpServers": picked}, f)
+    return path
+
+
 def fetch_mcp(cfg, runner=subprocess.run):
-    """Ask `claude -p` for my open items, with only read tools allowed. Output is validated."""
+    """Ask `claude -p` for my open items, with only read tools allowed. Output is validated.
+    Guarded like every other spawn: AGENT_OFF, a daily spend check, a pinned cheap model, the
+    user's CLAUDE.md / memory / transcript cut, a turn and a dollar limit, only the ERP server."""
     if not cfg.raw.get("ERP_MCP_TOOLS"):
         raise ErpError("mcp mode needs ERP_MCP_TOOLS (the read-only tool names) in work.conf")
     if not cfg.raw.get("ERP_MCP_DENY", "").strip():
@@ -115,13 +175,22 @@ def fetch_mcp(cfg, runner=subprocess.run):
     prompt = ("List my open items in these ERP doctypes: " + ", ".join(cfg.erp_doctypes) +
               ". Read only. Reply with ONLY a JSON array of objects with keys "
               "doctype, name, title, status, modified. No prose.")
-    argv = ["claude", "-p", prompt, "--allowedTools", ",".join(cfg.raw["ERP_MCP_TOOLS"].split()),
+    reserve_mcp()
+    tools = cfg.raw["ERP_MCP_TOOLS"].split()
+    argv = ["claude", "-p", prompt, "--model", MCP_MODEL, "--allowedTools", ",".join(tools),
             "--disallowedTools", ",".join(cfg.raw["ERP_MCP_DENY"].replace(",", " ").split()),
-            "--permission-mode", "default", "--output-format", "text"]
+            "--permission-mode", "dontAsk", "--output-format", "text", "--no-session-persistence",
+            "--max-turns", str(MCP_TURNS), "--max-budget-usd", f"{MCP_BUDGET:.2f}"]
+    # this headless run is not an agent session: the task gate (dots-task-hook) must stand down
+    env = {**{k: v for k, v in os.environ.items() if k != "CLAUDE_CODE_PLUGIN_DIRS"},
+           "DOTS_TASK_GATE": "off", "CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1", "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"}
     try:
-        # this headless run is not an agent session: the task gate (dots-task-hook) must stand down
-        p = runner(argv, capture_output=True, text=True, timeout=180, stdin=subprocess.DEVNULL,
-                   env={**os.environ, "DOTS_TASK_GATE": "off"})
+        with tempfile.TemporaryDirectory(prefix="dots-overview-erp-") as scratch:
+            conf = _only_servers(tools, scratch)
+            if conf:
+                argv += ["--strict-mcp-config", "--setting-sources", "", "--mcp-config", conf]
+            p = runner(argv, capture_output=True, text=True, timeout=180, stdin=subprocess.DEVNULL,
+                       env=env, cwd=scratch)
         rows = json.loads(p.stdout[p.stdout.index("["):p.stdout.rindex("]") + 1])
     except (OSError, ValueError, subprocess.SubprocessError) as e:
         raise ErpError(f"mcp fetch failed: {type(e).__name__}") from e

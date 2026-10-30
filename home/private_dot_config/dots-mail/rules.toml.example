@@ -15,7 +15,9 @@
 # addresses that are the user too (aliases); the account address is already known
 me = ["me.alias@example.com"]
 
-# a sender here is `vip`: inbox + a critical toast. Exact address, "@domain", or "domain".
+# a sender here is `vip`: inbox + a critical toast. An exact address or "@domain", matched
+# against the parsed From address only. A display name never counts, and a bare word such as
+# "client" matches nobody.
 vip = ["boss@example.com", "@important-client.example"]
 
 # mail from a person at these domains (not automated: no list-id, no bulk/auto-submitted
@@ -23,14 +25,45 @@ vip = ["boss@example.com", "@important-client.example"]
 [people]
 domains = ["example.com"]
 
-# Alert stream. `from` is a regex on the whole From header; `subject` a regex with the
+# Alert stream. `from` is a regex that must match the WHOLE parsed From address (not the
+# display name; a From with several addresses matches nothing). `subject` is a regex with the
 # named groups severity, name, state (FIRING|RESOLVED), scope. Omit `subject` for the
 # default:  [CRITICAL] SomeAlert (FIRING) - cluster-1
 [alerts]
 from = "alerts@monitoring\\.example\\.com"
+# authserv_id: the id YOUR receiving server writes first in Authentication-Results (look at
+# the topmost Authentication-Results of a real mail). Only the `digest` path of [auth] uses it.
+# authserv_id = "mx.example.net"
+# enforce_auth = false   # false = shadow: a RESOLVED still only clears state for an authenticated
+#                        # sender (and is logged); true = a first FIRING needs one too
+
 # subject = '^\[(?P<severity>\w+)\]\s+(?P<name>\S+)\s+\((?P<state>FIRING|RESOLVED)\)\s*[-—]\s*(?P<scope>.+?)\s*$'
 stale_hours = 6            # firing with no mail this long = stale (not notified)
 min_firing_minutes = 30    # a resolution only notifies if it fired at least this long
+
+# Sender authentication, in SHADOW (measured by `dots-inbox auth-report`, enforced nowhere).
+# Behind a mail gateway the receiving server's own dmarc= fails for every genuine outsider, so
+# the rule trusts only headers YOUR server stamped, by sender path. Every value is yours:
+# nothing about a tenant, gateway or host is written in the repo.
+#   internal  AuthAs Internal (exactly once), From domain in tenant_domains, cross-tenant id absent or yours
+#   gateway   AuthAs Anonymous + Directionality Incoming, connecting IP (CIP) in gateway_ips, and an ARC
+#             chain whose top seal is microsoft.com cv=pass, whose seal below it is gateway_sealer and
+#             carries dmarc=pass header.from=<the From domain>. ARC signatures are NOT verified here:
+#             the rule relies on the top seal's cv=pass.
+#   digest    CIP in digest_ips and your server's own dmarc=pass for the From domain (uses authserv_id)
+#   relay     CIP in relay_ips: a host that cannot authenticate; WEAK, never counts as authenticated
+# [auth]
+# tenant_domains = ["example.com"]
+# tenant_ids     = ["00000000-0000-0000-0000-000000000000"]    # X-MS-Exchange-CrossTenant-Id of your tenant
+# gateway_ips    = ["192.0.2.10", "192.0.2.11"]                # the gateway's outbound addresses
+# gateway_sealer = "gateway.example.net"                       # d= of the gateway's ARC-Seal
+# digest_ips     = []
+# relay_ips      = ["192.0.2.20"]
+
+# Optional names for the auth report: class = regex that must match the whole From address.
+# [sender_class]
+# teams-relay = "noreply@chat-relay\\.example"
+# erp-relay = "support@erp\\.example\\.com"
 
 # Backup job mail: success is archived silently, failure becomes an alert in the inbox.
 [backup]
@@ -49,10 +82,12 @@ fail = "backup (failed|error)|vzdump.*(failed|error)"
 notify_now = ["review_requested", "mention", "team_mention", "assign", "author", "ci_activity"]
 
 # ----------------------------------------------------------------------------------------
-# Rules. Every key you name must match; matching is a case-insensitive regex search.
+# Rules. Every key you name must match; matching is a case-insensitive regex search, except
+# `from`, which must match the WHOLE parsed address (write ".*@github\\.com", not "@github\\.com").
+# A display name is never matched: anyone can write any name in front of their own address.
 #
 #   name     label shown in `retriage --dry-run`
-#   from     whole From header ("Name <addr>")      subject   Subject
+#   from     the sender ADDRESS, full match           subject   Subject
 #   folder   maildir folder ("INBOX")               body      first 4000 chars (use rarely)
 #   header   table of header-name = regex (lower-case names: x-github-reason, list-id,
 #            auto-submitted, precedence, x-github-sender, in-reply-to, references)
@@ -67,7 +102,7 @@ notify_now = ["review_requested", "mention", "team_mention", "assign", "author",
 
 [[rule]]
 name = "github"
-from = "@github\\.com"
+from = ".*@github\\.com"
 policy = "github"
 
 [[rule]]
@@ -108,20 +143,24 @@ notify = "batch"
 
 [[rule]]
 name = "mail quarantine"
-from = "postmaster@"
+from = "postmaster@.*"
 subject = "held messages"
 add = ["security"]
 notify = "batch"
 
+# A chat relay puts the PERSON in the display name, which cannot be trusted, so this matches
+# the relay's own address, plus a header only the receiving server stamps. It says "someone
+# pinged you in chat", never who; no vip rule can name that person.
 [[rule]]
 name = "missed chat"
-from = "in Teams <"
+from = "noreply@chat-relay\\.example"
+header = { x-ms-exchange-organization-authas = "^Internal$" }
 add = ["people"]
 notify = "batch"
 
 [[rule]]
 name = "host chatter"
-from = "^root <root@"
+from = "root@.*"
 add = ["fyi"]
 inbox = false
 
@@ -134,7 +173,7 @@ notify = "batch"
 
 [[rule]]
 name = "vendor"
-from = "vendor@example\\.org|@mail\\.vendor\\.example"
+from = "vendor@example\\.org|.*@mail\\.vendor\\.example"
 add = ["vendor"]
 inbox = false
 

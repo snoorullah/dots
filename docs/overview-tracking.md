@@ -176,7 +176,7 @@ and `AGENT_CWD` (default home).
    `dots-overview-fast.timer` runs `dots-overview fast` every 60 s;
    `dots-overview-report.timer` runs `dots-overview report --reason nightly` at 23:50, `Persistent=true`;
    `dots-ops-overview-sync.timer` hourly, `OnStartupSec=240`;
-   `dots-notifylog.service` runs `dots-overview notifylog`, opt-in.
+   `dots-notifylog.service` runs `dots-overview notifylog` (enabled by the systemd chezmoi script).
 5. `~/.config/dots-work/work.conf`: copy the example and fill it in by hand.
 6. ERP: choose `token` or `mcp` and set `ERP_MODE`. Until then it stays off.
 7. Check: `dots-overview fast && dots-overview doctor`.

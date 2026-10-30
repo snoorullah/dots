@@ -55,6 +55,12 @@ jobs:
       - run: sudo apt-get install -y taskwarrior
       - run: bash tests/track.sh
       - run: bash tests/report.sh
+      # Work mail triage (dots-inbox): triage + alerts, the touchpoint ledger, prepared analyses,
+      # and phase 0 (spoofing, auth shadow, kill switch, spend ledger). Pure python3, no mail, no model.
+      - run: bash tests/inbox-triage.sh
+      - run: bash tests/inbox-ledger.sh
+      - run: bash tests/inbox-prep.sh
+      - run: bash tests/inbox-phase0.sh
       - name: in-home.sh (sentinel mode)
         run: |
           d="$(mktemp -d)"

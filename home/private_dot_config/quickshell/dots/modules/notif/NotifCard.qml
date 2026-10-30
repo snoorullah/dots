@@ -25,6 +25,15 @@ Item {
     return out;
   }
 
+  // Text.StyledText (and AutoText, the default, which picks it for anything that looks like
+  // markup) renders <img src=...>, and a remote src is fetched: any app's notification, a
+  // mail subject, a Slack message. Drop every <img> before anything is shown. The dots-inbox
+  // toasts are also HTML-escaped at the source, so their text arrives as &lt;img ... and is
+  // shown literally; this strip is the guard for every other app.
+  function safe(t) {
+    return String(t || "").replace(/<\s*img\b[^>]*>?/gi, "");
+  }
+
   function open() {
     var n = card.notification;
     if (!n) return;
@@ -59,6 +68,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         width: parent.width - close.width - Theme.space.s
         text: card.notification ? card.notification.appName : ""
+        textFormat: Text.PlainText
         dim: true
         role: "caption"
         elide: Text.ElideRight
@@ -87,7 +97,8 @@ Item {
     }
     DText {
       width: parent.width
-      text: card.notification ? card.notification.summary : ""
+      text: card.notification ? card.safe(card.notification.summary) : ""
+      textFormat: Text.StyledText
       role: "title"
       wrapMode: Text.WordWrap
       maximumLineCount: card.summaryLines
@@ -95,7 +106,7 @@ Item {
     }
     DText {
       width: parent.width
-      text: card.notification ? card.notification.body : ""
+      text: card.notification ? card.safe(card.notification.body) : ""
       textFormat: Text.StyledText
       dim: true
       role: "bodyS"

@@ -18,9 +18,10 @@ def post_new(a):
     new = mail.messages("tag:new")
     if not new:
         return 0
-    from . import alerts, brief, ledger, prep, triage
+    from . import alerts, authshadow, brief, ledger, prep, triage
     conn = db.open_db()
-    stages = [("triage", lambda: triage.run(conn, new)),
+    stages = [("auth_shadow", lambda: authshadow.run(conn, new)),
+              ("triage", lambda: triage.run(conn, new)),
               ("alerts", lambda: alerts.run(conn, new)),
               ("ledger", lambda: ledger.on_mail(conn, new)),
               ("notify", lambda: triage.notify(conn, new)),
@@ -45,8 +46,8 @@ def main(argv=None):
     p = argparse.ArgumentParser(prog="dots-inbox", description=__doc__.split("\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("post-new", help="the notmuch post-new pipeline").set_defaults(fn=post_new)
-    from . import alerts, brief, ledger, prep, slack, triage
-    for mod in (triage, alerts, ledger, slack, prep, brief):
+    from . import alerts, authshadow, brief, ledger, prep, slack, triage
+    for mod in (triage, alerts, authshadow, ledger, slack, prep, brief):
         mod.add_parser(sub)
     a = p.parse_args(argv if argv is not None else sys.argv[1:])
     return a.fn(a) or 0
