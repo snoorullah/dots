@@ -1,0 +1,11 @@
+[Unit]
+Description=dots-ops timetrack live (AW refresh of today, every 5 minutes)
+
+[Timer]
+# Keeps Worked within 5 minutes of now. The hourly capture does everything else.
+OnCalendar=*:0/5
+OnStartupSec=120
+Unit=dots-ops@timetrack-live.service
+
+[Install]
+WantedBy=timers.target

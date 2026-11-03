@@ -49,6 +49,8 @@ systemctl --user enable --now dots-ops-vault-backup.timer dots-ops-vault-watch.t
 # recorded nothing for months. The job degrades safely on a machine without the binary
 # (it reports warn and returns), so gating it buys nothing and costs the whole record.
 systemctl --user enable --now dots-ops-timetrack-capture.timer
+# Worked within 5 minutes of now (AW refresh only); same reasoning, no .timetrack gate
+systemctl --user enable --now dots-ops-timetrack-live.timer
 {{- if .timetrack }}
 systemctl --user enable --now timetrack-logind.service
 # The reaper FIRST, deliberately. timetrack-panel refuses to draw a keyboard-grabbing
