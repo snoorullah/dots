@@ -9,6 +9,16 @@
 3. **One data daemon, many views.** Surfaces read shared state files. None polls a service itself.
 4. **Generated from real config.** Keybinds and cheatsheets come from live config, so they can't go stale.
 5. **Public repo.** Discovery at runtime, private values in unmanaged files, enforced by `tests/lint.sh`.
+6. **Python and Go for logic.** TypeScript only where nothing else works.
+
+## Languages
+
+| Layer | Language | Used for |
+|---|---|---|
+| Daemons and gates | Go | Data daemon, send gate, credential broker, IPC, anything long-running |
+| Data and AI glue | Python | Timetrack, ingest, model routing, transcripts, metrics, scripts |
+| Views | QML (Quickshell) | Layout and bindings only; its built-in JavaScript stays presentational, no logic |
+| Last resort | TypeScript | Only a host that accepts nothing else, e.g. an Obsidian or browser plugin; keep it a thin client of the Go/Python side |
 
 ## Phases
 
