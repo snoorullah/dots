@@ -6,6 +6,7 @@ month with more holidays -- that is the employer's formula (monthly gross / work
 / hours_per_day), not an approximation of it.
 """
 import calendar as _cal
+import json
 from datetime import date
 
 from . import config
@@ -32,6 +33,17 @@ def seed_month(conn, year, month):
     """
     holidays, week_off, hours = config.holidays(), config.week_off(), config.hours_per_day()
     kept = inserted = updated = 0
+    # PINNING. A kind the user set by hand in the vault (vault.py logs it as a 'kind' row in
+    # day_edit_log) is an answer like any other: the hourly reseed must not turn a holiday they
+    # declared back into a working day. A day is pinned while its LATEST such row says so
+    # (vault.py records pinned=false when the user set the calendar's own kind); setting a day
+    # back to what the calendar says unpins it, so the reseed may reclassify it again (a
+    # holiday added to holidays.toml later).
+    latest = {}
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'day_edit_log'").fetchone():
+        for r in conn.execute("SELECT day, after_json FROM day_edit_log WHERE action = 'kind'"
+                              " ORDER BY id"):
+            latest[r[0]] = bool(json.loads(r[1] or "{}").get("pinned", True))
     for dom in range(1, _cal.monthrange(year, month)[1] + 1):
         day = date(year, month, dom)
         kind, leave, target = classify(day, holidays, week_off, hours)
@@ -39,7 +51,7 @@ def seed_month(conn, year, month):
             "SELECT kind, attested_unix FROM day_class WHERE day=?", (day.isoformat(),)
         ).fetchone()
         if row is not None:
-            if row["attested_unix"] is not None or row["kind"] in (
+            if latest.get(day.isoformat()) or row["attested_unix"] is not None or row["kind"] in (
                 "leave_paid", "leave_unpaid", "absent", "worked_unlogged"
             ):
                 kept += 1

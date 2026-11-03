@@ -1,0 +1,11 @@
+[Unit]
+Description=timetrack: sync the Obsidian timesheet into work.db and re-render it
+# If this never runs nothing is lost: edits wait in the files until it does.
+ConditionPathExists=%h/.nix-profile/bin/timetrack
+
+[Service]
+Type=oneshot
+Environment=PATH=%h/.nix-profile/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+# waits (up to five minutes) until nothing has been typed for twenty seconds, then syncs
+ExecStart=%h/.nix-profile/bin/timetrack vault sync --wait-quiet
+Nice=10

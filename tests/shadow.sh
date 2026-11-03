@@ -21,7 +21,7 @@ def check(name, got, want):
 
 migrate.migrate()
 conn = dbs.open_work()
-check("schema v5", conn.execute("PRAGMA user_version").fetchone()[0], 5)
+check("schema is the latest", conn.execute("PRAGMA user_version").fetchone()[0], max(v for v, _ in migrate.MIGRATIONS["work"]))
 check("ships as a shadow", migrate.live_counts(conn), False)
 
 day = "2026-10-24"

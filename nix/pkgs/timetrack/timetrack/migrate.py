@@ -556,7 +556,157 @@ ALTER TABLE salah_log ADD COLUMN asked_unix INTEGER;
 COMMIT;
 """
 
-MIGRATIONS = {"work": [(1, WORK_V1), (2, WORK_V2), (3, WORK_V3), (4, WORK_V4), (5, WORK_V5)],
+# --- work v6 ---------------------------------------------------------------
+# What the user typed over in Obsidian (vault.py), FIELD BY FIELD. A day_edit row holds only
+# the fields the user overrode; every other column is NULL and means "use what was measured".
+# So typing a lunch figure does not freeze that day's login and logout (afternoon work that
+# is measured later still counts), and emptying a cell sets it back to NULL. A row whose
+# columns are all NULL is deleted by vault.py. Nothing measured is ever deleted: the views
+# below overlay the row on the measurement, COALESCE by COALESCE.
+#
+# day_edit_log is append-only and records every change and every refusal, so "who moved this
+# number" always has an answer.
+#
+# `off_minutes` is time between shifts inside the login..logout window that was not work (a
+# day that ran 14:00-18:00 and 21:00-02:00 has 180 of it). It is taken out of the span; the
+# seven break columns are taken out of the net, as measured deductions are. `unsure` is a
+# break nobody has classified: it deducts, and flags the day like an unconfirmed gap.
+#
+# Where nothing is overridden the views return the measured figure EXACTLY (not a
+# recomputation of it), and a measured day with no deduction keeps net_minutes NULL.
+
+WORK_V6 = """
+BEGIN;
+DROP VIEW IF EXISTS v_day_worked;
+DROP VIEW IF EXISTS v_day_deduction;
+DROP VIEW IF EXISTS v_day_span;
+
+CREATE TABLE day_edit (
+  day           TEXT PRIMARY KEY,
+  login_unix    INTEGER,
+  logout_unix   INTEGER,
+  off_minutes   INTEGER,
+  salah         INTEGER,
+  lunch         INTEGER,
+  dinner        INTEGER,
+  washroom      INTEGER,
+  misc          INTEGER,
+  call_personal INTEGER,
+  unsure        INTEGER,
+  edited_unix   INTEGER NOT NULL,
+  surface       TEXT    NOT NULL CHECK (surface IN ('day','month')),
+  CHECK (login_unix IS NULL OR logout_unix IS NULL OR logout_unix > login_unix),
+  CHECK ((off_minutes IS NULL OR off_minutes >= 0) AND (salah IS NULL OR salah >= 0)
+         AND (lunch IS NULL OR lunch >= 0) AND (dinner IS NULL OR dinner >= 0)
+         AND (washroom IS NULL OR washroom >= 0) AND (misc IS NULL OR misc >= 0)
+         AND (call_personal IS NULL OR call_personal >= 0) AND (unsure IS NULL OR unsure >= 0))
+);
+
+CREATE TABLE day_edit_log (
+  id          INTEGER PRIMARY KEY,
+  day         TEXT    NOT NULL,
+  ts_unix     INTEGER NOT NULL,
+  surface     TEXT    NOT NULL,
+  action      TEXT    NOT NULL CHECK (action IN ('set','clear','kind','rejected')),
+  before_json TEXT,
+  after_json  TEXT,
+  reason      TEXT
+);
+CREATE INDEX ix_del_day ON day_edit_log(day, ts_unix);
+
+-- what was measured, before any override
+CREATE VIEW v_day_span_measured AS
+SELECT attendance_day,
+       CAST(ROUND(SUM(seconds) / 60.0) AS INTEGER) AS span_minutes,
+       MIN(start_unix) AS first_unix,
+       MAX(end_unix)   AS last_unix,
+       GROUP_CONCAT(DISTINCT provenance) AS provenance,
+       MIN(confidence) AS min_confidence
+FROM v_run_interval
+GROUP BY attendance_day;
+
+-- measured break minutes by category (confirmed rows only; a meeting row is 0 minutes),
+-- with `unsure` the minutes of the rows nobody has classified
+CREATE VIEW v_day_break_measured AS
+SELECT attendance_day,
+       CAST(ROUND(SUM(minutes)) AS INTEGER) AS total_minutes,
+       SUM(CASE WHEN confirmed = 0 THEN 1 ELSE 0 END) AS unconfirmed,
+       SUM(CASE WHEN confirmed = 1 AND category = 'salah' THEN minutes ELSE 0 END) AS salah,
+       SUM(CASE WHEN confirmed = 1 AND category = 'lunch' THEN minutes ELSE 0 END) AS lunch,
+       SUM(CASE WHEN confirmed = 1 AND category = 'dinner' THEN minutes ELSE 0 END) AS dinner,
+       SUM(CASE WHEN confirmed = 1 AND category = 'washroom' THEN minutes ELSE 0 END) AS washroom,
+       SUM(CASE WHEN confirmed = 1 AND category = 'misc' THEN minutes ELSE 0 END) AS misc,
+       SUM(CASE WHEN confirmed = 1 AND category = 'call_personal' THEN minutes ELSE 0 END) AS call_personal,
+       SUM(CASE WHEN confirmed = 0 THEN minutes ELSE 0 END) AS unsure
+FROM deduction
+WHERE end_unix IS NOT NULL
+GROUP BY attendance_day;
+
+CREATE VIEW v_day_span AS
+SELECT attendance_day,
+       CASE WHEN edited = 0 THEN m_span
+            ELSE CAST(ROUND((last_unix - first_unix) / 60.0 - off) AS INTEGER) END AS span_minutes,
+       first_unix, last_unix,
+       CASE WHEN edited = 1 THEN 'vault' ELSE m_prov END AS provenance,
+       CASE WHEN edited = 1 THEN 1.0 ELSE m_conf END AS min_confidence
+FROM (
+  SELECT d.day AS attendance_day,
+         COALESCE(e.login_unix,  m.first_unix) AS first_unix,
+         COALESCE(e.logout_unix, m.last_unix)  AS last_unix,
+         COALESCE(e.off_minutes,
+                  MAX(0, CAST(ROUND((m.last_unix - m.first_unix) / 60.0) AS INTEGER)
+                         - m.span_minutes),
+                  0) AS off,
+         (e.login_unix IS NOT NULL OR e.logout_unix IS NOT NULL
+          OR e.off_minutes IS NOT NULL) AS edited,
+         m.span_minutes AS m_span, m.provenance AS m_prov, m.min_confidence AS m_conf
+  FROM (SELECT attendance_day AS day FROM v_day_span_measured UNION SELECT day FROM day_edit) d
+  LEFT JOIN v_day_span_measured m ON m.attendance_day = d.day
+  LEFT JOIN day_edit e ON e.day = d.day
+)
+WHERE first_unix IS NOT NULL AND last_unix IS NOT NULL;
+
+CREATE VIEW v_day_deduction AS
+SELECT attendance_day,
+       CASE WHEN edited = 0 THEN m_total
+            ELSE CAST(ROUND(salah + lunch + dinner + washroom + misc + call_personal + unsure)
+                      AS INTEGER) END AS deduction_minutes,
+       CASE WHEN edited = 0 THEN m_unconf
+            WHEN unsure > 0 THEN 1 ELSE 0 END AS unconfirmed
+FROM (
+  SELECT d.day AS attendance_day,
+         (e.salah IS NOT NULL OR e.lunch IS NOT NULL OR e.dinner IS NOT NULL
+          OR e.washroom IS NOT NULL OR e.misc IS NOT NULL OR e.call_personal IS NOT NULL
+          OR e.unsure IS NOT NULL) AS edited,
+         COALESCE(e.salah, m.salah, 0)               AS salah,
+         COALESCE(e.lunch, m.lunch, 0)               AS lunch,
+         COALESCE(e.dinner, m.dinner, 0)             AS dinner,
+         COALESCE(e.washroom, m.washroom, 0)         AS washroom,
+         COALESCE(e.misc, m.misc, 0)                 AS misc,
+         COALESCE(e.call_personal, m.call_personal, 0) AS call_personal,
+         COALESCE(e.unsure, m.unsure, 0)             AS unsure,
+         m.total_minutes AS m_total, m.unconfirmed AS m_unconf
+  FROM (SELECT attendance_day AS day FROM v_day_break_measured UNION SELECT day FROM day_edit) d
+  LEFT JOIN v_day_break_measured m ON m.attendance_day = d.day
+  LEFT JOIN day_edit e ON e.day = d.day
+)
+WHERE edited = 1 OR m_total IS NOT NULL;
+
+CREATE VIEW v_day_worked AS
+SELECT c.day AS attendance_day, c.kind, c.leave_type, c.pay_affecting, c.target_minutes,
+       COALESCE(s.span_minutes, 0) AS span_minutes,
+       s.first_unix, s.last_unix, s.provenance, s.min_confidence,
+       d.deduction_minutes, d.unconfirmed,
+       CASE WHEN d.deduction_minutes IS NULL THEN NULL
+            ELSE COALESCE(s.span_minutes, 0) - d.deduction_minutes END AS net_minutes
+FROM day_class c
+LEFT JOIN v_day_span s      ON s.attendance_day = c.day
+LEFT JOIN v_day_deduction d ON d.attendance_day = c.day;
+COMMIT;
+"""
+
+MIGRATIONS = {"work": [(1, WORK_V1), (2, WORK_V2), (3, WORK_V3), (4, WORK_V4), (5, WORK_V5),
+                       (6, WORK_V6)],
               "private": [(1, PRIVATE_V1), (2, PRIVATE_V2), (3, PRIVATE_V3), (4, PRIVATE_V4),
                           (5, PRIVATE_V5), (6, PRIVATE_V6), (7, PRIVATE_V7)]}
 

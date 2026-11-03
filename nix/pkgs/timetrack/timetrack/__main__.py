@@ -604,10 +604,11 @@ def main(argv=None):
                    help="output directory, default the vault's exports/")
     s.set_defaults(fn=cmd_export)
 
-    from . import health, login, salah
+    from . import health, login, salah, vault
     salah.add_parser(sub)
     health.add_parser(sub)
     login.add_parser(sub)
+    vault.add_parser(sub)
 
     a = p.parse_args(argv if argv is not None else sys.argv[1:])
     return a.fn(a)

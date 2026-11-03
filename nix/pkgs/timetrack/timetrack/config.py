@@ -41,6 +41,10 @@ LOGIND_JSONL = STATE_DIR / "events" / "logind.jsonl"
 VAULT = Path(os.environ.get("TIMETRACK_VAULT") or HOME / "powerhouse")
 VAULT_DAILY = VAULT / "timetrack" / "daily"
 EXPORT_DIR = VAULT / "exports"
+# The Obsidian-editable timesheet (vault.py): one markdown table per month, one note per day.
+TIMESHEET = VAULT / "time" / "Timesheet"
+TIMESHEET_DAYS = TIMESHEET / "days"
+VAULT_STATE = STATE_DIR / "vault-rendered.json"
 
 TASK = "task"
 TIMEW = "timew"

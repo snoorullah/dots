@@ -146,7 +146,7 @@ def input_digest(conn, month):
     Frozen alongside a submission so that if derivation changes later, it is provable
     whether the number handed over was retro-fitted.
 
-    All THREE tables are covered, not just clock_event. The figure is
+    Every table is covered, not just clock_event. The figure is
     span - deductions against a target, so a reclassified break or a day moved from
     working to holiday changes it just as surely as an event does -- and a digest that
     covered only events would report "inputs unchanged" beside a figure that had moved,
@@ -160,6 +160,10 @@ def input_digest(conn, month):
         " confirmed, provenance FROM deduction WHERE attendance_day LIKE ? ORDER BY id",
         "SELECT 'c', day, kind, leave_type, pay_affecting, target_minutes"
         " FROM day_class WHERE day LIKE ? ORDER BY day",
+        # a day the user typed over in the vault (migrate.WORK_V6) moves the figure just as
+        # surely as a session would
+        "SELECT 'x', day, login_unix, logout_unix, off_minutes, salah, lunch, dinner,"
+        " washroom, misc, call_personal, unsure FROM day_edit WHERE day LIKE ? ORDER BY day",
         # promoting the live clock changes every figure without touching a single row above,
         # so the flag itself is part of what a submission is pinned to (migrate.WORK_V3)
         "SELECT 'm', k, v FROM schema_meta WHERE k = 'live_counts' AND ? IS NOT NULL",
