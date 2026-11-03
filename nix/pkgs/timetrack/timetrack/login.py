@@ -199,7 +199,8 @@ def week_summary(conn, day, today=None):
         target, worked = target + t, worked + w
         rows.append({"day": d.isoformat(), "weekday": d.strftime("%a"), "kind": r["kind"] if r else "-",
                      "target_minutes": t, "worked_minutes": w})
-    remaining = [x for x in rows if x["target_minutes"] > 0 and x["day"] >= today.isoformat()]
+    remaining = [x for x in rows if x["target_minutes"] > 0 and x["day"] >= today.isoformat()
+                 and x["kind"] != "leave_paid"]   # credited already; nothing left to work
     left = target - worked
     return {
         "monday": monday.isoformat(), "sunday": days[-1].isoformat(), "days": rows,

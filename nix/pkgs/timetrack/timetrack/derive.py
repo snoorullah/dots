@@ -32,6 +32,10 @@ def basis(r, calib=None):
     real shortfall into an apparent surplus -- which is exactly what it did.
     """
     calib = config.calibration() if calib is None else calib
+    if r["kind"] == "leave_paid":
+        # Paid leave (sick/casual) is owed nothing: it is credited at its target, or the
+        # week and month report a paid day as a full day's shortfall.
+        return int(r["target_minutes"] or 0), "leave"
     if r["net_minutes"] is not None:
         # An unconfirmed gap is a GUESS about what the absence was. Deducting it is the
         # conservative choice -- an offline meeting is worked time, so the true figure
@@ -60,7 +64,10 @@ def month_summary(conn, month, today=None):
     working = [r for r in rows if r["target_minutes"] > 0]
     working_days = len(working)
     elapsed = [r for r in working if date.fromisoformat(r["attendance_day"]) < today]
-    remaining = [r for r in working if date.fromisoformat(r["attendance_day"]) >= today]
+    # paid leave ahead is already credited by basis(); projecting a day's work onto it too
+    # would count it twice
+    remaining = [r for r in working if date.fromisoformat(r["attendance_day"]) >= today
+                 and r["kind"] != "leave_paid"]
 
     span_working = sum(r["span_minutes"] for r in working)
     span_other = sum(r["span_minutes"] for r in rows if r["target_minutes"] == 0)

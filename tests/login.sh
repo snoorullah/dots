@@ -13,7 +13,7 @@ import subprocess, sys, time
 from datetime import date, datetime
 from pathlib import Path
 
-from timetrack import config, dbs, login, migrate
+from timetrack import config, dbs, derive, login, migrate
 
 fails = []
 def check(name, got, want):
@@ -180,9 +180,23 @@ check("week line", login.week_line(w), "Week: 22h10 of 40h · 17h50 left over 3 
 check("week is Mon-Sun", (w["monday"], w["sunday"], sun["monday"]), ("2026-10-26", "2026-11-01", "2026-10-26"))
 check("weekend target 0", [d["target_minutes"] for d in w["days"][5:]], [0, 0])
 
+# 12. paid leave is credited at its target, not reported as a shortfall
+with dbs.open_work() as c:
+    login._ensure_seeded(c, date(2026, 11, 2))
+    c.execute("UPDATE day_class SET kind='leave_paid', leave_type='sick' WHERE day='2026-11-02'")
+    c.execute("UPDATE day_class SET kind='leave_paid', leave_type='casual' WHERE day='2026-11-06'")
+    c.commit()
+session("2026-11-03", 9, 420)
+with dbs.open_work() as c:
+    w = login.week_summary(c, date(2026, 11, 4), today=date(2026, 11, 4))
+    m = derive.month_summary(c, "2026-11", today=date(2026, 11, 4))
+check("leave week worked", w["worked_minutes"], 480 + 420 + 480)
+check("leave week left", (w["left_minutes"], w["remaining_working_days"]), (1020, 2))
+check("leave month shortfall", m["shortfall_to_date_minutes"], 60)
+
 if fails:
     print("login FAILED:")
     for f in fails: print("  " + f)
     raise SystemExit(1)
-print("login ok (11 scenarios)")
+print("login ok (12 scenarios)")
 PY
