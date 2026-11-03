@@ -1,5 +1,6 @@
 """Desktop notifications with buttons. Same contract as timetrack.notify: no answer is
 None, never a default; a timed-out question is closed so no dead button stays behind."""
+import html
 import select
 import subprocess
 import time
@@ -7,9 +8,16 @@ import time
 popen = subprocess.Popen
 
 
+def _esc(s):
+    """Notification bodies are markup (the shell renders <img src=http...> and fetches it), and
+    these texts come from mail and Slack, so every character that is not ours is escaped here,
+    once, for every caller."""
+    return html.escape(str(s or ""), quote=False)
+
+
 def toast(app, summary, body="", urgency="normal", ms=8000):
     try:
-        popen(["notify-send", "-a", app, "-u", urgency, "-t", str(ms), summary, body],
+        popen(["notify-send", "-a", app, "-u", urgency, "-t", str(ms), "--", _esc(summary), _esc(body)],
               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except OSError:
         pass
@@ -27,7 +35,7 @@ def _close(nid):
 
 def ask(app, summary, body, actions, timeout, urgency="normal"):
     argv = ["notify-send", "-a", app, "-u", urgency, "-t", str(int(timeout * 1000)), "-p", "--wait"]
-    argv += [f"--action={k}={label}" for k, label in actions] + [summary, body]
+    argv += [f"--action={k}={label}" for k, label in actions] + ["--", _esc(summary), _esc(body)]
     try:
         proc = popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                      stderr=subprocess.DEVNULL, text=True)

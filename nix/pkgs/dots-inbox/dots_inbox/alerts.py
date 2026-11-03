@@ -33,18 +33,84 @@ def _re(pat, text):
     return re.search(pat, text or "", re.I) if pat else None
 
 
+def _full(pat, text):
+    """re.A: without it `.I` folds unicode, and `ſupport@` (long s) matches `support@`."""
+    return re.fullmatch(pat, text or "", re.I | re.A) if pat else None
+
+
+def sender(m):
+    """The parsed address only: a display name like "alerts@corp <x@evil>" must not match.
+    A From with several addresses, or any non-ASCII in the address, matches nothing."""
+    a = (m.get("from_addr") or "").lower() if m.get("from_count", 1) == 1 else ""
+    return a if a.isascii() else ""
+
+
+def _strip(value):
+    """Authentication-Results text with comments (nested parens) and quoted values removed, so
+    `dkim=fail (dkim=pass)` and `smtp.mailfrom="dmarc=pass@evil"` carry no result of theirs."""
+    out, depth, quote, esc = [], 0, False, False
+    for ch in value or "":
+        if quote:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                quote = False
+            continue
+        if ch == '"' and depth == 0:
+            quote = True
+            continue
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        elif depth == 0:
+            out.append(ch)
+    return re.sub(r"\s*=\s*", "=", "".join(out))
+
+
+def _segments(clean):
+    """Split on ';' only where whitespace follows (or the text ends): a ';' glued to a value, as in
+    `smtp.mailfrom=a;dmarc=pass`, stays inside that value and cannot start a result of its own."""
+    return re.split(r";(?=\s|$)", clean)
+
+
+def _trusted_ar(m, authserv):
+    """The Authentication-Results to trust, as cleaned text, or None. Our receiving server stamps
+    its header on top of whatever arrived, so the TOPMOST header overall must carry our authserv-id;
+    anything else on top means the mail did not come in the way we expect, and an identical-looking
+    header further down is just a claim the sender made."""
+    h = m.get("headers") or {}
+    allv = h.get("authentication-results-all")
+    if allv is None:
+        allv = [h["authentication-results"]] if h.get("authentication-results") else []
+    if not allv:
+        return None
+    clean = _strip(allv[0])
+    head = _segments(clean)[0].split()
+    return clean if head and head[0].lower() == authserv.lower() else None
+
+
+def authenticated(m, cfg):
+    """True when the sender-auth rule (authshadow.verdict: internal, gateway or digest path) holds.
+    Microsoft's own dmarc= is no longer used: behind a gateway it fails for every genuine outsider."""
+    from . import authshadow
+    return authshadow.authenticated(m, cfg)
+
+
 def classify(m, cfg):
     """None, or {'kind': 'alert'|'backup_ok'|'backup_fail', ...parsed fields}."""
     a, b = cfg.get("alerts", {}), cfg.get("backup", {})
     subj = m.get("subject", "")
-    if a.get("from") and _re(a["from"], m.get("from", "")):
+    if a.get("from") and sender(m) and _full(a["from"], sender(m)):
         mt = re.search(a.get("subject", DEFAULT_SUBJECT), subj, re.S)
         if mt:
             g = mt.groupdict()
             return {"kind": "alert", "severity": (g.get("severity") or "").upper(),
                     "name": g.get("name") or subj, "state": (g.get("state") or "FIRING").upper(),
                     "scope": g.get("scope") or ""}
-    if b.get("from") and _re(b["from"], m.get("from", "")):
+    if b.get("from") and sender(m) and _full(b["from"], sender(m)):
         if _re(b.get("fail"), subj):
             return {"kind": "backup_fail"}
         if _re(b.get("ok"), subj):
@@ -69,6 +135,7 @@ def run(conn, new, now=None):
     stale = int(float(cfg.get("alerts", {}).get("stale_hours", 6)) * 3600)
     minfire = int(float(cfg.get("alerts", {}).get("min_firing_minutes", 30)) * 60)
     wall = now or time.time()
+    enforce = bool((cfg.get("alerts") or {}).get("enforce_auth"))      # off = shadow
     fired, resolved = [], []
     mine = [(m, classify(m, cfg)) for m in new]
     mine = sorted((x for x in mine if x[1]), key=lambda x: x[0].get("date", 0))
@@ -83,8 +150,10 @@ def run(conn, new, now=None):
             print(f"dots-inbox: tag {m['id']}: {e}", file=sys.stderr)
         if c["kind"] != "alert":
             continue
-        t = int(m.get("date") or wall)
+        # a forged Date of 2099 would otherwise pin last_unix in the future: never muted, never stale
+        t = int(min(m.get("date") or wall, wall))
         fresh = wall - t < stale                         # an old mail is backlog, never a toast
+        authed = authenticated(m, cfg)
         name, scope = c["name"], c["scope"]
         row = conn.execute("SELECT * FROM alert_state WHERE name=? AND scope=?",
                            (name, scope)).fetchone()
@@ -94,6 +163,10 @@ def run(conn, new, now=None):
                 conn.execute("UPDATE alert_state SET repeats=repeats+1, last_unix=max(last_unix,?)"
                              " WHERE name=? AND scope=?", (t, name, scope))
                 continue
+            if not authed:
+                db.log(conn, "alert_unauth", f"{name}|{scope}", "first FIRING, sender not authenticated", ts=int(wall))
+                if enforce:
+                    continue
             recent = bool(row and t - row["last_unix"] < stale)      # fired or flapped lately
             tell = fresh and not recent
             conn.execute("INSERT OR REPLACE INTO alert_state(name,scope,severity,state,since_unix,"
@@ -103,6 +176,11 @@ def run(conn, new, now=None):
             if tell:
                 fired.append((name, scope))
         elif row and row["state"] == "firing":
+            # shadow: a RESOLVED only clears a firing alert when the sender-auth rule matched
+            # (anyone can write a subject); when auth is enforced the same check gates FIRING too
+            if not authed:
+                db.log(conn, "alert_resolve_ignored", f"{name}|{scope}", "sender not authenticated", ts=int(wall))
+                continue
             long_enough = t - row["since_unix"] >= minfire
             conn.execute("UPDATE alert_state SET state='resolved', since_unix=?, last_unix=? "
                          "WHERE name=? AND scope=?", (t, t, name, scope))

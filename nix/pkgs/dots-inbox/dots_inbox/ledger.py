@@ -53,7 +53,10 @@ def clean(s, n=160):
 
 def llm_json(system, user, timeout=25):
     """One JSON object from the local model, or None for any failure. This is the seam
-    tests replace; nothing else in the package talks to Ollama for the ledger."""
+    tests replace; nothing else in the package talks to Ollama for the ledger.
+    AGENT_OFF stops this too: None is what every caller already handles."""
+    if config.AGENT_OFF.exists():
+        return None
     body = json.dumps({"model": config.LOCAL_MODEL, "stream": False, "format": "json",
                        "options": {"temperature": 0.1},
                        "messages": [{"role": "system", "content": system},
@@ -90,7 +93,8 @@ def me():
 
 
 def is_sent(m):
-    return "sent" in m["tags"] or (bool(me()) and m["from_addr"] == me())
+    # `From: me, evil` has two mailboxes: from_addr is the first, from_count says it is not just me
+    return "sent" in m["tags"] or (bool(me()) and m.get("from_count", 1) == 1 and m["from_addr"] == me())
 
 
 def is_person(addr, m=None):

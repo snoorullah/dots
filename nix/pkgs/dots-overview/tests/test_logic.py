@@ -19,6 +19,11 @@ from dots_overview import cli, jump, nowstate
 PKG = Path(helpers.HERE.parent / "dots_overview")
 
 
+def tempfile_dir():
+    import tempfile
+    return tempfile.TemporaryDirectory()
+
+
 class Names(unittest.TestCase):
     def test_256_unique_words(self):
         self.assertEqual(len(names.NAMES), 256)
@@ -285,7 +290,7 @@ class Sources(helpers.Scratch):
         self.assertEqual(argv[argv.index("--allowedTools") + 1], "mcp__x__get_document,mcp__x__query_documents")
         self.assertEqual(argv[argv.index("--disallowedTools") + 1],
                          "mcp__x__create_document,mcp__x__run_sql,mcp__x__cancel_document")
-        self.assertEqual(argv[argv.index("--permission-mode") + 1], "default")
+        self.assertEqual(argv[argv.index("--permission-mode") + 1], "dontAsk")   # was "default": a classifier would decide
         for bad in ({"ERP_MCP_DENY": ""}, {"ERP_MCP_DENY": "  "}):
             seen.clear()
             with self.assertRaises(sources_erp.ErpError):
@@ -293,6 +298,60 @@ class Sources(helpers.Scratch):
             self.assertEqual(seen, [])           # claude was never started
         with self.assertRaises(sources_erp.ErpError):
             sources_erp.fetch_mcp(config.Work({k: v for k, v in raw.items() if k != "ERP_MCP_DENY"}), runner=runner)
+
+    def test_erp_mcp_spawn_is_guarded_like_every_other_claude_run(self):
+        raw = {"ERP_MODE": "mcp", "ERP_MCP_TOOLS": "mcp__erp__get_document mcp__erp__query_documents",
+               "ERP_MCP_DENY": "mcp__erp__create_document"}
+        seen = []
+
+        def runner(argv, **kw):
+            seen.append((argv, kw))
+            return types.SimpleNamespace(stdout="[]")
+        home, cfgdir, state = self.root / "home", self.root / "cfg", self.root / "state"
+        (cfgdir / "dots-mail").mkdir(parents=True)
+        home.mkdir()
+        (home / ".claude.json").write_text(json.dumps({"mcpServers": {
+            "erp": {"type": "http", "url": "https://erp.example/mcp"}, "other": {"type": "stdio", "command": "x"}}}))
+        old_state, old_env = config.STATE_DIR, dict(os.environ)
+        config.STATE_DIR = state
+        os.environ.update(HOME=str(home), XDG_CONFIG_HOME=str(cfgdir), CLAUDE_CODE_PLUGIN_DIRS="/dev/plugin")
+        try:
+            sources_erp.fetch_mcp(config.Work(raw), runner=runner)
+            argv, kw = seen[0]
+            self.assertEqual(argv[argv.index("--model") + 1], "haiku")             # never the unnamed default
+            self.assertIn("--no-session-persistence", argv)
+            self.assertEqual(argv[argv.index("--max-turns") + 1], str(sources_erp.MCP_TURNS))
+            self.assertGreater(float(argv[argv.index("--max-budget-usd") + 1]), 0)
+            self.assertEqual(kw["env"]["CLAUDE_CODE_DISABLE_CLAUDE_MDS"], "1")     # the same context cut
+            self.assertEqual(kw["env"]["CLAUDE_CODE_DISABLE_AUTO_MEMORY"], "1")
+            self.assertNotIn("CLAUDE_CODE_PLUGIN_DIRS", kw["env"])
+            self.assertIn("--strict-mcp-config", argv)                             # only the ERP server is offered
+            self.assertEqual(argv[argv.index("--setting-sources") + 1], "")
+            # the config file is gone with its scratch dir; what it held is checked from the helper
+            with tempfile_dir() as d:
+                conf = json.loads(Path(sources_erp._only_servers(["mcp__erp__get_document"], d)).read_text())
+            self.assertEqual(list(conf["mcpServers"]), ["erp"])
+            # AGENT_OFF: nothing is spawned and nothing is counted
+            seen.clear()
+            (cfgdir / "dots-mail" / "AGENT_OFF").write_text("")
+            with self.assertRaises(sources_erp.ErpError) as cm:
+                sources_erp.fetch_mcp(config.Work(raw), runner=runner)
+            self.assertIn("AGENT_OFF", str(cm.exception))
+            self.assertEqual(seen, [])
+            (cfgdir / "dots-mail" / "AGENT_OFF").unlink()
+            # the daily cap: runs beyond it are refused before any spawn
+            (state / "erp-mcp-spend.json").unlink()
+            for _ in range(sources_erp.MCP_RUNS_CAP):
+                sources_erp.fetch_mcp(config.Work(raw), runner=runner)
+            seen.clear()
+            with self.assertRaises(sources_erp.ErpError) as cm:
+                sources_erp.fetch_mcp(config.Work(raw), runner=runner)
+            self.assertIn("cap", str(cm.exception))
+            self.assertEqual(seen, [])
+        finally:
+            config.STATE_DIR = old_state
+            os.environ.clear()
+            os.environ.update(old_env)
 
     def test_erp_requires_https(self):
         key = self.root / "k"

@@ -1,12 +1,16 @@
 [Unit]
-Description=dots-overview notification log (read-only D-Bus eavesdrop; opt-in)
+Description=dots-overview notification log (read-only D-Bus eavesdrop)
 
 [Service]
 Type=simple
-# MANUAL and opt-in: nothing enables this. It only listens (dbus-monitor on Notify) and
-# writes ~/.local/state/dots-overview/notifications.jsonl; bodies are kept only for the
-# apps named in work.conf NOTIFY_BODY_APPS.
+# Only listens (dbus-monitor on Notify) and writes ~/.local/state/dots-overview/notifications.jsonl
+# (0600, newest 5000 lines). Bodies are kept only for the apps named in work.conf
+# NOTIFY_BODY_APPS; dots-inbox's own toasts (Mail, dots-inbox) keep no summary either.
 ExecStart=%h/.nix-profile/bin/dots-overview notifylog
 Restart=on-failure
 RestartSec=10
 Nice=10
+
+[Install]
+# Without this section the unit was "static": enable did nothing and it never ran.
+WantedBy=default.target
