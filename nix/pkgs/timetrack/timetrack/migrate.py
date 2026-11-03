@@ -556,6 +556,25 @@ ALTER TABLE salah_log ADD COLUMN asked_unix INTEGER;
 COMMIT;
 """
 
+# --- private v8 -------------------------------------------------------------
+# What a break WAS, as the picker key the user pressed (away.CHOICES). deduction keeps only the
+# category (walk and logout are both misc), so the raw answer is lost without this. Display
+# only: nothing here feeds minutes. Keyed by the gap start, which the hourly AW refresh keeps
+# (backfill/aw.py preserves answered deductions by (start_unix, end_unix)).
+PRIVATE_V8 = """
+BEGIN;
+CREATE TABLE away_label (
+    start_unix INTEGER PRIMARY KEY,
+    end_unix   INTEGER,
+    day        TEXT NOT NULL,
+    key        TEXT NOT NULL,
+    label      TEXT NOT NULL,
+    source     TEXT NOT NULL CHECK (source IN ('declared','asked','auto'))
+);
+CREATE INDEX away_label_day ON away_label(day);
+COMMIT;
+"""
+
 # --- work v6 ---------------------------------------------------------------
 # What the user typed over in Obsidian (vault.py), FIELD BY FIELD. A day_edit row holds only
 # the fields the user overrode; every other column is NULL and means "use what was measured".
@@ -708,7 +727,7 @@ COMMIT;
 MIGRATIONS = {"work": [(1, WORK_V1), (2, WORK_V2), (3, WORK_V3), (4, WORK_V4), (5, WORK_V5),
                        (6, WORK_V6)],
               "private": [(1, PRIVATE_V1), (2, PRIVATE_V2), (3, PRIVATE_V3), (4, PRIVATE_V4),
-                          (5, PRIVATE_V5), (6, PRIVATE_V6), (7, PRIVATE_V7)]}
+                          (5, PRIVATE_V5), (6, PRIVATE_V6), (7, PRIVATE_V7), (8, PRIVATE_V8)]}
 
 
 def live_counts(conn):
