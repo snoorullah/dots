@@ -349,6 +349,65 @@ def web_links(t0, t1):
     return [(r["ticket"], r["task_uuid"], _clip(r["start_unix"], r["end_unix"], t0, t1)) for r in rows]
 
 
+def term_day(day):
+    """[{ref, project, agent, verdict, task_uuid, sec}] from the term_day roll-up for one date."""
+    conn = _ro(config.TT_DIR / "private.db")
+    if conn is None:
+        return []
+    try:
+        rows = conn.execute("SELECT task_uuid, ref, project, agent_name, verdict, seconds FROM term_day"
+                            " WHERE day = ? AND seconds > 0", (day.isoformat(),)).fetchall()
+    except sqlite3.Error:
+        return []
+    finally:
+        conn.close()
+    return [{"task_uuid": r["task_uuid"], "ref": r["ref"], "project": r["project"],
+             "agent": r["agent_name"], "verdict": r["verdict"], "sec": r["seconds"]} for r in rows]
+
+
+def web_ticket_day(day):
+    """{ticket: seconds} of browser time per ticket for one date (domain and id only, never a URL)."""
+    conn = _ro(config.TT_DIR / "private.db")
+    if conn is None:
+        return {}
+    try:
+        rows = conn.execute("SELECT ticket, seconds FROM web_ticket_day WHERE day = ? AND seconds > 0",
+                            (day.isoformat(),)).fetchall()
+    except sqlite3.Error:
+        return {}
+    finally:
+        conn.close()
+    return {r["ticket"]: r["seconds"] for r in rows}
+
+
+def day_timesheet(day):
+    """How the timesheet shows the day (derive.basis): (minutes, note) or None when it has no figure.
+
+    note is "" for settled net, "net?" when a break is still unconfirmed, "span" when no break is
+    recorded yet (the span stands in). Uncalibrated: the brief never applies the git factor."""
+    conn = _ro(config.TT_DIR / "work.db")
+    if conn is None:
+        return None
+    try:
+        try:
+            r = conn.execute("SELECT net_minutes, span_minutes, unconfirmed FROM v_day_worked"
+                             " WHERE attendance_day = ?", (day.isoformat(),)).fetchone()
+        except sqlite3.OperationalError:       # an older schema without the columns
+            r = conn.execute("SELECT net_minutes FROM v_day_worked WHERE attendance_day = ?",
+                             (day.isoformat(),)).fetchone()
+    except sqlite3.Error:
+        return None
+    finally:
+        conn.close()
+    if not r:
+        return None
+    k = r.keys()
+    if r["net_minutes"] is not None:
+        return r["net_minutes"], ("net?" if "unconfirmed" in k and (r["unconfirmed"] or 0) else "")
+    span = (r["span_minutes"] if "span_minutes" in k else 0) or 0
+    return (span, "span") if span else None
+
+
 def _add(acc, key, sec):
     if key and sec > 0:
         acc[key] = acc.get(key, 0) + sec
