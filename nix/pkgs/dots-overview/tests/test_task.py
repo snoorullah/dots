@@ -85,8 +85,10 @@ class Switches(helpers.Scratch):
 class StopVerdicts(helpers.Scratch):
     def setUp(self):
         super().setUp()
-        task.write_decl("s1", uuid="uuid-1234", ref="X-1", title="Fix the form", project="p")
-        task.atomic.write_json(task._p("turn", "s1"), {"v": 1, "ts": 1, "hash": "h1",
+        task.write_decl("s1", uuid="uuid-1234", ref="X-1", title="Fix the form", project="p",
+                        ts=int(time.time()) - 5)
+        task.atomic.write_json(task._p("turn", "s1"), {"v": 1, "ts": int(time.time()), "hash": "h1",
+                                                       "decl": "uuid-1234",
                                                        "prompt": "write me a poem about the sea at night"})
         self.calls = []
         self.answers = ["different"]
@@ -116,6 +118,17 @@ class StopVerdicts(helpers.Scratch):
         self.assertIsNone(self.stop())
         self.assertIsNone(self.stop())
         self.assertEqual(len(self.calls), 1)
+
+    def test_redeclaring_the_same_task_does_not_dodge_the_check(self):
+        task.write_decl("s1", uuid="uuid-1234", ref="X-1", title="Fix the form", project="p",
+                        ts=int(time.time()) + 5)
+        self.assertEqual(self.stop()["decision"], "block")
+
+    def test_a_real_switch_after_the_prompt_is_not_judged(self):
+        task.write_decl("s1", uuid="uuid-9999", ref="X-2", title="Write the poem", project="p",
+                        ts=int(time.time()) + 5)
+        self.assertIsNone(self.stop())
+        self.assertEqual(self.calls, [])
 
     def test_loopback_only(self):
         self.assertTrue(gate._loopback("http://127.0.0.1:11434"))

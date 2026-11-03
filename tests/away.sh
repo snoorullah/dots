@@ -157,8 +157,9 @@ hooks = []
 import timetrack.login as lg, timetrack.health as hl
 lg.on_login = lambda now: hooks.append("login")
 hl.on_login = lambda now: (_ for _ in ()).throw(RuntimeError("boom"))
+away._inbox_login = lambda now: hooks.append("inbox")
 away.on_login(T)
-check("a failing hook does not stop the others", hooks, ["login"])
+check("a failing hook does not stop the others", hooks, ["login", "inbox"])
 
 if fails:
     print("away FAILED:")

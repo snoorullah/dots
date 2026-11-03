@@ -1,0 +1,10 @@
+[Unit]
+Description=dots-inbox: prepare read-only analyses of queued critical mail and alerts
+ConditionPathIsMountPoint=%h/Mail
+
+[Service]
+Type=oneshot
+Environment=PATH=%h/.nix-profile/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Nice=15
+TimeoutStartSec=3h
+ExecStart=%h/.nix-profile/bin/dots-inbox prep-run

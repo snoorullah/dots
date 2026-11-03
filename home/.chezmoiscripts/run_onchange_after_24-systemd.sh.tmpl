@@ -39,6 +39,8 @@ systemctl --user enable --now dots-ops-pins-check.timer
 systemctl --user enable --now dots-ops-relay.path dots-ops-relay.service
 # work mail (dots-mail): each unit is a no-op until `dots-mail init` has created the store
 systemctl --user enable --now dots-mail-mount.service dots-mail-auth.service dots-mail-push.service dots-mail-sync.timer 2>/dev/null || true
+# dots-inbox: the Slack reply checker and the prepared-analysis catch-up (both no-ops while the store is locked)
+systemctl --user enable --now dots-inbox-slack.timer dots-inbox-prep.timer 2>/dev/null || true
 systemctl --user enable --now dots-ops-vault-backup.timer dots-ops-vault-watch.timer
 # Capture is NOT behind .timetrack. That flag gates the old timetrack-* units, and it has
 # been false since the package was written -- which is one half of why the predecessor

@@ -1,0 +1,14 @@
+#!/bin/sh
+# Claude Code PostToolUse hook for the Slack send tool: record what was asked, so the
+# reply can be matched to it later (dots-inbox ledger). See dots_inbox/slack.py.
+#
+# Contract: exit 0 always, fast, and print NOTHING to stdout (hook stdout is fed back to the
+# model). The hook JSON arrives on stdin and is passed straight through. A locked store is
+# handled inside dots-inbox (the record is spooled and imported on the next run).
+command -v dots-inbox >/dev/null 2>&1 || exit 0
+if command -v timeout >/dev/null 2>&1; then
+  timeout -k 0.2 8 dots-inbox slack-sent >/dev/null 2>&1
+else
+  dots-inbox slack-sent >/dev/null 2>&1
+fi
+exit 0

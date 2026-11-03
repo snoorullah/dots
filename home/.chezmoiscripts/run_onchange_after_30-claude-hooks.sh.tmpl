@@ -30,10 +30,10 @@ BIN="$HOME/.local/bin"
 # ONE line, always: this output is pasted into a comment, and a second line would land in
 # the script as a bare command. `grep -c` prints 0 AND exits 1 on no match, so the old
 # `grep -c ... || echo absent` printed both and ran `absent` as a command.
-# live: {{ output "sh" "-c" "c=$(grep -c 'timetrack-ticket-hook\\|dots-track-hook\\|dots-task-hook' \"$HOME/.claude/settings.json\" 2>/dev/null); printf '%s' \"${c:-absent}\"" | trim }}
+# live: {{ output "sh" "-c" "c=$(grep -c 'timetrack-ticket-hook\\|dots-track-hook\\|dots-task-hook\\|dots-inbox-slack-hook' \"$HOME/.claude/settings.json\" 2>/dev/null); printf '%s' \"${c:-absent}\"" | trim }}
 
 [ -f "$S" ] || { echo "claude-hooks: $S does not exist; skipping (re-run after first launch)" >&2; exit 0; }
-[ -x "$BIN/timetrack-ticket-hook" ] || [ -x "$BIN/dots-track-hook" ] || [ -x "$BIN/dots-task-hook" ] || { echo "claude-hooks: no hook under $BIN is executable; skipping" >&2; exit 0; }
+[ -x "$BIN/timetrack-ticket-hook" ] || [ -x "$BIN/dots-track-hook" ] || [ -x "$BIN/dots-task-hook" ] || [ -x "$BIN/dots-inbox-slack-hook" ] || { echo "claude-hooks: no hook under $BIN is executable; skipping" >&2; exit 0; }
 command -v python3 >/dev/null || { echo "claude-hooks: no python3" >&2; exit 0; }
 
 CLAUDE_SETTINGS="$S" CLAUDE_BIN="$BIN" python3 - <<'PY'
@@ -63,6 +63,9 @@ HOOKS = {
     "dots-task-hook": {"SessionStart": "session", "UserPromptSubmit": "prompt",
                        "PreToolUse": ("pretool", "Edit|Write|MultiEdit|NotebookEdit|Bash", 5),
                        "Stop": ("stop", None, 6)},
+    # the Slack ledger: after Claude sends a Slack message, record what was asked (it never
+    # prints, and exits 0 fast even when the encrypted mail store is locked)
+    "dots-inbox-slack-hook": {"PostToolUse": ("sent", "mcp__plugin_slack_slack__slack_send_message", 10)},
 }
 hooks = d.setdefault("hooks", {})
 changed = []

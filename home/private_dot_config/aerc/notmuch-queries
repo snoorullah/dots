@@ -1,0 +1,10 @@
+Inbox=tag:inbox and not tag:done
+People=tag:people and tag:inbox
+PRs=tag:pr and tag:inbox
+Waiting=tag:waiting
+Alerts=tag:alert and date:2d..
+Security=tag:security
+HR=tag:hr
+Drafts=folder:Drafts
+Sent=tag:sent
+Archive=not tag:inbox and not tag:alert

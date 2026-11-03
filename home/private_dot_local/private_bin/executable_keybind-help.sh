@@ -59,6 +59,7 @@ read -r -d '' ROWS <<'EOF'
   Super + Shift + P       Break — pause task + lock
   Super + Shift + ;       Salah logger (one-key)
   Super + Alt + D         Dose taken — start the health check-ins
+  Super + Alt + M         Work mail (aerc)
 ━━━━━━━  MEDIA  /  HARDWARE  ━━━━━━━
   Vol Up / Down / Mute    Volume (OSD)
   Mic Mute                Toggle microphone
