@@ -93,10 +93,11 @@ Item {
         Button {
             visible: r.hasButton
             objectName: "breakdownButton"
-            text: "Break down & start"
-            icon: "play_arrow"
+            readonly property bool review: r.item.kind === "alert" && !!r.item.fixStage && r.item.fixStage !== "fix"
+            text: review ? "Review patch" : ((r.item.kind === "alert" && r.item.fixRepo) ? "Fix in " + r.item.fixRepo + " (sandboxed copy)" : "Break down & start")
+            icon: review ? "difference" : "play_arrow"
             dim: r.dim
-            onClicked: Actions.breakdown(r.item)
+            onClicked: review ? Actions.alertReview(r.item) : Actions.breakdown(r.item)
         }
     }
     implicitHeight: col.implicitHeight + Look.sM * 2

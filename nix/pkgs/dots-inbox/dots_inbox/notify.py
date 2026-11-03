@@ -9,7 +9,7 @@ popen = subprocess.Popen
 
 def toast(app, summary, body="", urgency="normal", ms=8000):
     try:
-        popen(["notify-send", "-a", app, "-u", urgency, "-t", str(ms), summary, body],
+        popen(["notify-send", "-a", app, "-u", urgency, "-t", str(ms), "--", summary, body],
               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except OSError:
         pass
@@ -27,7 +27,7 @@ def _close(nid):
 
 def ask(app, summary, body, actions, timeout, urgency="normal"):
     argv = ["notify-send", "-a", app, "-u", urgency, "-t", str(int(timeout * 1000)), "-p", "--wait"]
-    argv += [f"--action={k}={label}" for k, label in actions] + [summary, body]
+    argv += [f"--action={k}={label}" for k, label in actions] + ["--", summary, body]
     try:
         proc = popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                      stderr=subprocess.DEVNULL, text=True)

@@ -100,6 +100,97 @@ def cmd_breakdown(args):
     return 0
 
 
+def cmd_alert_task(args):
+    from . import alertpr
+    print(alertpr.create(args.name, args.project, args.prep, args.repo, args.test)["ref"])
+    return 0
+
+
+def _alert_dir(ref):
+    from . import alertrun
+    d = alertrun.run_dir(ref)
+    if not (d / "meta.json").exists():
+        raise SystemExit(f"no alert run for {ref}; click Fix first")
+    return d
+
+
+def _say(summary, body=""):
+    """A desktop note: these commands run detached from a button, so stderr is invisible."""
+    import subprocess
+    try:
+        subprocess.Popen(["notify-send", "-a", "Overview", "--", summary, body[:300]], stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        pass
+
+
+def cmd_alert_review(args, herdr_run=None, say=None):
+    """Stop the agent, extract its patch from a host-made copy (host code, refuses anything
+    forbidden), then open a read-only view in a pane. Marks the patch reviewed ONLY once that view
+    is open. Pushes nothing."""
+    from . import alertpush, alertrun, herdr, launch
+    herdr_run, say = herdr_run or herdr.run, say or _say
+    d = _alert_dir(args.ref)
+    if not alertrun.stop_agent(d, herdr_run):
+        say(f"Review {args.ref}: agent still running", "Could not confirm the agent exited; nothing was extracted.")
+        print("the agent is still running; not extracting", file=sys.stderr)
+        return 1
+    try:
+        r = alertrun.extract(d)
+    except alertrun.Refused as e:
+        text = "PATCH REFUSED\n" + "\n".join(f"- {alertrun.plain(why, 300)}" for why in e.args[0]) + \
+            "\n\nNothing can be pushed from this run until the cause is gone and review is run again.\n"
+        (d / "review.txt").write_text(text, encoding="utf-8")
+        say(f"Patch refused for {args.ref}", "; ".join(e.args[0])[:250])
+        launch.open_review(d)
+        print(text, file=sys.stderr)
+        return 1
+    if r.get("empty"):
+        say(f"{args.ref}: the agent changed nothing", "")
+        print("the agent changed nothing")
+        return 0
+    m = alertrun.meta(d)
+    body = alertpush.body_for(m, alertrun.read_snapshot(d, m["proposal_sha256"]))
+    (d / "review.txt").write_text(alertrun.review_text(d, body), encoding="utf-8")
+    status = launch.open_review(d)
+    if not status.startswith("review open"):
+        say(f"Review {args.ref}: no pane opened", status[:200])
+        print(status, file=sys.stderr)
+        return 1                              # not marked reviewed: Push stays hidden
+    alertrun.mark_reviewed(d)
+    print(status)
+    return 0
+
+
+def _confirm(summary, body):
+    """One notification with a Push button; True only if it was clicked."""
+    import subprocess
+    try:
+        p = subprocess.run(["notify-send", "-a", "Overview", "-t", "60000", "-A", "push=Push", "--wait", "--", summary, body],
+                           capture_output=True, text=True, timeout=75, stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return p.stdout.strip() == "push"
+
+
+def cmd_alert_push(args, confirm=None):
+    """The separate, explicit click: confirm the reviewed sha, push, open a DRAFT PR."""
+    from . import alertpush, alertrun
+    d = _alert_dir(args.ref)
+    m = alertrun.meta(d)
+    if not (confirm or _confirm)(f"Push {args.ref} and open a draft PR?",
+                                 f"patch {str(m.get('patch_sha256'))[:12]}  files: {', '.join(m.get('files') or [])}"):
+        print("not confirmed; nothing pushed", file=sys.stderr)
+        return 1
+    try:
+        print(alertpush.push(d, confirmed=True))
+    except alertpush.PushError as e:
+        _say(f"Not pushed: {args.ref}", str(e))
+        print(f"not pushed: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def cmd_jump(args):
     tasks = jump.load_tasks()
     t = jump.last_session(tasks) if args.last else jump.resolve(args.target, tasks)
@@ -165,6 +256,16 @@ def main(argv=None):
     p = add("breakdown", cmd_breakdown, "local llm -> subtasks, optionally start the first")
     p.add_argument("ref")
     p.add_argument("--start", action="store_true")
+    p = add("alert-task", cmd_alert_task, "local task for an alert (dots-inbox Create ticket); prints its ref")
+    p.add_argument("--name", required=True)
+    p.add_argument("--project", required=True)
+    p.add_argument("--prep", required=True, help="the prepared analysis (markdown)")
+    p.add_argument("--repo", help="local checkout the fix is made from; without it nothing is prepared")
+    p.add_argument("--test", help="the one command the agent runs to check its fix")
+    p = add("alert-review", cmd_alert_review, "extract the agent's patch and open it read-only; pushes nothing")
+    p.add_argument("ref")
+    p = add("alert-push", cmd_alert_push, "push the reviewed patch and open a DRAFT PR (a separate click)")
+    p.add_argument("ref")
     p = add("jump", cmd_jump, "focus the pane / open the url for a ref, agent or task id")
     p.add_argument("target", nargs="?")
     p.add_argument("--last", action="store_true")

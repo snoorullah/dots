@@ -65,6 +65,25 @@ CREATE TABLE IF NOT EXISTS event (
   detail   TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_event_ts ON event(ts_unix);
+
+-- One row per PHYSICAL alert mail: (Message-ID, content fingerprint). An attacker picks their own
+-- Message-ID, so the id alone never carries an authentication result.
+CREATE TABLE IF NOT EXISTS alert_msg (
+  msgid        TEXT NOT NULL,
+  fp           TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  scope        TEXT NOT NULL,
+  authed       INTEGER NOT NULL,
+  ts_unix      INTEGER NOT NULL,
+  event_rowid  INTEGER,              -- the alert_firing event this mail caused, if any
+  PRIMARY KEY (msgid, fp)
+);
+-- which exact mail a prep row was made from
+CREATE TABLE IF NOT EXISTS prep_msg (
+  ref    TEXT PRIMARY KEY,
+  msgid  TEXT NOT NULL,
+  fp     TEXT NOT NULL
+);
 """
 
 

@@ -19,7 +19,7 @@ import re
 import time
 from pathlib import Path
 
-from . import config, herdr, names
+from . import alertpr, alertrun, config, herdr, names
 
 GH_REF = re.compile(r"^gh:([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)#(\d+)$")
 REPO = re.compile(r"^(?!\.+$)[A-Za-z0-9_.-]{1,100}$")     # never "." or ".."
@@ -70,6 +70,10 @@ def prompt_for(parent, steps, current):
             "on what, open questions, and a proposed plan for the current step (>). Then stop and wait for me.")
 
 
+def is_alert(parent):
+    return "alert" in (parent.get("tags") or []) and parent.get("src") == "claude"
+
+
 def live_agent_for(step_uuid, snap, task):
     """The pane of a live agent already working this step, if any."""
     pane = task.get("pane") if task else None
@@ -81,7 +85,7 @@ def live_agent_for(step_uuid, snap, task):
     return None
 
 
-def launch(parent, steps, current, step_task, cfg=None, run=None, sleep=time.sleep):
+def launch(parent, steps, current, step_task, cfg=None, run=None, sleep=time.sleep, probe=None):
     """Open the tab, start Claude, send the brief prompt. Returns {'pane', 'tab', 'reused'} or
     {'error': ...}. `run` is the herdr seam tests replace."""
     cfg = cfg or config.Work()
@@ -94,7 +98,22 @@ def launch(parent, steps, current, step_task, cfg=None, run=None, sleep=time.sle
         run(["tab", "focus", live.get("tab_id")])
         return {"pane": live.get("pane_id"), "tab": live.get("tab_id"), "reused": True}
     label = re.sub(r"[^A-Za-z0-9#:/._-]", "", (parent.get("ref") or "task").split("/")[-1])[:32] or "task"
-    common = ["--cwd", cwd_for(parent.get("ref"), cfg), "--env", f"DOTS_TASK_DECLARE={step_task['uuid']}", "--focus"]
+    alert = is_alert(parent)
+    run_dir = None
+    if alert:
+        # An alert agent works on a plain copy with no git and no credentials (alertrun). An
+        # unmapped alert stops here: nothing is created, the agent is not started.
+        try:
+            run_dir = alertrun.prepare(parent.get("ref"), parent.get("desc", ""), alertpr.annotation(parent, "repo"),
+                                       alertpr.annotation(parent, "prep"), alertpr.annotation(parent, "test"))
+        except (RuntimeError, OSError) as e:
+            return {"error": str(e)[:300]}
+        # no proof the sandbox hides sockets, home and credentials = no agent (fails closed)
+        ok, why = (probe or alertrun.sandbox_ok)(run_dir)
+        if not ok:
+            return {"error": why or "sandbox probe failed"}
+    cwd = str(run_dir / "work") if alert else cwd_for(parent.get("ref"), cfg)
+    common = ["--cwd", cwd, "--env", f"DOTS_TASK_DECLARE={step_task['uuid']}", "--focus"]
     ws = hangar_id(cfg, snap)
     if ws:
         made = _json(run(["tab", "create", "--workspace", ws, "--label", label] + common))
@@ -111,12 +130,35 @@ def launch(parent, steps, current, step_task, cfg=None, run=None, sleep=time.sle
     name = name if re.match(r"[a-z]", name) else "agent-" + name[:26]
     # a fresh tab's shell takes a moment to reach its prompt, and herdr refuses to start an
     # agent before that: retry for up to ~15 s
+    start = ["agent", "start", name, "--kind", "claude", "--pane", pane, "--timeout", "60000"]
+    if alert:
+        start += ["--"] + alertrun.agent_argv(run_dir)
     for attempt in range(8):
-        if run(["agent", "start", name, "--kind", "claude", "--pane", pane, "--timeout", "60000"], timeout=70) is not None:
+        if run(start, timeout=70) is not None:
             break
         sleep(2)
     else:
         return {"error": f"claude did not start in {pane}", "pane": pane}
-    if run(["agent", "prompt", pane, prompt_for(parent, steps, current)], timeout=15) is None:
+    text = alertrun.prompt(run_dir) if alert else prompt_for(parent, steps, current)
+    if alert:
+        alertrun.record_agent(run_dir, pane)
+    if run(["agent", "prompt", pane, text], timeout=15) is None:
         return {"error": f"the brief prompt was not delivered to {pane}", "pane": pane}
     return {"pane": pane, "tab": tab, "reused": False}
+
+
+def open_review(d, run=None):
+    """Show review.txt read-only in a new Hangar tab (less, no shell escapes). Pushes nothing.
+    Returns "review open in <pane>" on success, else a reason."""
+    run = run or herdr.run
+    snap = (_json(run(["api", "snapshot"])) or {}).get("snapshot") or {}
+    ws = hangar_id(config.Work(), snap)
+    label = "review-" + re.sub(r"[^A-Za-z0-9_.-]", "", Path(d).name)[:24]
+    args = ["tab", "create"] + (["--workspace", ws] if ws else []) + ["--label", label, "--cwd", str(d), "--focus"]
+    made = _json(run(args))
+    pane = ((made or {}).get("root_pane") or {}).get("pane_id")
+    if not pane:
+        return f"herdr did not open a tab; the text is at {Path(d) / 'review.txt'}"
+    if run(["pane", "run", pane, "env", "LESSSECURE=1", "less", "review.txt"]) is None:
+        return f"herdr could not run the viewer in {pane}"
+    return f"review open in {pane}"

@@ -6,9 +6,10 @@ ERP), the herdr snapshot, dots-ops state and the notification log. No network.
 amber = `waiting` (somebody is blocked on ME). red = `failed` (an alert and nobody waits).
 Those are the only two counts the pill spends colour on.
 """
+import os
 import time
 
-from . import atomic, config, herdr, names, sources_notify, sources_ops, sync
+from . import alertpr, alertrun, atomic, config, herdr, names, sources_notify, sources_ops, sync
 
 URGENCY_RANK = {"critical": 0, "time": 1, "active": 2, "passive": 3}
 CLAUDE_TTL = 24 * 3600
@@ -34,7 +35,7 @@ def from_tasks(tasks, now):
             continue
         age = max(0, now - (t.get("entry_ts") or now))
         if t.get("src") == "claude":
-            if age > CLAUDE_TTL:
+            if age > CLAUDE_TTL and "alert" not in tags:
                 continue
             kind, waiting, urgency = "task", False, "passive"
         else:
@@ -44,12 +45,19 @@ def from_tasks(tasks, now):
             waiting = kind == "review" or (kind == "erp" and ss in ERP_WAITS)
             urgency = "active" if waiting else "passive"
         ref = t.get("ref")
+        alert = "alert" in tags and t.get("src") == "claude"     # made by Create ticket (alertpr)
+        if alert:
+            kind, waiting, urgency = "alert", False, "active"
         items.append({
             "id": f"{kind}:{ref or t['uuid'][:8]}", "kind": kind, "title": (t.get("desc") or "")[:140],
             "ref": ref, "src": t.get("src"), "url": t.get("url"), "urgency": urgency, "waiting": waiting,
             "ageSec": age, "actor": t.get("agent"), "jump": _jump(t),
-            "canBreakdown": bool(ref) and t.get("src") in ("gh", "erp") and "sub" not in tags,
-            "startedAt": t.get("start_ts")})
+            "canBreakdown": bool(ref) and (alert or t.get("src") in ("gh", "erp")) and "sub" not in tags,
+            "startedAt": t.get("start_ts"),
+            # the repo an alert ticket will be fixed in (label for the button), else None
+            "fixRepo": os.path.basename((alertpr.annotation(t, "repo") or "").rstrip("/")) or None if alert else None,
+            # fix (no agent run yet) | review (patch to look at) | push (reviewed: push button too)
+            "fixStage": alertrun.stage(alertrun.run_dir(ref)) if alert and ref else None})
     return items
 
 

@@ -23,7 +23,7 @@ import subprocess
 import sys
 import time
 
-from . import config, db, mail, notify, slack
+from . import alertpr, alerts, config, db, mail, notify, slack
 
 DAILY_CAP = 6
 ALERT_WINDOW = 7 * 24 * 3600
@@ -104,10 +104,10 @@ def queue(conn, new=None, now=None):
     top = conn.execute("SELECT COALESCE(MAX(rowid),0) FROM event").fetchone()[0]
     if cur is None:
         # first run: look only at the last few minutes, never replay old history
-        rows = conn.execute("SELECT kind, ref FROM event WHERE ts_unix >= ? AND kind IN "
+        rows = conn.execute("SELECT kind, ref, rowid AS rid FROM event WHERE ts_unix >= ? AND kind IN "
                             "('critical','alert_firing') ORDER BY rowid", (now - 600,)).fetchall()
     else:
-        rows = conn.execute("SELECT kind, ref FROM event WHERE rowid > ? AND kind IN "
+        rows = conn.execute("SELECT kind, ref, rowid AS rid FROM event WHERE rowid > ? AND kind IN "
                             "('critical','alert_firing') ORDER BY rowid", (cur,)).fetchall()
     conn.execute("INSERT OR REPLACE INTO prep_cursor(id, last_rowid) VALUES(1, ?)", (top,))
     if config.panic() or not rows:
@@ -118,6 +118,11 @@ def queue(conn, new=None, now=None):
         if not ref:
             continue
         kind = "alert" if r["kind"] == "alert_firing" else "mail"
+        if kind == "alert":
+            # an alert mail that failed the entry gate never takes a prep slot or feeds an analysis
+            bad = conn.execute("SELECT 1 FROM alert_msg WHERE event_rowid=? AND authed=0", (r["rid"],)).fetchone()
+            if bad:
+                continue
         old = conn.execute("SELECT id, status, created_unix FROM prep WHERE ref=?", (ref,)).fetchone()
         if kind == "alert":
             name = ref.split("|", 1)[0]
@@ -146,6 +151,11 @@ def queue(conn, new=None, now=None):
             conn.execute("INSERT INTO prep(kind, ref, title, status, created_unix, summary) "
                          "VALUES(?,?,?,?,?,?)", (kind, ref, title, status, now, summary))
         queued += status == "queued"
+        if kind == "alert":     # remember WHICH mail this analysis is about
+            mm = conn.execute("SELECT msgid, fp FROM alert_msg WHERE event_rowid=?", (r["rid"],)).fetchone()
+            if mm:
+                conn.execute("INSERT OR REPLACE INTO prep_msg(ref, msgid, fp) VALUES(?,?,?)",
+                             (ref, mm["msgid"], mm["fp"]))
     conn.commit()
     if queued:
         _spawn(now)
@@ -210,9 +220,11 @@ def _alert_material(conn, row):
                           (name, name + "|%")):
         out.append(f"- {_fmt(e['ts_unix'])} {e['kind']} {e['ref']} {e['detail'] or ''}".rstrip())
     try:
-        # an alert name comes from a mail subject: keep only a safe set before it meets a query
-        safe = re.sub(r"[^A-Za-z0-9_.-]", "", name)[:80]
-        found = mail.messages(f'tag:alert and subject:"{safe}"', limit=1) if safe else []
+        # the mail this prep was made from, by Message-ID; never "the latest mail with this name"
+        pm = conn.execute("SELECT msgid, fp FROM prep_msg WHERE ref=?", (row["ref"],)).fetchone()
+        m = mail.get(pm["msgid"]) if pm else None
+        # only the exact physical mail that passed; a duplicate-id copy is never read
+        found = [m] if m and not m.get("copies") and alerts.fingerprint(m) == pm["fp"] else []
     except Exception:
         found = []
     if found:
@@ -315,6 +327,12 @@ def run_one(conn, row):
     db.log(conn, "prepared", row["ref"], row["title"])
     conn.commit()
     if not config.panic():
+        try:
+            if row["kind"] == "alert" and alertpr.offer(conn, row, summary, path, ALERT_WINDOW) != "skipped":
+                return True                # the offer was the notification
+        except Exception as e:             # a config error must not kill the runner
+            db.log(conn, "offer_failed", row["ref"], str(e)[:200])
+            conn.commit()
         notify.toast("dots-inbox", f"Prepared: {row['title']}", summary)
     return True
 

@@ -110,6 +110,11 @@ def add(desc, tags=(), **attrs):
     return m.group(0)
 
 
+def annotate(uuid, text):
+    """Attach one annotation. The text goes after `--`, so it is never parsed as syntax."""
+    run([uuid, "annotate", "--", (text or "").strip()[:300] or "-"])
+
+
 def modify(uuid, **attrs):
     run([uuid, "modify"] + _attrs(attrs))
 
