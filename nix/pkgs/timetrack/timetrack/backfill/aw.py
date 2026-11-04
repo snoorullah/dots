@@ -257,8 +257,16 @@ def write(conn, since=None, until=None, refresh_day=None):
                 (sid, d["day"], k["start_unix"], k["end_unix"], k["category"],
                  k["minutes"], k["confirmed"], k["provenance"]))
 
-        def answered(t0, t1):
-            return any(k["start_unix"] < t1 and k["end_unix"] > t0 for k in answers)
+        def unanswered(t0, t1):
+            """The parts of [t0, t1) no answer covers. An answer that covers only PART of a
+            gap must not swallow the rest: a declared washroom break that ended when AW split
+            one absence in two left the second half undeducted, inside the figure."""
+            pieces = [(t0, t1)]
+            for k in answers:
+                k0, k1 = k["start_unix"], k["end_unix"]
+                pieces = [q for a, b in pieces
+                          for q in ((a, min(b, k0)), (max(a, k1), b)) if q[1] > q[0]]
+            return pieces
 
         # The double count. v_day_span SUMS intervals, so where a hand-recorded interval and
         # AW's measured presence cover the same minutes, both would be added. Deduct exactly
@@ -280,12 +288,9 @@ def write(conn, since=None, until=None, refresh_day=None):
         gaps = asked = 0
         prev = None
         for a, b in d["runs"]:
-            if prev is not None and b > a:
-                secs = (a - prev).total_seconds()
-                if secs > 0 and answered(int(prev.timestamp()), int(a.timestamp())):
-                    prev = b
-                    continue
-                if secs > 0:
+            if prev is not None and b > a and a > prev:
+                for g0, g1 in unanswered(int(prev.timestamp()), int(a.timestamp())):
+                    secs = g1 - g0
                     confirmed = 0 if secs >= MIN_GAP else 1
                     prov = PROVENANCE
                     # A gap the user already covered with a hand interval has been answered:
@@ -294,15 +299,13 @@ def write(conn, since=None, until=None, refresh_day=None):
                     # -- but it is not asked about again. 90% rather than 100% because the two
                     # clocks never agree to the second: the hotkey lands a few seconds after
                     # AW notices the desk went idle.
-                    g0, g1 = int(prev.timestamp()), int(a.timestamp())
                     cov = sum(max(0, min(h1, g1) - max(h0, g0)) for h0, h1 in hand)
                     if cov >= 0.9 * (g1 - g0):
                         confirmed, prov = 1, "hotkey:covered"
                     conn.execute(
                         "INSERT INTO deduction(session_id,attendance_day,start_unix,end_unix,"
                         "category,minutes,confirmed,provenance) VALUES(?,?,?,?,?,?,?,?)",
-                        (sid, d["day"], int(prev.timestamp()), int(a.timestamp()),
-                         "misc", secs / 60.0, confirmed, prov))
+                        (sid, d["day"], g0, g1, "misc", secs / 60.0, confirmed, prov))
                     gaps += 1
                     asked += 1 - confirmed
             prev = b
