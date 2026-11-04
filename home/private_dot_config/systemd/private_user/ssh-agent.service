@@ -1,0 +1,14 @@
+[Unit]
+Description=OpenSSH agent (keys are added by KeePassXC on unlock, removed on lock)
+Documentation=man:ssh-agent(1)
+
+[Service]
+Type=simple
+ExecStartPre=-/bin/rm -f %t/ssh-agent.socket
+ExecStart=%h/.nix-profile/bin/ssh-agent -D -a %t/ssh-agent.socket
+# Override the gpg-agent socket the distro session exports, for everything started later.
+ExecStartPost=/bin/sh -c 'systemctl --user set-environment SSH_AUTH_SOCK=%t/ssh-agent.socket'
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

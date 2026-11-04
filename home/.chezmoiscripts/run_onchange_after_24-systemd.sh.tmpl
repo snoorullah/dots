@@ -7,6 +7,8 @@ if ! systemctl --user show-environment >/dev/null 2>&1; then
   exit 0
 fi
 systemctl --user daemon-reload
+# ssh-agent for KeePassXC-held keys; keepassxc.service itself is started by Hyprland (needs Wayland)
+systemctl --user enable --now ssh-agent.service
 systemctl --user enable --now adhd-prayer-times.timer adhd-salah-schedule.timer aw-server.service awatcher.service
 # Kube tunnel units are copied by hand (docs/install.md §2), never shipped here, so enable whatever this machine
 # was given. Each unit's own ConditionPathExists keeps it skipped until its secret is in place. reverse-tunnel.service

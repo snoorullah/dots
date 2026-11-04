@@ -3,6 +3,9 @@
 	email = snoorullah@proficientnow.com
 [init]
 	defaultBranch = main
+[credential]
+	# every host except GitHub (gh below): the Secret Service, i.e. the KeePassXC vault
+	helper = libsecret
 [credential "https://github.com"]
 	helper =
 	helper = !gh auth git-credential

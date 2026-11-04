@@ -1,0 +1,13 @@
+[Unit]
+Description=KeePassXC vault: Secret Service, SSH agent keys, browser logins
+# Started by Hyprland (needs WAYLAND_DISPLAY), after ssh-agent so unlock can add keys.
+After=ssh-agent.service
+Wants=ssh-agent.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+Environment=SSH_AUTH_SOCK=%t/ssh-agent.socket
+ExecStart=%h/.nix-profile/bin/keepassxc --minimized
+Restart=on-failure
+RestartSec=3

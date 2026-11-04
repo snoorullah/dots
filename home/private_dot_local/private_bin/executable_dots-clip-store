@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# dots-clip-store: `wl-paste --type text --watch` target (Hyprland autostart). Passes the new
+# clipboard text to clipse's history UNLESS it is sensitive:
+#   - a password manager marked it (KeePassXC sets x-kde-passwordManagerHint), or
+#   - it matches a secret pattern (private keys, cloud/API tokens, JWTs, key=value secrets).
+# A pattern hit is also cleared from the live clipboard after 30 s if still there.
+set -uo pipefail
+types=$(wl-paste --list-types 2>/dev/null || true)
+grep -qx 'x-kde-passwordManagerHint' <<<"$types" && exit 0
+
+buf=$(mktemp -p "${XDG_RUNTIME_DIR:-/tmp}" clip.XXXXXX) || exit 0   # tmpfs, never the disk
+trap 'rm -f "$buf"' EXIT
+cat > "$buf"
+
+re='-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----|AGE-SECRET-KEY-1|\bgh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}'
+re+='|\bglpat-[A-Za-z0-9_-]{20,}|\bAKIA[0-9A-Z]{16}\b|\bASIA[0-9A-Z]{16}\b|\bxox[abposr]-[A-Za-z0-9-]{10,}'
+re+='|\bsk-(ant-|proj-)?[A-Za-z0-9_-]{20,}|\bnpm_[A-Za-z0-9]{30,}|\bhvs\.[A-Za-z0-9_-]{20,}|\bAIza[0-9A-Za-z_-]{35}'
+re+='|\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|[A-Za-z0-9_~.-]{3}8Q~[A-Za-z0-9_~.-]{31,}'
+re+='|AccountKey=|SharedAccessSignature=|(?i:(password|passwd|secret|token|api[_-]?key|client[_-]?secret)\s*[:=]\s*\S{8,})'
+if grep -qP -- "$re" "$buf"; then
+  sum=$(wl-paste --no-newline 2>/dev/null | sha256sum)
+  notify-send -a clipboard -u low "Secret kept out of clipboard history" "Clears from the clipboard in 30 s." 2>/dev/null || true
+  ( sleep 30; [ "$(wl-paste --no-newline 2>/dev/null | sha256sum)" = "$sum" ] && wl-copy --clear ) >/dev/null 2>&1 &
+  disown
+  exit 0
+fi
+exec clipse --wl-store < "$buf"
