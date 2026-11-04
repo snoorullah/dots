@@ -64,8 +64,13 @@ def not_afk(since=None, until=None, now=None):
     """
     events = _get(f"/buckets/{bucket('afkstatus')}/events?limit=100000")
     now = now or datetime.now().astimezone()
-    # the API returns newest first; only that one may be in progress
-    newest_ts = events[0]["timestamp"] if events else None
+    # Only the newest event may be in progress. ActivityWatch opens an AFK stretch with a
+    # zero-length not-afk stub at the SAME timestamp as the afk event, and the API may list
+    # either first. Treating the stub as live counted a 19-hour absence as presence, so on a
+    # tie the afk event wins: no not-afk is live while an afk opened at that instant.
+    latest = max((e["timestamp"] for e in events), default=None)
+    at_latest = [(e.get("data") or {}).get("status") for e in events if e["timestamp"] == latest]
+    newest_ts = latest if at_latest and "afk" not in at_latest else None
     spans = []
     for e in events:
         if (e.get("data") or {}).get("status") != "not-afk":
