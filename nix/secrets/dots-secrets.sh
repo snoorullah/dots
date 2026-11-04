@@ -1,5 +1,6 @@
 # dots-secrets: one-time, stateful steps for the KeePassXC vault (see nix/secrets.nix).
-#   init            create the vault (master password + key file) and its groups
+#   init [--random] create the vault (master password + key file) and its groups; --random
+#                   generates a 7-word diceware password and shows it once
 #   import-ssh      put every private key in ~/.ssh into the vault (agent: add on unlock, remove on lock)
 #   switch-secrets  move the Secret Service from gnome-keyring to KeePassXC, copying every item
 #   move-tokens     move CLI tokens off plaintext files (gh, docker)
@@ -27,10 +28,19 @@ cmd_init() {
     echo "Vault exists; finishing setup."
   else
     local again
-    echo "Choose a master password you can type from memory (a 5+ word passphrase)."
-    IFS= read -rsp "New master password: " PW; echo
-    IFS= read -rsp "Repeat it: " again; echo
-    [ -n "$PW" ] && [ "$PW" = "$again" ] || { PW=""; die "passwords empty or different; nothing created"; }
+    if [ "${1:-}" = --random ]; then
+      # 7 diceware words (~90 bits). Shown on this terminal only; never stored or copied.
+      PW=$(keepassxc-cli diceware -W 7)
+      printf '\nYour master password:\n\n    %s\n\nSave it somewhere safe now (paper or another password manager).\n' "$PW"
+      IFS= read -rsp "Type it back once to confirm you saved it: " again; echo
+      [ "$PW" = "$again" ] || { PW=""; die "did not match; nothing created. Run it again."; }
+      clear
+    else
+      echo "Choose a master password you can type from memory (a 5+ word passphrase)."
+      IFS= read -rsp "New master password: " PW; echo
+      IFS= read -rsp "Repeat it: " again; echo
+      [ -n "$PW" ] && [ "$PW" = "$again" ] || { PW=""; die "passwords empty or different; nothing created"; }
+    fi
     printf '%s\n%s\n' "$PW" "$PW" | keepassxc-cli db-create -q -p --set-key-file "$KEY" "$DB" >/dev/null
   fi
   chmod 600 "$KEY" "$DB"
@@ -154,7 +164,7 @@ cmd_status() {
 }
 
 case ${1:-status} in
-  init) cmd_init ;;
+  init) shift; cmd_init "$@" ;;
   import-ssh) shift; cmd_import_ssh "$@" ;;
   switch-secrets) cmd_switch_secrets ;;
   move-tokens) cmd_move_tokens ;;
