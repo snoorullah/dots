@@ -10,26 +10,30 @@ let
     if gpu == "nvidia" then wrapNvidia drv
     else if gpu == "mesa" then config.lib.nixGL.wrap drv
     else drv;
-  # Compat names: nixpkgs renamed swww → awww (live scripts/hypr config still call swww*), and the
-  # zen flake ships `zen-beta` (live config launches `zen-browser`). Remove once the configs migrate.
+  # Compat names: nixpkgs renamed swww → awww (live scripts/hypr config still call swww*). Remove once the
+  # configs migrate. Zen's own compat names live in zen.nix.
   compat = pkgs.runCommand "dots-compat-links" { } ''
     mkdir -p $out/bin
     ln -s ${pkgs.awww}/bin/awww $out/bin/swww
     ln -s ${pkgs.awww}/bin/awww-daemon $out/bin/swww-daemon
     ln -s ${pkgs.go-task}/bin/task $out/bin/go-task
-    ln -s ${zen}/bin/zen-beta $out/bin/zen
-    ln -s ${zen}/bin/zen-beta $out/bin/zen-browser
   '';
-  # Browser policies (spec D3, R11/R17): aw-watcher-web force-install for both browsers. The private-browsing
-  # keys come from /etc/firefox/policies/policies.json, which applies to stock Firefox only (live Zen has
-  # no policies), so they go to aether only.
+  # Browser policies (spec D3, R11/R17): aw-watcher-web force-install for aether, plus the private-browsing
+  # keys from /etc/firefox/policies/policies.json, which applies to stock Firefox only. Zen: zen.nix.
   awWatcher.ExtensionSettings."{ef87d84c-2127-493f-b952-5b4e744245bc}" = {
     installation_mode = "force_installed";
     install_url = "https://addons.mozilla.org/firefox/downloads/latest/aw-watcher-web/latest.xpi";
   };
-  zen = gl (inputs.zen-browser.packages.${pkgs.system}.default.override { extraPolicies = awWatcher; });
   aether = gl (pkgs.aether.override {
     extraPolicies = awWatcher // { DisablePrivateBrowsing = true; PrivateBrowsingModeAvailability = 1; };
+  });
+  # brotab 1.5.0: the mediator routes /move_tabs/<query_info> to move_tabs(move_triplets), so every `bt move`
+  # fails with a 500.
+  brotab = pkgs.brotab.overridePythonAttrs (old: {
+    postPatch = (old.postPatch or "") + ''
+      substituteInPlace brotab/mediator/http_server.py \
+        --replace-fail "'/move_tabs/<query_info>'" "'/move_tabs/<move_triplets>'"
+    '';
   });
   # Personal machines only: everything here is left out on orgManaged machines (company IT owns them).
   # run_onchange_before_10-nix exports DOTS_ORG_MANAGED=1 there and evaluates with --impure; NixOS and plain
@@ -44,6 +48,7 @@ let
     age cloudflared sshpass autossh sshfs qrencode
   ] ++ lib.optional (gpu == "nvidia") cudaPackages.cudatoolkit);
 in {
+  imports = [ ./zen.nix ];
   home.stateVersion = "25.11";
   programs.home-manager.enable = true;
   targets.genericLinux.enable = gpu != "nixos";
@@ -69,7 +74,7 @@ in {
 
     # --- owner picks (addendum) ---
     # browsers / chat / mail
-    zen aether compat (gl google-chrome) (gl brave) brotab slack teams-for-linux thunderbird
+    aether compat (gl google-chrome) (gl brave) brotab slack teams-for-linux thunderbird
     # work mail in the terminal (dots-mail): encrypted store, OAuth2, sync, push, index, client.
     # isync needs the XOAUTH2 SASL plugin for Microsoft 365; it is off by default upstream.
     (isync.override { withCyrusSaslXoauth2 = true; }) pizauth goimapnotify gocryptfs libsecret notmuch afew aerc dots-inbox
