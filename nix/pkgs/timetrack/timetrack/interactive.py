@@ -36,14 +36,20 @@ CONFIDENCE = 1.0
 # (deduction.category still has no `meeting` member, by design -- a meeting is not a kind
 # of deduction. The provenance says what it was; the zero says what it costs.)
 MEETING = "manual:meeting"
+# "Not a break": the user was working at the desk and AW simply saw no input (reading,
+# thinking, a long build). Worked time, recorded exactly like a meeting but labelled apart.
+WORKED = "manual:worked"
+# Keys are stable (muscle memory); the order matches the Super+Esc picker where they overlap.
 GAP_CHOICES = [
-    ("1", "salah", "salah"),
-    ("2", "lunch", "lunch"),
-    ("7", "dinner", "dinner"),
-    ("3", "washroom", "washroom"),
+    ("9", "not a break: I was working", WORKED),
     ("4", "meeting", None),          # None => not a deduction at all
-    ("5", "other", "misc"),
+    ("1", "salah", "salah"),
+    ("3", "washroom / pantry", "washroom"),
+    ("8", "walk / short break", "misc"),
+    ("2", "lunch / long break", "lunch"),
+    ("7", "dinner", "dinner"),
     ("6", "personal call", "call_personal"),
+    ("5", "other", "misc"),
     ("s", "skip for now", "SKIP"),
 ]
 
@@ -95,6 +101,8 @@ def pending_days(conn, month, today=None):
             (month + "-%",)):
         if (r["span_minutes"] or 0) > 0:
             continue
+        if r["kind"] != "working":
+            continue           # already answered (leave, holiday, absent): asking again nags
         if date.fromisoformat(r["attendance_day"]) >= today:
             continue           # not yet elapsed; nothing to explain
         out.append(dict(r))
@@ -102,12 +110,12 @@ def pending_days(conn, month, today=None):
 
 
 def answer_gap(conn, gap_id, choice, provenance=PROVENANCE):
-    """Record a human's answer for one gap. `choice` None means meeting: worked time."""
-    if choice is None:
+    """Record a human's answer for one gap. `choice` None (meeting) or WORKED: worked time."""
+    if choice is None or choice == WORKED:
         # worked time: the deduction stops costing anything, and stays as the record
         conn.execute(
             "UPDATE deduction SET minutes = 0, confirmed = 1, provenance = ?"
-            " WHERE id = ?", (MEETING, gap_id))
+            " WHERE id = ?", (MEETING if choice is None else WORKED, gap_id))
     else:
         conn.execute(
             "UPDATE deduction SET category = ?, confirmed = 1, provenance = ?"
@@ -127,8 +135,9 @@ def resolve_gaps(conn, month):
         if choice == "SKIP":
             continue
         answer_gap(conn, g["id"], choice)
-        if choice is None:
-            print(f"    -> meeting: {derive.hhmm(round(g['minutes']))} returned to worked time")
+        if choice is None or choice == WORKED:
+            what = "meeting" if choice is None else "working"
+            print(f"    -> {what}: {derive.hhmm(round(g['minutes']))} returned to worked time")
         else:
             print(f"    -> {choice}, confirmed")
         answered += 1
