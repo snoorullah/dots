@@ -2,6 +2,7 @@
 #   init [--random] create the vault (master password + key file) and its groups; --random
 #                   generates a 7-word diceware password and shows it once
 #   import-ssh      put every private key in ~/.ssh into the vault (agent: add on unlock, remove on lock)
+#   ssh-keep NAME.. keep these keys in the agent when the vault locks (until logout)
 #   switch-secrets  move the Secret Service from gnome-keyring to KeePassXC, copying every item
 #   move-tokens     move CLI tokens off plaintext files (gh, docker)
 #   status          one screen: what holds which secret right now
@@ -126,6 +127,22 @@ cmd_import_ssh() {
   echo "In ~/.ssh/config point IdentityFile at the .pub file and add IdentitiesOnly yes."
 }
 
+# Keep a key in the agent when the vault locks (until logout/reboot). For always-on users of a
+# key such as onprem-kube-tunnel.service, which would otherwise drop at every idle lock.
+cmd_ssh_keep() {
+  [ $# -gt 0 ] || die "usage: dots-secrets ssh-keep <key-name>..."
+  ask_pw
+  local n tmp; tmp=$(mktemp -p "${XDG_RUNTIME_DIR:-/tmp}" keeagent.XXXXXX); trap 'rm -f "$tmp"' RETURN
+  for n in "$@"; do
+    local xml=${KEEAGENT/@NAME@/$n}
+    printf '%s' "${xml/<RemoveAtDatabaseClose>true</<RemoveAtDatabaseClose>false<}" > "$tmp"
+    kpx attachment-rm "SSH/$n" KeeAgent.settings
+    kpx attachment-import "SSH/$n" KeeAgent.settings "$tmp"
+    echo "kept on lock: $n"
+  done
+  echo "Lock and unlock the vault once to apply."
+}
+
 cmd_switch_secrets() {
   [ -e "$DB" ] || die "no vault; run: dots-secrets init"
   @PY@ @MIGRATE@ "$INI"
@@ -166,8 +183,9 @@ cmd_status() {
 case ${1:-status} in
   init) shift; cmd_init "$@" ;;
   import-ssh) shift; cmd_import_ssh "$@" ;;
+  ssh-keep) shift; cmd_ssh_keep "$@" ;;
   switch-secrets) cmd_switch_secrets ;;
   move-tokens) cmd_move_tokens ;;
   status) cmd_status ;;
-  *) sed -n '2,7p' "$0"; exit 2 ;;
+  *) sed -n '2,10p' "$0"; exit 2 ;;
 esac
