@@ -91,14 +91,15 @@ def main():
             f.write(f"[D-BUS Service]\nName=org.freedesktop.secrets\nExec={KEEPASSXC}\n")
         ini_set("FdoSecrets", "Enabled", "true")
         ini_set("FdoSecrets", "ShowNotification", "false")
-        ini_set("FdoSecrets", "ConfirmAccessItem", "true")
+        ini_set("FdoSecrets", "ConfirmAccessItem", "false")  # user choice 2026-11-04: CLI clients re-prompt every run
         ini_set("FdoSecrets", "ConfirmDeleteItem", "true")
         sh("systemctl", "--user", "daemon-reload")
         sh("systemctl", "--user", "restart", "gnome-keyring-daemon.service")
         sh("systemctl", "--user", "restart", "keepassxc.service")
 
-        notify("Unlock the vault in KeePassXC. Then: Database > Database Settings > "
-               "Secret Service Integration > expose the 'Secret Service' group.")
+        notify("1. Unlock ~/Secrets/secrets.kdbx in KeePassXC. 2. Database > Database Settings > "
+               "Secret Service Integration > expose the 'Secret Service' group. "
+               "If KeePassXC offers to CREATE a new database, click Cancel.")
         coll = None
         for _ in range(600):  # up to 10 minutes
             time.sleep(1)
