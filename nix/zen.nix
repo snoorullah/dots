@@ -30,6 +30,7 @@ let
       "uBlock0@raymondhill.net" = force "ublock-origin";
       "{ef87d84c-2127-493f-b952-5b4e744245bc}" = force "aw-watcher-web";             # ActivityWatch / timetrack
       "brotab_mediator@example.org" = force "brotab";                               # `bt` tab control
+      "keepassxc-browser@keepassxc.org" = force "keepassxc-browser";                # logins from the KeePassXC vault
     };
     # browser.storage.managed: re-applied on every start, so edits in the extension's own page revert.
     "3rdparty".Extensions = {
@@ -121,6 +122,8 @@ in {
         "privacy.userContext.ui.enabled" = true;
         "permissions.default.desktop-notification" = 2;        # no "allow notifications?" prompts
         "media.autoplay.default" = 5;                          # nothing plays until you press play
+        "signon.rememberSignons" = false;                      # logins live in KeePassXC, not the browser
+        "signon.autofillForms" = false;
         "zen.tab-unloader.enabled" = true;                     # idle tabs free memory after 30 min
         "zen.tab-unloader.timeout-minutes" = 30;
         "browser.newtabpage.activity-stream.showSponsored" = false;

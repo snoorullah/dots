@@ -18,6 +18,7 @@ hl.env("XDG_DATA_DIRS", HOME .. "/.nix-profile/share:/run/current-system/sw/shar
 hl.env("PATH", HOME .. "/.local/bin:" .. HOME .. "/.nix-profile/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin")
 hl.env("XDG_DATA_DIRS", HOME .. "/.nix-profile/share:/usr/local/share:/usr/share")
 {{- end }}
+hl.env("SSH_AUTH_SOCK", (os.getenv("XDG_RUNTIME_DIR") or "/run/user/1000") .. "/ssh-agent.socket")  -- KeePassXC feeds this agent
 -- default kube cluster (waybar kube module + GUI-launched shells): discovered per machine by
 -- kube-discover.sh, so this repo names no cluster. Absent -> KUBECONFIG simply stays unset.
 local kube_env = io.open((os.getenv("XDG_CONFIG_HOME") or (HOME .. "/.config")) .. "/dots/kube.env")
@@ -256,7 +257,12 @@ hl.on("hyprland.start", function()
   -- dots-shell passes swayosd its stylesheet with -s; without it the OSD renders stock GTK.
   hl.exec_cmd("~/.local/bin/dots-shell start")
   hl.exec_cmd("~/.local/bin/wallpaper --restore")
-  hl.exec_cmd("clipse -listen")   -- clipboard-history daemon for the clipse TUI
+  -- clipboard history for the clipse TUI. Text goes through dots-clip-store, which drops password-manager
+  -- copies and anything that looks like a secret (and clears it from the live clipboard after 30 s).
+  hl.exec_cmd("wl-paste --type text --watch ~/.local/bin/dots-clip-store")
+  hl.exec_cmd("wl-paste --type image/png --watch clipse --wl-store")
+  -- vault: Secret Service, SSH keys (ssh-agent.service), browser logins
+  hl.exec_cmd("sh -c 'systemctl --user import-environment WAYLAND_DISPLAY; systemctl --user set-environment SSH_AUTH_SOCK=$XDG_RUNTIME_DIR/ssh-agent.socket; systemctl --user start ssh-agent.service keepassxc.service'")
   hl.exec_cmd("systemctl --user start awatcher.service")     -- ActivityWatch window+AFK watcher (needs Wayland env)
   hl.exec_cmd("sh -c '[ -e {{ .chezmoi.homeDir }}/.nix-profile/lib/libhyprcapture.so ] && hyprctl plugin load {{ .chezmoi.homeDir }}/.nix-profile/lib/libhyprcapture.so'")  -- HyprCapture plugin (Nix-built against this Hyprland); skipped if absent
   hl.exec_cmd("hypridle")                                   -- idle → lock/screen-off

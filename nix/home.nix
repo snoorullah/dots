@@ -48,7 +48,7 @@ let
     age cloudflared sshpass autossh sshfs qrencode
   ] ++ lib.optional (gpu == "nvidia") cudaPackages.cudatoolkit);
 in {
-  imports = [ ./zen.nix ];
+  imports = [ ./zen.nix ./secrets.nix ];
   home.stateVersion = "25.11";
   programs.home-manager.enable = true;
   targets.genericLinux.enable = gpu != "nixos";

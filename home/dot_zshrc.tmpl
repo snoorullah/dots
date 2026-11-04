@@ -2,8 +2,10 @@
 export XDG_CONFIG_HOME="$HOME/.config"
 export LANG=en_US.UTF-8
 
-if [ -z "$SSH_AUTH_SOCK" ]; then
-    eval $(ssh-agent)
+# SSH keys live in KeePassXC and reach this agent on unlock (dots-secrets). Keep a forwarded
+# agent inside an ssh session; never start a stray agent of our own.
+if [ -z "$SSH_CONNECTION" ] && [ -S "${XDG_RUNTIME_DIR:-/run/user/$UID}/ssh-agent.socket" ]; then
+    export SSH_AUTH_SOCK="${XDG_RUNTIME_DIR:-/run/user/$UID}/ssh-agent.socket"
 fi
 
 # --- PATH additions (tool installers; ~/.local/bin + nix-profile come from .zshenv) ---
