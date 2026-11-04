@@ -174,9 +174,15 @@ def _month(results, conn, month):
                 overlap = conn.execute(
                     "SELECT COALESCE(SUM(minutes), 0) FROM deduction"
                     " WHERE attendance_day=? AND provenance='hotkey:overlap'", (day,)).fetchone()[0]
+                # A gap answered as a meeting or as "I was working" is worked time AW
+                # did not see either: it is in net by the user's word, so it comes out too.
+                said = conn.execute(
+                    "SELECT COALESCE(SUM(end_unix - start_unix), 0) / 60.0 FROM deduction"
+                    " WHERE attendance_day=? AND provenance IN (?, ?)",
+                    (day, "manual:meeting", "manual:worked")).fetchone()[0]
                 p_min = present.get(day)
                 if net is not None:
-                    net = round(net - hand + overlap)
+                    net = round(net - hand + overlap - said)
                 if net is not None and p_min is not None and net > p_min + 1:
                     over.append(f"{day} AW-sourced net {net} > measured {p_min}")
             if over:

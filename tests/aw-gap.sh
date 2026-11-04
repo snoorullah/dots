@@ -46,7 +46,29 @@ rows = conn.execute("SELECT category, confirmed, round(minutes) m FROM deduction
 check("answer kept, remainder asked", [tuple(r) for r in rows],
       [("washroom", 1, 15), ("misc", 0, 17)])
 
+# 3. the remainder was not a break: the user was at the desk. Worked time, kept on refresh.
+from timetrack import interactive
+rid = conn.execute("SELECT id FROM deduction WHERE confirmed=0").fetchone()[0]
+interactive.answer_gap(conn, rid, interactive.WORKED); conn.commit()
+check("'I was working' returns the minutes", round(net()), 132)
+aw.write(conn, refresh_day=day)
+check("refresh keeps 'I was working'", round(net()), 132)
+check("recorded as worked, not meeting", conn.execute(
+    "SELECT provenance FROM deduction WHERE id=(SELECT MAX(id) FROM deduction"
+    " WHERE start_unix=?)", (int(T(23, 0).timestamp()),)).fetchone()[0], interactive.WORKED)
+check("picker breaks offered", {c[1] for c in interactive.GAP_CHOICES} >= {
+    "walk / short break", "lunch / long break", "not a break: I was working"}, True)
+
+# 4. a day already answered as paid leave is not asked about again
+conn.execute("INSERT INTO day_class(day,kind,leave_type,pay_affecting,target_minutes)"
+             " VALUES('2026-11-02','leave_paid','sick',0,480)")
+conn.execute("INSERT INTO day_class(day,kind,pay_affecting,target_minutes)"
+             " VALUES('2026-11-03','working',1,480)")
+from datetime import date
+check("answered leave not re-asked", [d["attendance_day"] for d in
+      interactive.pending_days(conn, "2026-11", today=date(2026, 11, 5))], ["2026-11-03"])
+
 if fails:
     print("aw-gap FAILED:"); [print("  " + f) for f in fails]; raise SystemExit(1)
-print("aw-gap ok (2 scenarios)")
+print("aw-gap ok (4 scenarios)")
 PY
