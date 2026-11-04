@@ -151,12 +151,14 @@ cmd_ssh_keep() {
 cmd_expose() {
   [ -e "$DB" ] || die "no vault; run: dots-secrets init"
   ask_pw
-  local dir xml new
-  dir=$(mktemp -d -p "${XDG_RUNTIME_DIR:-/tmp}" expose.XXXXXX)   # tmpfs, removed on exit
-  trap 'find "$dir" -type f -exec shred -u {} + 2>/dev/null; rm -rf "$dir"' RETURN
-  xml=$dir/db.xml; new=$dir/new.kdbx
-  kpx export -f xml > "$xml"
-  @PY@ - "$xml" <<'PYEOF'
+  local xml new
+  [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -d "$XDG_RUNTIME_DIR" ] || die "no XDG_RUNTIME_DIR; refusing to write a cleartext export to disk"
+  EXPOSE_DIR=$(umask 077; mktemp -d -p "$XDG_RUNTIME_DIR" expose.XXXXXX)   # tmpfs
+  # EXIT too: die() exits, which skips RETURN traps and would leave the cleartext export behind.
+  trap 'find "$EXPOSE_DIR" -type f -exec shred -u {} + 2>/dev/null; rm -rf "$EXPOSE_DIR"' EXIT INT TERM HUP
+  xml=$EXPOSE_DIR/db.xml; new=$EXPOSE_DIR/new.kdbx
+  (umask 077; kpx export -f xml > "$xml")
+  @PY@ -I - "$xml" <<'PYEOF'
 import base64, sys, uuid
 import xml.etree.ElementTree as ET
 p = sys.argv[1]; t = ET.parse(p); root = t.getroot()
@@ -199,7 +201,7 @@ cmd_move_tokens() {
   local dc=$HOME/.docker/config.json
   mkdir -p "$HOME/.docker"
   if [ -s "$dc" ]; then
-    @PY@ -c 'import json,sys;p=sys.argv[1];c=json.load(open(p));c["credsStore"]="secretservice";json.dump(c,open(p,"w"),indent=2)' "$dc"
+    @PY@ -I -c 'import json,sys;p=sys.argv[1];c=json.load(open(p));c["credsStore"]="secretservice";json.dump(c,open(p,"w"),indent=2)' "$dc"
   else echo '{ "credsStore": "secretservice" }' > "$dc"; fi
   echo "docker: credsStore=secretservice (run docker login again for each registry)"
   echo "manual: ~/.npmrc token, ~/.azure token cache (az has no libsecret support in nixpkgs)"
