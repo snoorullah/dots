@@ -3,6 +3,7 @@
 #                   generates a 7-word diceware password and shows it once
 #   import-ssh      put every private key in ~/.ssh into the vault (agent: add on unlock, remove on lock)
 #   ssh-keep NAME.. keep these keys in the agent when the vault locks (until logout)
+#   expose          mark the 'Secret Service' group as KeePassXC's Secret Service collection
 #   switch-secrets  move the Secret Service from gnome-keyring to KeePassXC, copying every item
 #   move-tokens     move CLI tokens off plaintext files (gh, docker)
 #   status          one screen: what holds which secret right now
@@ -143,6 +144,45 @@ cmd_ssh_keep() {
   echo "Lock and unlock the vault once to apply."
 }
 
+# Mark the "Secret Service" group as the one KeePassXC exposes over D-Bus. The GUI page for this is
+# greyed out until KeePassXC owns the bus name, and once it does, apps flood it with "create a
+# database" prompts. So write the setting into the vault directly: export to tmpfs XML, add the
+# CustomData key, re-import with the same password and key file, swap (old file kept as .bak).
+cmd_expose() {
+  [ -e "$DB" ] || die "no vault; run: dots-secrets init"
+  ask_pw
+  local dir xml new
+  dir=$(mktemp -d -p "${XDG_RUNTIME_DIR:-/tmp}" expose.XXXXXX)   # tmpfs, removed on exit
+  trap 'find "$dir" -type f -exec shred -u {} + 2>/dev/null; rm -rf "$dir"' RETURN
+  xml=$dir/db.xml; new=$dir/new.kdbx
+  kpx export -f xml > "$xml"
+  @PY@ - "$xml" <<'PYEOF'
+import base64, sys, uuid
+import xml.etree.ElementTree as ET
+p = sys.argv[1]; t = ET.parse(p); root = t.getroot()
+grp = next((g for g in root.iter("Group") if g.findtext("Name") == "Secret Service"), None)
+if grp is None: sys.exit("no 'Secret Service' group in the vault")
+gid = "{%s}" % uuid.UUID(bytes=base64.b64decode(grp.findtext("UUID")))
+meta = root.find("Meta"); cd = meta.find("CustomData")
+if cd is None: cd = ET.SubElement(meta, "CustomData")
+for it in list(cd):
+    if it.findtext("Key") == "FDO_SECRETS_EXPOSED_GROUP": cd.remove(it)
+it = ET.SubElement(cd, "Item"); ET.SubElement(it, "Key").text = "FDO_SECRETS_EXPOSED_GROUP"
+ET.SubElement(it, "Value").text = gid
+t.write(p, encoding="utf-8", xml_declaration=True)
+print("exposing group", gid)
+PYEOF
+  printf '%s\n%s\n' "$PW" "$PW" | keepassxc-cli import -q -p --set-key-file "$KEY" "$xml" "$new" >/dev/null 2>&1 \
+    || die "re-import failed; vault unchanged"
+  local before after
+  before=$(kpx ls -R -f | wc -l)
+  after=$(printf '%s\n' "$PW" | keepassxc-cli ls -q -R -f -k "$KEY" "$new" | wc -l)
+  [ "$before" = "$after" ] || die "entry count differs ($before vs $after); vault unchanged"
+  cp -p "$DB" "$DB.bak-$(date +%Y%m%d-%H%M%S)"
+  install -m 600 "$new" "$DB"
+  echo "Done. Lock and unlock the vault in KeePassXC (it reloads the file), then: dots-secrets switch-secrets"
+}
+
 cmd_switch_secrets() {
   [ -e "$DB" ] || die "no vault; run: dots-secrets init"
   @PY@ @MIGRATE@ "$INI"
@@ -184,8 +224,9 @@ case ${1:-status} in
   init) shift; cmd_init "$@" ;;
   import-ssh) shift; cmd_import_ssh "$@" ;;
   ssh-keep) shift; cmd_ssh_keep "$@" ;;
+  expose) cmd_expose ;;
   switch-secrets) cmd_switch_secrets ;;
   move-tokens) cmd_move_tokens ;;
   status) cmd_status ;;
-  *) sed -n '2,10p' "$0"; exit 2 ;;
+  *) sed -n '2,11p' "$0"; exit 2 ;;
 esac
