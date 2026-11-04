@@ -15,20 +15,28 @@ PW=""
 die() { echo "dots-secrets: $*" >&2; exit 1; }
 ask_pw() {
   [ -n "$PW" ] && return
-  read -rsp "Vault master password: " PW; echo
+  IFS= read -rsp "Vault master password: " PW; echo
   printf '%s\n' "$PW" | keepassxc-cli ls -q -k "$KEY" "$DB" >/dev/null 2>&1 || die "wrong password or key file"
 }
 kpx() { local cmd=$1; shift; printf '%s\n' "$PW" | keepassxc-cli "$cmd" -q -k "$KEY" "$DB" "$@"; }
 
 cmd_init() {
-  [ -e "$DB" ] && die "$DB already exists"
   mkdir -p "$(dirname "$DB")" "$(dirname "$KEY")"
   chmod 700 "$(dirname "$DB")" "$(dirname "$KEY")"
-  echo "Choose a master password you can type from memory (a 5+ word passphrase)."
-  keepassxc-cli db-create -q -p --set-key-file "$KEY" "$DB"
+  if [ -e "$DB" ]; then
+    echo "Vault exists; finishing setup."
+  else
+    local again
+    echo "Choose a master password you can type from memory (a 5+ word passphrase)."
+    IFS= read -rsp "New master password: " PW; echo
+    IFS= read -rsp "Repeat it: " again; echo
+    [ -n "$PW" ] && [ "$PW" = "$again" ] || { PW=""; die "passwords empty or different; nothing created"; }
+    printf '%s\n%s\n' "$PW" "$PW" | keepassxc-cli db-create -q -p --set-key-file "$KEY" "$DB" >/dev/null
+  fi
   chmod 600 "$KEY" "$DB"
   ask_pw
-  for g in SSH Tokens Web "Secret Service"; do kpx mkdir "$g"; done
+  local have; have=$(kpx ls)
+  for g in SSH Tokens Web "Secret Service"; do grep -qxF "$g/" <<<"$have" || kpx mkdir "$g"; done
   local list=${XDG_CONFIG_HOME:-$HOME/.config}/dots-ops/vault-paths
   if [ -d "$(dirname "$list")" ] && ! grep -qxF "$DB" "$list" 2>/dev/null; then
     echo "$DB" >> "$list"; echo "Added the vault (not the key file) to dots-ops vault-backup."
