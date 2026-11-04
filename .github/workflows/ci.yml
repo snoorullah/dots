@@ -49,6 +49,7 @@ jobs:
       - run: bash tests/webclass.sh
       - run: bash tests/term.sh
       - run: bash tests/away.sh
+      - run: bash tests/aw-live.sh
       - run: bash tests/break-labels.sh
       - run: bash tests/zsh-graphical.sh
       - run: bash tests/untracked.sh
