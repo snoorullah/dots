@@ -182,6 +182,22 @@ class Workday(helpers.Scratch):
         self.assertEqual(local_tt.day_bounds(datetime(2026, 10, 28).date(), now), (self.at(28, 20, 24), now))
         self.assertEqual(local_tt.workday_start(datetime(2026, 10, 28).date()), self.at(28, 20, 24))
 
+    def test_a_new_login_before_aw_writes_is_a_new_day(self):
+        # live clock opened 29th 23:14; AW has not written the 29th yet
+        db = sqlite3.connect(config.TT_DIR / "work.db")
+        db.execute("ALTER TABLE work_session ADD COLUMN open_trigger TEXT")
+        db.execute("UPDATE work_session SET closed_unix=? WHERE closed_unix IS NULL", (self.at(29, 3, 0),))
+        db.execute("INSERT INTO work_session (opened_unix, closed_unix, attendance_day, open_trigger)"
+                   " VALUES (?,NULL,'2026-10-29','clockd')", (self.at(29, 23, 14),))
+        db.commit()
+        db.close()
+        now = self.at(29, 23, 24)
+        d = local_tt.workday(now)
+        self.assertEqual(str(d), "2026-10-29")
+        self.assertEqual(local_tt.workday_start(d), self.at(29, 23, 14))
+        self.assertEqual(local_tt.worked_sec(local_tt.workday_start(d), now, now), 0)
+        self.assertEqual(str(local_tt.workday(self.at(29, 12, 0))), "2026-10-28")  # before it: still the last day
+
     def test_a_week_that_starts_on_a_day_off_begins_at_the_next_login(self):
         self.assertEqual(local_tt.workday_start(datetime(2026, 10, 26).date()), self.at(27, 19, 27))
 

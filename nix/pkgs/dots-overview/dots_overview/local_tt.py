@@ -53,15 +53,17 @@ def _human(conn):
     return "1" if row and row[0] == "1" else "open_trigger IS NOT 'clockd'"
 
 
-def _sessions():
-    """{attendance_day (date): [opened_unix, closed_unix or None]} merged per day."""
+def _sessions(every=False):
+    """{attendance_day (date): [opened_unix, closed_unix or None]} merged per day.
+
+    every=True includes the live clock's sessions too: not my time, but the login itself."""
     conn = _ro(config.TT_DIR / "work.db")
     if conn is None:
         return {}
     out = {}
     try:
         for r in conn.execute("SELECT attendance_day, opened_unix, closed_unix FROM work_session"
-                              f" WHERE {_human(conn)}"):
+                              f" WHERE {'1' if every else _human(conn)}"):
             try:
                 d = datetime.strptime(r["attendance_day"], "%Y-%m-%d").date()
             except (TypeError, ValueError):
@@ -81,7 +83,13 @@ def workday(now):
     best = None
     for d, (a, b) in _sessions().items():
         if a <= now and (best is None or a > best[1]):
-            best = (d, a)
+            best = (d, a, b)
+    # A new login whose AW session is not written yet (it needs ~5 min of presence) is
+    # still a new day: falling back to the last session showed yesterday's total as Today.
+    if best and best[2] is not None:
+        new = [(a, d) for d, (a, b) in _sessions(every=True).items() if best[2] < a <= now and d != best[0]]
+        if new:
+            return max(new)[1]
     return best[0] if best else datetime.fromtimestamp(now).date()
 
 
@@ -89,6 +97,10 @@ def workday_start(d):
     """When day d began: its first login. Without a session that day, the first login of any
     later day (so a week starting on a day off begins at the next login), else midnight."""
     days = _sessions()
+    if d not in days:
+        live = _sessions(every=True).get(d)
+        if live:                # logged in, AW has not written the day yet: it began at the login
+            return live[0]
     later = [a for x, (a, b) in days.items() if x >= d]
     return min(later) if later else day_start(d)
 
