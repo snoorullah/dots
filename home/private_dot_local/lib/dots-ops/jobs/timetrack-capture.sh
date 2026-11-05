@@ -15,7 +15,7 @@
 # whether the command exited 0 would reproduce exactly that. Here a broken invariant turns
 # the ops module amber on the bar.
 job_main() {
-  local tt out rc summary
+  local tt out rc summary lk
   tt=$(command -v timetrack 2>/dev/null) || {
     ops_state timetrack-capture warn "timetrack is not on PATH (package not installed?)"
     return 0
@@ -31,7 +31,11 @@ job_main() {
   # a prayer from inside a session still unmarked when its time ends becomes qaza (D8)
   "$tt" salah sweep >/dev/null 2>&1 || true
 
+  # shared with timetrack-live: both rewrite today's AW session
+  exec {lk}>"$OPS_STATE/locks/timetrack-aw.lock"
+  flock -w 60 "$lk" || true
   out=$("$tt" ingest-aw 2>&1); rc=$?
+  exec {lk}>&-
   if [ "$rc" -ne 0 ]; then
     # aw-server being down is a real gap in the record, not a passing state
     ops_state timetrack-capture warn "ingest-aw failed: $(printf '%s' "$out" | tail -1)"
