@@ -60,9 +60,9 @@ let
       ClearClipboard = "true";
       ClearClipboardTimeout = "10";
       ClearSearch = "true";
-      LockDatabaseIdle = "true";
+      LockDatabaseIdle = "false";
       LockDatabaseIdleSeconds = "900";
-      LockDatabaseScreenLock = "true";
+      LockDatabaseScreenLock = "false";
       IconDownloadFallback = "false";
       PasswordsHidden = "true";
       HidePasswordPreviewPanel = "true";
