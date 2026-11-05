@@ -265,7 +265,10 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("sh -c 'systemctl --user import-environment WAYLAND_DISPLAY; systemctl --user set-environment SSH_AUTH_SOCK=$XDG_RUNTIME_DIR/ssh-agent.socket; systemctl --user start ssh-agent.service keepassxc.service'")
   hl.exec_cmd("systemctl --user start awatcher.service")     -- ActivityWatch window+AFK watcher (needs Wayland env)
   hl.exec_cmd("sh -c '[ -e {{ .chezmoi.homeDir }}/.nix-profile/lib/libhyprcapture.so ] && hyprctl plugin load {{ .chezmoi.homeDir }}/.nix-profile/lib/libhyprcapture.so'")  -- HyprCapture plugin (Nix-built against this Hyprland); skipped if absent
-  hl.exec_cmd("hypridle")                                   -- idle → lock/screen-off
+  -- idle → lock/screen-off. Started through systemd: the distro unit is enabled too, and a
+  -- second hypridle double-locked, leaving a hyprlock with no lock that made every later
+  -- `pidof hyprlock || hyprlock` a no-op (Super+Esc and the 5-min idle lock stopped locking).
+  hl.exec_cmd("systemctl --user start hypridle.service")
   hl.exec_cmd("systemctl --user start hyprpolkitagent.service")
   -- pinned apps (rules above place them on their workspaces)
   hl.exec_cmd("ghostty")
