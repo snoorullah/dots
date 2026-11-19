@@ -19,7 +19,7 @@ Chip {
     Icon {
       anchors.verticalCenter: parent.verticalCenter
       visible: Audio.ready
-      text: Audio.muted || chip.pct === 0 ? "volume_off" : (chip.pct < 40 ? "volume_down" : "volume_up")
+      name: Audio.muted || chip.pct === 0 ? "speaker-slash" : (chip.pct < 40 ? "speaker-low" : "speaker-high")
       size: Theme.font.size.title
     }
     DText {

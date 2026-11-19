@@ -42,7 +42,7 @@ Popout {
       MouseArea {
         width: 28; height: 28
         onClicked: win.step(-1)
-        Icon { anchors.centerIn: parent; text: "chevron_left" }
+        Icon { anchors.centerIn: parent; name: "caret-left" }
       }
       DText {
         width: parent.width - 56
@@ -54,7 +54,7 @@ Popout {
       MouseArea {
         width: 28; height: 28
         onClicked: win.step(1)
-        Icon { anchors.centerIn: parent; text: "chevron_right" }
+        Icon { anchors.centerIn: parent; name: "caret-right" }
       }
     }
 

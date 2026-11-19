@@ -14,7 +14,7 @@ ShellRoot {
             console.log("AGREE " + JSON.stringify({
                 stub: { palette: s.palette, color: s.color, alpha: s.alpha, radius: s.radius,
                         space: s.space, font: s.font, bar: s.bar,
-                        motion: { fast: s.motion.fast, base: s.motion.base, slow: s.motion.slow } },
+                        motion: { fast: s.motion.fast, base: s.motion.base, slow: s.motion.slow, fade: s.motion.fade } },
                 real: Real.Tokens.build()
             }))
             Qt.quit()

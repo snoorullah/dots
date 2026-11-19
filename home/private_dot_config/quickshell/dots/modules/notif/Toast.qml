@@ -3,7 +3,7 @@ import QtQuick
 import "../theme"
 import "../common"
 
-// One toast: 380 wide, padding 14, radius 16. Click opens the source, × dismisses, action
+// One toast: 380 wide, padding 16, radius 14. Click opens the source, × dismisses, action
 // buttons run the app's actions (NotifCard). It hides itself when its time is up (the
 // notification stays in the centre) and re-appears when the app REPLACES it in place:
 // the server updates the same Notification object, so summary/body changing is the cue.
@@ -45,19 +45,31 @@ Item {
   Surface {
     id: box
     corner: Theme.radius.card
-    border.color: toast.critical ? Qt.alpha(Theme.color.red, 0.8) : Qt.alpha(Theme.color.outline, Theme.alpha.divider)
+    border.color: Qt.alpha(Theme.color.outline, Theme.alpha.divider)
     width: parent.width
-    height: col.implicitHeight + 2 * 14
+    height: col.implicitHeight + 2 * Theme.space.xxl
 
     NotifCard {
       id: col
-      x: 14
-      y: 14
-      width: parent.width - 28
+      x: Theme.space.xxl
+      y: Theme.space.xxl
+      // a critical toast reserves a column on the right for the mark, so the × stays visible
+      width: parent.width - 2 * Theme.space.xxl - (toast.critical ? mark.width + Theme.space.s : 0)
       notification: toast.modelData
       summaryLines: 2
       bodyLines: 4
       onOpened: toast.alive = false
+    }
+
+    // critical is a shape, not an edge colour
+    StatusMark {
+      id: mark
+      visible: toast.critical
+      level: "failed"
+      anchors.top: parent.top
+      anchors.right: parent.right
+      anchors.topMargin: Theme.space.xxl + (Theme.font.line.body - height) / 2     // centred on the header row
+      anchors.rightMargin: Theme.space.xxl
     }
 
     HoverHandler { id: hover }

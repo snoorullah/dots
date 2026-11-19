@@ -1,10 +1,10 @@
 import QtQuick
 import qs.modules.overview
+import qs.modules.common
 
-// Hollow "?": the data layer is stale, wrong version or unreadable. Outline only,
-// at fgFaint, so it claims no attention. Never animated.
-// This is the canonical stale glyph: T2's bar chip adopts this exact shape (outlined
-// circle, 1px stroke, centred "?" at 0.62 of the size).
+// The data layer is stale, wrong version or unreadable: the shared unknown mark (Phosphor
+// "question", via StatusMark) in the unknown status colour. Same glyph as the bar's Stale.
+// Never animated.
 Item {
     id: m
     property int size: Look.iconSize
@@ -12,19 +12,9 @@ Item {
     implicitHeight: size
     objectName: "staleMark"
 
-    Rectangle {
+    StatusMark {
         anchors.fill: parent
-        radius: width / 2
-        color: "transparent"
-        border.width: 1
-        border.color: Look.fgFaint
-    }
-    Text {
-        anchors.centerIn: parent
-        text: "?"
-        color: Look.fgFaint
-        font.family: Look.mono
-        font.pixelSize: Math.round(m.size * 0.62)
-        renderType: Text.NativeRendering
+        level: "unknown"
+        size: m.size
     }
 }

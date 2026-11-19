@@ -19,9 +19,9 @@ Lives in `home/private_dot_config/quickshell/dots/modules/overview/`.
 Pill states, all of them at once if they apply.
 
 1. **ring + mm:ss** a focus block is running
-2. **red count** an alert failed and nobody waits
-3. **amber count** someone waits on me
-4. **hollow `?`** data stale (over 180 s), wrong `v`, or unreadable
+2. **failed count** an alert failed and nobody waits
+3. **waiting count** someone waits on me
+4. **`?` mark** (Phosphor `question`) data stale (over 180 s), wrong `v`, or unreadable
 
 Nominal renders nothing.
 Missing files count as "no data", not as `?`.
@@ -41,12 +41,15 @@ Month and quarter are totals on the Week page.
 Assumed shape mirrors `tokens.json`:
 
 ```
-Theme.color.{surface,surfaceContainerHigh,outline,fg,fgDim,fgFaint,accent,accentFg,amber,red}
-Theme.alpha.{panel,wash,hover,divider}     Theme.radius.{chip,panel,card,pill}
-Theme.space.{xs,s,m,l,xl,xxl,xxxl}         Theme.motion.{fast,base,slow}
-Theme.font.{sans,mono,icon}  Theme.font.size.{caption,bodyS,body,title,headline,display}
-Theme.bar.height
+Theme.color.{bg,surface,surfaceDim,surfaceContainer,surfaceContainerHigh,outline,outlineVariant,
+             fg,fgDim,fgFaint,accent,accentFg,waiting,failed,unknown}
+Theme.alpha.{panel,wash,hover,divider}     Theme.radius.{chip,row,panel,card,pill}
+Theme.space.{xs,s,m,l,xl,xxl,xxxl,xxxxl}   Theme.motion.{fast,base,slow,fade}
+Theme.font.{sans,mono,icon}  Theme.font.size.{caption,bodyS,body,title,headline,page,display}
+Theme.bar.{height,gutter,chipGapPx}
 ```
+
+Values and the unused-token consumers are in `docs/contracts/qml-api.md`.
 
 > Only `Look.qml` names `Theme.*`. If T2 exposes tokens differently, edit that one file.
 

@@ -10,8 +10,8 @@ Rectangle {
   property var tracked: []
 
   implicitHeight: Theme.bar.height
-  // edge to text is 10: Theme.space.m here plus Chip.pad (Theme.space.s)
-  implicitWidth: row.implicitWidth > 0 ? row.implicitWidth + 2 * Theme.space.m : 0
+  // edge to text is 12: Theme.space.l (8) here plus Chip.pad (Theme.space.s, 4)
+  implicitWidth: row.implicitWidth > 0 ? row.implicitWidth + 2 * Theme.space.l : 0
   visible: implicitWidth > 0
   color: Qt.alpha(Theme.color.surface, Theme.alpha.slab)
   radius: Theme.radius.chip
@@ -27,7 +27,7 @@ Rectangle {
 
   Row {
     id: row
-    x: Theme.space.m
+    x: Theme.space.l
     height: parent.height
     spacing: Theme.bar.chipGapPx
   }

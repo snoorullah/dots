@@ -28,7 +28,7 @@ FocusScope {
                 anchors.centerIn: parent
                 text: pg.st === "idle" ? "--:--" : Fmt.mmss(pg.remaining)
                 role: "display"
-                font.family: Look.mono
+                mono: true
                 dim: pg.dim || pg.st === "idle"
                 elide: Text.ElideNone
             }
@@ -55,7 +55,7 @@ FocusScope {
                 visible: pg.st !== "running"
                 primary: true
                 text: "Start"
-                icon: "play_arrow"
+                icon: "play"
                 dim: pg.dim
                 onClicked: Actions.focus("start")
             }

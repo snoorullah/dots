@@ -1,9 +1,9 @@
 import QtQuick
 import "../theme"
 
-// A source that is stale or unavailable renders a hollow circled "?" at fgFaint.
-// Same shape as the overview's StaleMark (outline circle, 1 px, "?" at 62 % of the size).
-// Outline only so it claims no attention. Never a spinner: waiting is not news.
+// A source that is stale or unavailable renders the shared unknown mark (the Phosphor
+// "question" glyph, via StatusMark) in the unknown status colour. One unknown mark in
+// the whole shell. Never a spinner: waiting is not news.
 Item {
   id: root
   property bool on: false
@@ -13,19 +13,9 @@ Item {
   implicitHeight: size
   visible: on
 
-  Rectangle {
+  StatusMark {
     anchors.fill: parent
-    radius: width / 2
-    color: "transparent"
-    border.width: 1
-    border.color: Theme.color.fgFaint
-  }
-  Text {
-    anchors.centerIn: parent
-    text: "?"
-    color: Theme.color.fgFaint
-    font.family: Theme.font.mono
-    font.pixelSize: Math.round(root.size * 0.62)
-    renderType: Text.NativeRendering
+    level: "unknown"
+    size: root.size
   }
 }

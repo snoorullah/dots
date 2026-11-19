@@ -89,7 +89,7 @@ Item {
         }
         Icon {
           anchors.centerIn: parent
-          text: "close"
+          name: "x"
           size: 14
           color: close.containsMouse ? Theme.color.fg : Theme.color.fgDim
         }
@@ -119,7 +119,7 @@ Item {
       width: parent.width
       spacing: Theme.space.s
       visible: card.buttons.length > 0
-      topPadding: Theme.space.xs
+      topPadding: Theme.space.s
 
       Repeater {
         model: card.buttons

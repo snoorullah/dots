@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# dots-theme generator: {{ include "private_dot_local/private_bin/executable_dots-theme.tmpl" | sha256sum }}
+# dots-theme palette:   {{ include ".chezmoidata/palette.yaml" | sha256sum }}
 # Dark mode, the part chezmoi cannot express as a file.
 #
 # GTK apps read ~/.config/gtk-{3,4}.0/settings.ini, which this repo tracks. But
@@ -13,6 +15,18 @@
 # session on the same machine, gnome-control-center, an app "helpfully" saving a
 # preference) flips a key back to light.
 set -uo pipefail
+
+# Regenerate ~/.local/state/dots-theme/tokens.json (and the cheap consumers) in the current schema.
+# An older-schema file is otherwise only replaced on the next wallpaper change. The two hashes above
+# make this rerun when the generator or palette changes. Non-interactive and non-fatal: `auto` uses
+# the wallpaper colours and falls back to the preset itself; `emit` is the last resort.
+if command -v dots-theme >/dev/null 2>&1; then
+  timeout 60 dots-theme auto --no-icons </dev/null >/dev/null 2>&1 \
+    || timeout 30 dots-theme emit </dev/null >/dev/null 2>&1 \
+    || echo "appearance: dots-theme failed; tokens.json not regenerated (run: dots-theme)" >&2
+else
+  echo "appearance: dots-theme not on PATH yet; tokens.json not regenerated" >&2
+fi
 {{- $want := dict
       "color-scheme" "prefer-dark"
       "gtk-theme"    "Breeze-Dark"

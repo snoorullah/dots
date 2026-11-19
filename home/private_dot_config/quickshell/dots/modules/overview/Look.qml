@@ -15,10 +15,11 @@ QtObject {
     readonly property color fg: Theme.color.fg
     readonly property color fgDim: Theme.color.fgDim
     readonly property color fgFaint: Theme.color.fgFaint
+    readonly property color unknown: Theme.color.unknown  // can't reach the data
     readonly property color accent: Theme.color.accent
     readonly property color accentFg: Theme.color.accentFg
-    readonly property color amber: Theme.color.amber      // someone waits on me
-    readonly property color red: Theme.color.red          // failed, nobody waits
+    readonly property color waiting: Theme.color.waiting  // someone waits on me
+    readonly property color failed: Theme.color.failed    // failed, nobody waits
 
     // alpha
     readonly property real aPanel: Theme.alpha.panel
@@ -34,6 +35,7 @@ QtObject {
 
     // radius and spacing
     readonly property int rChip: Theme.radius.chip
+    readonly property int rRow: Theme.radius.row
     readonly property int rPanel: Theme.radius.panel
     readonly property int rCard: Theme.radius.card
     readonly property int rPill: Theme.radius.pill
@@ -44,6 +46,7 @@ QtObject {
     readonly property int sXl: Theme.space.xl
     readonly property int sXxl: Theme.space.xxl
     readonly property int sXxxl: Theme.space.xxxl
+    readonly property int sXxxxl: Theme.space.xxxxl
 
     // type
     readonly property string sans: Theme.font.sans
@@ -55,6 +58,21 @@ QtObject {
     readonly property int fTitle: Theme.font.size.title
     readonly property int fHeadline: Theme.font.size.headline
     readonly property int fDisplay: Theme.font.size.display
+    readonly property int fPage: Theme.font.size.page
+    // line boxes, weights and tracking (em) from the type tokens
+    readonly property int lCaption: Theme.font.line.caption
+    readonly property int lBodyS: Theme.font.line.bodyS
+    readonly property int lBody: Theme.font.line.body
+    readonly property int lTitle: Theme.font.line.title
+    readonly property int lHeadline: Theme.font.line.headline
+    readonly property int lPage: Theme.font.line.page
+    readonly property int lDisplay: Theme.font.line.display
+    readonly property int wLabel: Theme.font.weight.label
+    readonly property int wBody: Theme.font.weight.body
+    readonly property int wTitle: Theme.font.weight.title
+    readonly property int wPage: Theme.font.weight.page
+    readonly property int wDisplay: Theme.font.weight.display
+    readonly property real trackLabel: Theme.font.track.label
 
     // motion. The curves are tokens too: never Easing.* at a call site.
     readonly property int mFast: Theme.motion.fast
@@ -78,7 +96,7 @@ QtObject {
     readonly property int cell: 11
     readonly property int cellGap: 3
     readonly property int rCell: 2          // heatmap cell and progress-bar track
-    readonly property int iconSize: look.fTitle  // every Material Symbol in the overview
+    readonly property int iconSize: look.fTitle  // every icon glyph in the overview
     readonly property int heatCols: 17
     readonly property int heatRows: 7
     readonly property int ringDiameter: 20
@@ -87,7 +105,4 @@ QtObject {
 
     function withAlpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
     function wash(c) { return look.withAlpha(c, look.aWash) }
-    // text that sits on a wash of its own tone: the tone lifted 45 % toward fg, so red
-    // and amber labels clear WCAG AA (4.5:1) on their chip (plain red reads 3.2:1)
-    function legible(c) { return Qt.tint(c, look.withAlpha(look.fg, 0.45)) }
 }

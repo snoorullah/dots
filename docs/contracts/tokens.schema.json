@@ -7,9 +7,19 @@
   "additionalProperties": false,
   "required": ["v", "source", "mode", "wallpaper", "color", "alpha", "radius", "space", "font", "motion", "bar"],
   "$defs": {
-    "hex": { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
-    "px": { "type": "integer", "minimum": 0 },
-    "unit": { "type": "number", "minimum": 0, "maximum": 1 }
+    "hex": {
+      "type": "string",
+      "pattern": "^#[0-9a-f]{6}$"
+    },
+    "px": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unit": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    }
   },
   "properties": {
     "v": { "const": 1 },
@@ -19,7 +29,7 @@
     "color": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["bg", "surface", "surfaceDim", "surfaceContainer", "surfaceContainerHigh", "outline", "outlineVariant", "fg", "fgDim", "fgFaint", "accent", "accentFg", "amber", "red", "green", "purple", "pink", "cyan", "yellow"],
+      "required": ["bg", "surface", "surfaceDim", "surfaceContainer", "surfaceContainerHigh", "outline", "outlineVariant", "fg", "fgDim", "fgFaint", "accent", "accentFg", "waiting", "failed", "unknown"],
       "properties": {
         "bg": { "$ref": "#/$defs/hex" },
         "surface": { "$ref": "#/$defs/hex" },
@@ -33,13 +43,9 @@
         "fgFaint": { "$ref": "#/$defs/hex" },
         "accent": { "$ref": "#/$defs/hex" },
         "accentFg": { "$ref": "#/$defs/hex" },
-        "amber": { "$ref": "#/$defs/hex" },
-        "red": { "$ref": "#/$defs/hex" },
-        "green": { "$ref": "#/$defs/hex" },
-        "purple": { "$ref": "#/$defs/hex" },
-        "pink": { "$ref": "#/$defs/hex" },
-        "cyan": { "$ref": "#/$defs/hex" },
-        "yellow": { "$ref": "#/$defs/hex" }
+        "waiting": { "$ref": "#/$defs/hex" },
+        "failed": { "$ref": "#/$defs/hex" },
+        "unknown": { "$ref": "#/$defs/hex" }
       }
     },
     "alpha": {
@@ -60,9 +66,10 @@
     "radius": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["chip", "panel", "card", "pill"],
+      "required": ["chip", "row", "panel", "card", "pill"],
       "properties": {
         "chip": { "$ref": "#/$defs/px" },
+        "row": { "$ref": "#/$defs/px" },
         "panel": { "$ref": "#/$defs/px" },
         "card": { "$ref": "#/$defs/px" },
         "pill": { "$ref": "#/$defs/px" }
@@ -71,7 +78,7 @@
     "space": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["xs", "s", "m", "l", "xl", "xxl", "xxxl"],
+      "required": ["xs", "s", "m", "l", "xl", "xxl", "xxxl", "xxxxl"],
       "properties": {
         "xs": { "$ref": "#/$defs/px" },
         "s": { "$ref": "#/$defs/px" },
@@ -79,28 +86,97 @@
         "l": { "$ref": "#/$defs/px" },
         "xl": { "$ref": "#/$defs/px" },
         "xxl": { "$ref": "#/$defs/px" },
-        "xxxl": { "$ref": "#/$defs/px" }
+        "xxxl": { "$ref": "#/$defs/px" },
+        "xxxxl": { "$ref": "#/$defs/px" }
       }
     },
     "font": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["sans", "mono", "icon", "size"],
+      "required": ["sans", "mono", "icon", "size", "line", "weight", "track"],
       "properties": {
-        "sans": { "type": "string", "minLength": 1 },
-        "mono": { "type": "string", "minLength": 1 },
-        "icon": { "type": "string", "minLength": 1 },
+        "sans": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mono": {
+          "type": "string",
+          "minLength": 1
+        },
+        "icon": {
+          "type": "string",
+          "minLength": 1
+        },
         "size": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["caption", "bodyS", "body", "title", "headline", "display"],
+          "required": ["caption", "bodyS", "body", "title", "headline", "page", "display"],
           "properties": {
             "caption": { "$ref": "#/$defs/px" },
             "bodyS": { "$ref": "#/$defs/px" },
             "body": { "$ref": "#/$defs/px" },
             "title": { "$ref": "#/$defs/px" },
             "headline": { "$ref": "#/$defs/px" },
+            "page": { "$ref": "#/$defs/px" },
             "display": { "$ref": "#/$defs/px" }
+          }
+        },
+        "line": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["caption", "bodyS", "body", "title", "headline", "page", "display"],
+          "properties": {
+            "caption": { "$ref": "#/$defs/px" },
+            "bodyS": { "$ref": "#/$defs/px" },
+            "body": { "$ref": "#/$defs/px" },
+            "title": { "$ref": "#/$defs/px" },
+            "headline": { "$ref": "#/$defs/px" },
+            "page": { "$ref": "#/$defs/px" },
+            "display": { "$ref": "#/$defs/px" }
+          }
+        },
+        "weight": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["label", "body", "title", "page", "display"],
+          "properties": {
+            "label": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 900
+            },
+            "body": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 900
+            },
+            "title": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 900
+            },
+            "page": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 900
+            },
+            "display": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 900
+            }
+          }
+        },
+        "track": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["label"],
+          "properties": {
+            "label": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
           }
         }
       }
@@ -108,11 +184,12 @@
     "motion": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["fast", "base", "slow", "easeIn", "easeOut"],
+      "required": ["fast", "base", "slow", "fade", "easeIn", "easeOut"],
       "properties": {
         "fast": { "$ref": "#/$defs/px" },
         "base": { "$ref": "#/$defs/px" },
-        "slow": { "$ref": "#/$defs/px" },
+        "slow": { "type": "integer", "minimum": 0, "maximum": 180 },
+        "fade": { "$ref": "#/$defs/px" },
         "easeIn": { "type": "string" },
         "easeOut": { "type": "string" }
       }

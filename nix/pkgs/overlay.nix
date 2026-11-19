@@ -11,6 +11,7 @@ final: prev:
   hypr-kdeconnect-fix = final.callPackage ./hypr-kdeconnect-fix.nix { };
   phosphor-icon-theme = final.callPackage ./phosphor-icon-theme { };
   dots-icon-font      = final.callPackage ./dots-icon-font { };
+  bricolage-grotesque = final.callPackage ./bricolage-grotesque { };
   # HyprCapture: upstream's own nix/package.nix (hyprlandPlugins.mkHyprlandPlugin, built against this pkgs.hyprland;
   # the plugin .so and hyprcapture-ui come from one derivation) at the pinned HEAD sha.
   hyprcapture = let

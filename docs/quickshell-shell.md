@@ -96,6 +96,8 @@ Wiring them in is a separate, visible change.
 |---|---|
 | `tests/theme.sh` | both producers emit schema-valid tokens with one key set |
 | `tests/shell.sh` | lint, hyprland config, `dots-shell`, then the live shell |
+| `tests/fonts.sh` | every token font family is installed on both hosts and resolves in fontconfig |
+| `tests/icons.sh` | every icon name resolves in the registry; `PhosphorIcons.qml` has not drifted from its generator |
 | `tests/qs-harness.sh` | the headless recipe the above use |
 | `tests/pixel.py` | pixel assertions, shared with the overview UI |
 

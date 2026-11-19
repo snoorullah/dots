@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import qs.modules.overview
 import qs.modules.overview.parts
+import qs.modules.common
 
 // The full panel: 920x640, padding 24, a nav column and the page, gap 12. Pages are
 // loaded one at a time and freed when you leave them. Pure Item (no window).
@@ -13,11 +14,11 @@ Item {
     signal closeRequested()
 
     readonly property var pages: [
-        { id: "today",     label: "Today",     icon: "today" },
-        { id: "week",      label: "Week",      icon: "date_range" },
-        { id: "attention", label: "Attention", icon: "notifications" },
+        { id: "today",     label: "Today",     icon: "calendar-blank" },
+        { id: "week",      label: "Week",      icon: "calendar-dots" },
+        { id: "attention", label: "Attention", icon: "bell" },
         { id: "focus",     label: "Focus",     icon: "timer" },
-        { id: "heatmap",   label: "Heatmap",   icon: "grid_view" }
+        { id: "heatmap",   label: "Heatmap",   icon: "squares-four" }
     ]
     readonly property var files: ({ today: "Today", week: "Week", attention: "Attention",
                                     focus: "Focus", heatmap: "Heatmap", item: "Item" })
@@ -26,7 +27,7 @@ Item {
     height: Look.panelHeight
     objectName: "overviewPanel"
 
-    // enter 240 OutExpo (the only slow surface), exit 120 OutCubic
+    // enter motion.slow (180) OutExpo: a user-opened slide never exceeds 180 ms; exit motion.fast (120) OutCubic
     property real prog: shown ? 1 : 0
     Behavior on prog {
         enabled: panel.animate
@@ -74,9 +75,15 @@ Item {
                     Rectangle {
                         anchors.fill: parent
                         radius: Look.rChip
-                        color: Look.withAlpha(Look.fg, navItem.on ? Look.aHover * 1.5 : (ma.containsMouse ? Look.aHover : 0))
+                        color: navItem.on ? Look.withAlpha(Look.accent, Look.aWash) : Look.withAlpha(Look.fg, ma.containsMouse ? Look.aHover : 0)
                     }
-                    Glyph { x: Look.sL; anchors.verticalCenter: parent.verticalCenter; name: navItem.modelData.icon; dim: Feed.dim }
+                    Glyph {
+                        x: Look.sL
+                        anchors.verticalCenter: parent.verticalCenter
+                        name: navItem.modelData.icon
+                        active: navItem.on
+                        color: navItem.on && !Feed.dim ? Look.accent : (Feed.dim ? Look.fgFaint : Look.fgDim)
+                    }
                     Txt {
                         x: Look.sL * 2 + Look.sXxl
                         anchors.verticalCenter: parent.verticalCenter
@@ -92,18 +99,30 @@ Item {
                         anchors.rightMargin: Look.sL
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: Look.sM
+                        StatusMark {
+                            visible: Feed.failed > 0 && !Feed.dim
+                            level: "failed"
+                            size: Look.fCaption
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
                         Txt {
                             visible: Feed.failed > 0
                             text: Feed.failed
                             role: "monoS"
-                            color: Feed.dim ? Look.fgFaint : Look.legible(Look.red)
+                            color: Feed.dim ? Look.fgFaint : Look.failed
                             elide: Text.ElideNone
+                        }
+                        StatusMark {
+                            visible: Feed.waiting > 0 && !Feed.dim
+                            level: "waiting"
+                            size: Look.fCaption
+                            anchors.verticalCenter: parent.verticalCenter
                         }
                         Txt {
                             visible: Feed.waiting > 0
                             text: Feed.waiting
                             role: "monoS"
-                            color: Feed.dim ? Look.fgFaint : Look.legible(Look.amber)
+                            color: Feed.dim ? Look.fgFaint : Look.waiting
                             elide: Text.ElideNone
                         }
                     }

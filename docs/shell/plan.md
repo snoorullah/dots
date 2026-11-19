@@ -65,7 +65,7 @@
 
 | Topic | Decision |
 |---|---|
-| Type | Bricolage Grotesque for large numbers and headings; JetBrains Mono for the rest |
+| Type | Bricolage Grotesque for all shell text (static TTFs, own package); JetBrains Mono for code |
 | Icons | Phosphor Regular; no Nerd Font glyphs, as lint requires |
 | Dynamic Island | No |
 | Control centre | Sidebar and full screen, one keybind each |

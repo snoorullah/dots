@@ -2,30 +2,30 @@
    Palette from .chezmoidata/palette.yaml; the visual language is written out at the top of
    waybar/style.css.tmpl. Three of its rules apply here:
 
-   · 12px corners -- panel scale, the same as swaync and hyprland decoration.rounding.
+   · 14px corners -- panel scale, the same as swaync and the Quickshell panels.
    · Translucent on blur (hyprland.lua layer_rule, namespace "swayosd"), so the OSD is the
      same material as the bar that triggered it rather than an opaque slab over it.
    · Colour is a claim on attention, and a volume nudge has none to make. The 2px purple
      ring is gone -- it made every keypress look like an alert -- and the accent now appears
      once, on the fill, where it is the actual value being reported. */
 
-@define-color bg      {{ .palette.bg }};
-@define-color fg      {{ .palette.fg }};
-@define-color sel     {{ .palette.sel }};
-@define-color accent  {{ .palette.purple }};
+@define-color bg      {{ .palette.ground }};
+@define-color fg      {{ .palette.text }};
+@define-color sel     {{ .palette.raised }};
+@define-color accent  {{ .palette.accent }};
 
 window {
   background: alpha(@bg, 0.86);
   border: 1px solid alpha(@sel, 0.9);
-  border-radius: 12px;
+  border-radius: 14px;
 }
 
 /* swayosd looks its own icons up in the icon theme (Phosphor-Dark), so this is the
    percentage label only. Mono, because it is a number that should not reflow. */
 label {
   color: @fg;
-  font-family: "JetBrainsMono Nerd Font", monospace;
+  font-family: "JetBrains Mono", monospace;
 }
 
-progressbar { background: alpha(@sel, 0.8); border-radius: 8px; }
-progress    { background: @accent;          border-radius: 8px; }
+progressbar { background: alpha(@sel, 0.8); border-radius: 999px; }
+progress    { background: @accent;          border-radius: 999px; }

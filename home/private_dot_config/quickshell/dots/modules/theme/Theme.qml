@@ -21,13 +21,30 @@ Singleton {
   readonly property string source: tok.source
   readonly property string wallpaper: tok.wallpaper ? tok.wallpaper : ""
 
-  // shallow-per-group merge over the defaults: a token a newer dots-theme adds is ignored,
-  // a token an older one lacks is filled, and a wrong type never reaches a binding
+  // shallow-per-group merge over the defaults: a token a newer dots-theme adds is ignored
+  // (extra colour keys included), a wrong type never reaches a binding, and a file that lacks
+  // any of the known colour keys, or whose slide time is over the cap, is refused outright
   function apply(text) {
     var d = Tokens.build();
     try {
       var p = JSON.parse(text);
-      if (p.v !== 1) { root.tok = d; return; }
+      if (p.v !== 1) {
+        console.log("Theme: tokens.json is not v1, using defaults");
+        root.tok = d; return;
+      }
+      // a correctly-typed but stale file (missing colour keys, 240 ms slide) must
+      // not win the per-key merge: mirror dots-theme valid_tokens() and refuse it wholesale
+      var missing = [];
+      for (var ck in d.color)
+        if (!(p.color && typeof p.color === "object" && typeof p.color[ck] === typeof d.color[ck])) missing.push(ck);
+      if (missing.length) {
+        console.log("Theme: tokens.json lacks colour keys " + missing.join(",") + ", using defaults");
+        root.tok = d; return;
+      }
+      if (!(p.motion && typeof p.motion.slow === "number" && p.motion.slow <= d.motion.slow)) {
+        console.log("Theme: tokens.json motion.slow over the slide cap, using defaults");
+        root.tok = d; return;
+      }
       var out = { v: 1, source: p.source || "preset", mode: "dark", wallpaper: p.wallpaper || null };
       for (var g in d) {
         if (typeof d[g] !== "object" || d[g] === null) continue;
@@ -92,13 +109,9 @@ Singleton {
     property color fgFaint
     property color accent
     property color accentFg
-    property color amber
-    property color red
-    property color green
-    property color purple
-    property color pink
-    property color cyan
-    property color yellow
+    property color waiting
+    property color failed
+    property color unknown
   }
   component Alphas: QtObject {
     property real slab
@@ -112,6 +125,7 @@ Singleton {
   }
   component Radii: QtObject {
     property int chip
+    property int row
     property int panel
     property int card
     property int pill
@@ -124,6 +138,7 @@ Singleton {
     property int xl
     property int xxl
     property int xxxl
+    property int xxxxl
   }
   component FontSizes: QtObject {
     property int caption
@@ -131,18 +146,42 @@ Singleton {
     property int body
     property int title
     property int headline
+    property int page
     property int display
+  }
+  component LineHeights: QtObject {
+    property int caption
+    property int bodyS
+    property int body
+    property int title
+    property int headline
+    property int page
+    property int display
+  }
+  component Weights: QtObject {
+    property int label
+    property int body
+    property int title
+    property int page
+    property int display
+  }
+  component Tracks: QtObject {
+    property real label
   }
   component Fonts: QtObject {
     property string sans
     property string mono
     property string icon
     property FontSizes size: FontSizes {}
+    property LineHeights line: LineHeights {}
+    property Weights weight: Weights {}
+    property Tracks track: Tracks {}
   }
   component Motions: QtObject {
     property int fast
     property int base
     property int slow
+    property int fade
     property int easeIn
     property int easeOut
   }
@@ -165,13 +204,9 @@ Singleton {
     fgFaint: root.tok.color.fgFaint
     accent: root.tok.color.accent
     accentFg: root.tok.color.accentFg
-    amber: root.tok.color.amber
-    red: root.tok.color.red
-    green: root.tok.color.green
-    purple: root.tok.color.purple
-    pink: root.tok.color.pink
-    cyan: root.tok.color.cyan
-    yellow: root.tok.color.yellow
+    waiting: root.tok.color.waiting
+    failed: root.tok.color.failed
+    unknown: root.tok.color.unknown
   }
   readonly property Alphas alpha: Alphas {
     slab: root.tok.alpha.slab
@@ -185,6 +220,7 @@ Singleton {
   }
   readonly property Radii radius: Radii {
     chip: root.tok.radius.chip
+    row: root.tok.radius.row
     panel: root.tok.radius.panel
     card: root.tok.radius.card
     pill: root.tok.radius.pill
@@ -197,6 +233,7 @@ Singleton {
     xl: root.tok.space.xl
     xxl: root.tok.space.xxl
     xxxl: root.tok.space.xxxl
+    xxxxl: root.tok.space.xxxxl
   }
   readonly property Fonts font: Fonts {
     sans: root.tok.font.sans
@@ -208,13 +245,34 @@ Singleton {
       body: root.tok.font.size.body
       title: root.tok.font.size.title
       headline: root.tok.font.size.headline
+      page: root.tok.font.size.page
       display: root.tok.font.size.display
+    }
+    line: LineHeights {
+      caption: root.tok.font.line.caption
+      bodyS: root.tok.font.line.bodyS
+      body: root.tok.font.line.body
+      title: root.tok.font.line.title
+      headline: root.tok.font.line.headline
+      page: root.tok.font.line.page
+      display: root.tok.font.line.display
+    }
+    weight: Weights {
+      label: root.tok.font.weight.label
+      body: root.tok.font.weight.body
+      title: root.tok.font.weight.title
+      page: root.tok.font.weight.page
+      display: root.tok.font.weight.display
+    }
+    track: Tracks {
+      label: root.tok.font.track.label
     }
   }
   readonly property Motions motion: Motions {
     fast: root.tok.motion.fast
     base: root.tok.motion.base
     slow: root.tok.motion.slow
+    fade: root.tok.motion.fade
     easeIn: root.ease(root.tok.motion.easeIn)
     easeOut: root.ease(root.tok.motion.easeOut)
   }

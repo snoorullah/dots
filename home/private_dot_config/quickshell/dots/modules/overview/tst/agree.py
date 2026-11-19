@@ -22,10 +22,10 @@ def palette(path):
             inside = True
             continue
         if inside:
-            m = re.match(r'^  ([a-z]+): "(#[0-9a-fA-F]{6})"', line)
+            m = re.match(r'^  ([a-z_]+): "(#[0-9a-fA-F]{6})"', line)
             if m:
                 out[m.group(1)] = m.group(2).lower()
-            elif re.match(r"^\S", line) or re.match(r"^  [a-z]+:\s*$", line):
+            elif re.match(r"^\S", line) or re.match(r"^  [a-z_]+:\s*$", line):
                 break
     return out
 
@@ -58,11 +58,12 @@ def check(yaml, log):
                 fails.append("%s.%s: stub %s, real %s" % (group, k, sv, v))
         extra += ["%s.%s" % (group, k) for k in stub[group] if k not in real[group]]
     for k, v in real["font"].items():
-        if k == "size":
+        if isinstance(v, dict):
             for kk, vv in v.items():
                 compared += 1
-                if stub["font"]["size"].get(kk) != vv:
-                    fails.append("font.size.%s: stub %s, real %s" % (kk, stub["font"]["size"].get(kk), vv))
+                sv = stub["font"].get(k, {}).get(kk)
+                if sv != vv:
+                    fails.append("font.%s.%s: stub %s, real %s" % (k, kk, sv, vv))
         else:
             compared += 1
             if stub["font"].get(k) != v:

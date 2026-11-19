@@ -26,10 +26,20 @@ py="$root/tests"
 # ── 1. static rules ────────────────────────────────────────────────────
 [ -f "$dots/shell.qml" ] && ok "shell.qml rendered" || fail "shell.qml not rendered"
 
-# no private-use codepoint anywhere (Material Symbols go by ligature name), re-asserted here
-if LC_ALL=C.UTF-8 grep -rIlP '[\x{E000}-\x{F8FF}\x{F0000}-\x{FFFFD}]' "$dots" "$out/.local/bin/dots-shell" "$out/.local/bin/dots-theme" "$root/third_party" 2>/dev/null | grep .; then
+# no private-use codepoint anywhere, planes 0, 15 and 16 (dots Icons lives in plane 16) (Material Symbols go by ligature name), re-asserted here
+if LC_ALL=C.UTF-8 grep -rIlP '[\x{E000}-\x{F8FF}\x{F0000}-\x{FFFFD}\x{100000}-\x{10FFFD}]' "$dots" "$out/.local/bin/dots-shell" "$out/.local/bin/dots-theme" "$root/third_party" 2>/dev/null | grep .; then
   fail "private-use codepoint in the shell tree"
 else ok "no private-use codepoints"; fi
+
+# status colours (Theme.color/Look .waiting|.failed|.unknown) are drawn only in files that also use
+# StatusMark. File-level, so coarse: it cannot prove each use is paired, only that a file never
+# paints a status colour with no StatusMark in it at all. Definitions (Theme, Look, StatusMark) exempt.
+bad=""
+while IFS= read -r f; do
+  case "$f" in */theme/Theme.qml|*/overview/Look.qml|*/common/StatusMark.qml) continue ;; esac
+  grep -q 'StatusMark' "$f" || bad="$bad $f"
+done < <(grep -rlE '(Theme\.color|Look)\.(waiting|failed|unknown)\b' --include='*.qml' "$root/home/private_dot_config/quickshell/dots" 2>/dev/null)
+[ -z "$bad" ] && ok "status colours only in files that use StatusMark" || fail "status colour without StatusMark in:$bad"
 
 # no GPL file copied: vendor/ is absent, or every file in it has an SPDX header and a NOTICE line
 if [ -d "$root/home/private_dot_config/quickshell/dots/vendor" ]; then
@@ -164,7 +174,7 @@ rows = s.rows_with_non_bg((0, 0, s.w, 40), bg=bg)
 if len(rows) != 30 or rows[0] != 0 or rows[-1] != 29: fails.append(f"bar rows {len(rows)} ({rows[:1]}..{rows[-1:]}), want exactly 0..29")
 runs = s.col_runs((0, 0, s.w, 30), bg=bg)
 if len(runs) != 3: fails.append(f"{len(runs)} slabs {runs}, want 3")
-for name, hexc in (("amber", "#ffb86c"), ("red", "#ff5555")):
+for name, hexc in (("amber", "#f2b04d"), ("red", "#ff8a7a")):
     n = s.count_colour(hexc, (0, 0, s.w, 40), tol=30)
     if n: fails.append(f"nominal bar holds {n} {name} pixels")
 if fails: print("\n".join(fails)); sys.exit(1)
@@ -179,8 +189,13 @@ sys.path.insert(0, sys.argv[1]); import pixel
 s = pixel.Shot(sys.argv[2]); fails = []
 bg = s.pixel(960, 600)
 runs = s.col_runs((0, 0, s.w, 30), bg=bg)
-for name, hexc in (("amber", "#ffb86c"), ("red", "#ff5555")):
+for name, hexc in (("amber", "#f2b04d"), ("red", "#ff8a7a")):
     if not s.has_colour((0, 0, s.w, 40), hexc, tol=30, min_count=20): fails.append(f"lamp shows no {name}")
+# NOT asserted here: "a status colour never appears without its shape". A pixel count of the
+# amber/coral colour cannot tell a drawn circle/diamond from a wrench tinted the same colour
+# (the Ops chip paints its icon in the status tint), and this script has no per-chip
+# bounding boxes. Pixels do not assert it; the static check in section 1 (status colours
+# only in files that also use StatusMark) is a coarse file-level guard, not a per-use proof.
 right = runs[-1]
 lines = s.thin_verticals((right[0], 4, right[1], 26), 18)
 if not lines: fails.append("no 1 px divider found in the lit right slab")
@@ -193,7 +208,7 @@ PY
 import sys
 sys.path.insert(0, sys.argv[1]); import pixel
 s = pixel.Shot(sys.argv[2])
-bad = sum(s.count_colour(h, (0, 0, s.w, 40), tol=30) for h in ("#ffb86c", "#ff5555"))
+bad = sum(s.count_colour(h, (0, 0, s.w, 40), tol=30) for h in ("#f2b04d", "#ff8a7a"))
 sys.exit(1 if bad else 0)
 PY
 

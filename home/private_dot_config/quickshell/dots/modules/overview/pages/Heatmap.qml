@@ -1,7 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import qs.modules.overview
-import qs.modules.overview.parts
 import qs.modules.overview.parts as Parts
 import "../js/Fmt.js" as Fmt
 import "../js/Ledger.js" as Ledger
@@ -39,8 +38,8 @@ FocusScope {
         Row {
             id: head
             spacing: Look.sL
-            Txt { text: "Last 119 days"; role: "title"; dim: pg.dim }
-            StaleMark { visible: pg.dim; anchors.verticalCenter: parent.verticalCenter }
+            Parts.Txt { text: "Last 119 days"; role: "title"; dim: pg.dim }
+            Parts.StaleMark { visible: pg.dim; anchors.verticalCenter: parent.verticalCenter }
         }
         Parts.Heatmap {
             id: hm
@@ -53,7 +52,7 @@ FocusScope {
         Item {
             width: parent.width
             height: pg.legendH
-            Txt {
+            Parts.Txt {
                 anchors.verticalCenter: parent.verticalCenter
                 text: hm.hoverText
                 role: "monoS"
@@ -65,7 +64,7 @@ FocusScope {
                 x: hm.width - width
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Look.sS
-                Txt { text: "less"; role: "caption"; faint: true; dim: pg.dim; anchors.verticalCenter: parent.verticalCenter }
+                Parts.Txt { text: "less"; role: "caption"; faint: true; dim: pg.dim; anchors.verticalCenter: parent.verticalCenter }
                 Repeater {
                     model: Look.heatRamp
                     delegate: Rectangle {
@@ -77,7 +76,7 @@ FocusScope {
                         border.color: Look.withAlpha(Look.outline, Look.aDivider)
                     }
                 }
-                Txt { text: "more"; role: "caption"; faint: true; dim: pg.dim; anchors.verticalCenter: parent.verticalCenter }
+                Parts.Txt { text: "more"; role: "caption"; faint: true; dim: pg.dim; anchors.verticalCenter: parent.verticalCenter }
             }
         }
         Grid {
@@ -86,22 +85,22 @@ FocusScope {
             columns: 3
             spacing: Look.sXl
             readonly property real tileW: (width - spacing * (columns - 1)) / columns
-            StatTile { width: tiles.tileW; label: "Total"; value: Fmt.hm(pg.total); note: "last 119 days"; dim: pg.dim }
-            StatTile { width: tiles.tileW; label: "Days worked"; value: String(pg.active); note: "of " + pg.days.length; dim: pg.dim }
-            StatTile { width: tiles.tileW; label: "Best day"; value: Fmt.hm(pg.best); dim: pg.dim }
-            StatTile {
+            Parts.StatTile { width: tiles.tileW; label: "Total"; value: Fmt.hm(pg.total); note: "last 119 days"; dim: pg.dim }
+            Parts.StatTile { width: tiles.tileW; label: "Days worked"; value: String(pg.active); note: "of " + pg.days.length; dim: pg.dim }
+            Parts.StatTile { width: tiles.tileW; label: "Best day"; value: Fmt.hm(pg.best); dim: pg.dim }
+            Parts.StatTile {
                 width: tiles.tileW; label: "Streak"; value: pg.streak.current + (pg.streak.current === 1 ? " day" : " days")
                 note: "longest " + pg.streak.best; dim: pg.dim
             }
-            StatTile {
+            Parts.StatTile {
                 width: tiles.tileW; label: "Best week"; value: Fmt.hm(pg.week.sec)
                 note: pg.week.from !== "" ? Fmt.dayLabel(pg.week.from) + " to " + Fmt.dayLabel(pg.week.to) : ""; dim: pg.dim
             }
-            StatTile {
+            Parts.StatTile {
                 width: tiles.tileW; label: "Daily average"; value: Fmt.hm(pg.active > 0 ? pg.total / pg.active : 0)
                 note: "on worked days"; dim: pg.dim
             }
         }
-        Empty { visible: pg.days.length === 0 }
+        Parts.Empty { visible: pg.days.length === 0 }
     }
 }

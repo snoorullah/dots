@@ -20,17 +20,17 @@ These are enforced in code outside any model. A prompt cannot change them.
 
 | Token | Value |
 |---|---|
-| Display | Bricolage Grotesque, for numbers and headings of 20 px or more |
-| Interface | JetBrains Mono, 13 px, labels 12 px |
+| Display | Bricolage Grotesque at 20 px and above (headline 20, page 28, display 40) |
+| Interface | Bricolage Grotesque (`font.sans`) for all shell text, 14 px body, 13 px small, 12 px captions. JetBrains Mono (`font.mono`) for code. Ghostty keeps its own Nerd Font |
 | Surfaces | Follow the wallpaper or the chosen theme |
-| Waiting | Amber, with a shape |
-| Failed | Red, with a shape |
-| Unknown | Hollow `?`, never shown as fine |
+| Waiting | Fixed warm amber, with a shape |
+| Failed | Fixed coral red, with a shape |
+| Unknown | One mark everywhere: the Phosphor `question` glyph, never shown as fine |
 | Accent | Blue, for selection, primary action and progress |
 | Healthy | Shows nothing. There is no green |
 | Buttons | 30 px main, 28 px small |
-| Radius | 6 chip, 10 row, 14 to 22 card, rounded rather than squiggly |
-| Motion | You opened it: a slide under 200 ms. It arrived itself: a soft fade. Only the equalizer moves on its own |
+| Radius | 6 chip, 10 row, 14 card and panel, 999 pill, rounded rather than squiggly |
+| Motion | You opened it: a slide of at most 180 ms. It arrived itself: a soft fade of 240 ms. Only the equalizer moves on its own |
 | Glass | `hyprglass` if compatible, otherwise native blur |
 | Logos | Real app logos, themed with `gowall` |
 
@@ -200,7 +200,7 @@ Plain Markdown in the vault, which Obsidian can still open. Write, sketch, histo
 
 **Routines:** when this, do that, on this PC only.
 
-**Themes:** from wallpaper by default, plus fixed palettes as one small file each. Amber and red never change.
+**Themes:** from wallpaper by default, plus fixed palettes as one small file each. Waiting and failed never change.
 
 ## 15. Overlays and utilities
 

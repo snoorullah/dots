@@ -23,32 +23,36 @@ Singleton {
   }
 
   function build() {
-    var bg = hex(rgb(Palette.bg));
+    var ground = hex(rgb(Palette.ground));
     return {
       v: 1, source: "defaults", mode: "dark", wallpaper: null,
       color: {
-        bg: bg,
-        surface: mix(bg, "#ffffff", 0.04),
-        surfaceDim: mix(bg, "#000000", 0.20),
-        surfaceContainer: Palette.sel,
-        surfaceContainerHigh: mix(Palette.sel, "#ffffff", 0.06),
-        outline: Palette.comment,
-        outlineVariant: mix(Palette.comment, bg, 0.50),
-        fg: Palette.fg,
-        fgDim: mix(Palette.comment, Palette.fg, 0.40),
-        fgFaint: mix(bg, mix(Palette.comment, Palette.fg, 0.40), 0.70),
-        accent: Palette.purple,
-        accentFg: bg,
-        amber: Palette.orange, red: Palette.red, green: Palette.green,
-        purple: Palette.purple, pink: Palette.pink, cyan: Palette.cyan, yellow: Palette.yellow
+        bg: ground,
+        surface: hex(rgb(Palette.panel)),
+        surfaceDim: mix(Palette.ground, "#000000", 0.20),
+        surfaceContainer: hex(rgb(Palette.raised)),
+        surfaceContainerHigh: mix(Palette.raised, "#ffffff", 0.06),
+        outline: hex(rgb(Palette.border)),
+        outlineVariant: hex(rgb(Palette.line)),
+        fg: hex(rgb(Palette.text)),
+        fgDim: hex(rgb(Palette.text_dim)),
+        fgFaint: mix(Palette.ground, Palette.text_dim, 0.70),
+        accent: hex(rgb(Palette.accent)),
+        accentFg: hex(rgb(Palette.accent_fg)),
+        waiting: hex(rgb(Palette.waiting)),
+        failed: hex(rgb(Palette.failed)),
+        unknown: hex(rgb(Palette.unknown))
       },
       alpha: { slab: 0.78, panel: 0.86, wash: 0.20, hover: 0.10, divider: 0.24, rest: 0.04, on: 0.16, pressed: 0.18 },
-      radius: { chip: 8, panel: 16, card: 16, pill: 999 },
-      space: { xs: 2, s: 4, m: 6, l: 8, xl: 12, xxl: 16, xxxl: 24 },
-      font: { sans: "Lato", mono: "JetBrainsMono Nerd Font", icon: "Material Symbols Rounded",
-              size: { caption: 11, bodyS: 12, body: 13, title: 16, headline: 20, display: 28 } },
-      motion: { fast: 120, base: 180, slow: 240, easeIn: "OutExpo", easeOut: "OutCubic" },
-      bar: { height: 30, gutter: 8, chipGapPx: 6 }
+      radius: { chip: 6, row: 10, card: 14, panel: 14, pill: 999 },
+      space: { xs: 4, s: 4, m: 8, l: 8, xl: 12, xxl: 16, xxxl: 24, xxxxl: 32 },
+      font: { sans: "Bricolage Grotesque", mono: "JetBrains Mono", icon: "dots Icons",
+              size: { caption: 12, bodyS: 13, body: 14, title: 16, headline: 20, page: 28, display: 40 },
+              line: { caption: 16, bodyS: 18, body: 20, title: 24, headline: 28, page: 36, display: 48 },
+              weight: { label: 600, body: 400, title: 600, page: 600, display: 500 },
+              track: { label: 0.04 } },
+      motion: { fast: 120, base: 180, slow: 180, fade: 240, easeIn: "OutExpo", easeOut: "OutCubic" },
+      bar: { height: 30, gutter: 8, chipGapPx: 8 }
     };
   }
 }

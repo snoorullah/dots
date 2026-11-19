@@ -5,7 +5,7 @@ import qs.modules.overview
 import qs.modules.overview.parts
 import "js/Fmt.js" as Fmt
 
-// The dropdown under the pill: 380 wide, at most 520 tall, padding 16, radius 16,
+// The dropdown under the pill: 380 wide, at most 520 tall, padding 16, radius 14,
 // with an 8x4 notch whose centre is notchX. Pure Item (no window), so the host wraps
 // it in a layer-shell window and the tests can render it directly.
 Item {
@@ -98,7 +98,7 @@ Item {
                 width: parent.width
                 spacing: Look.sXl
 
-                // today: the three texts share one baseline (Lato, JetBrains Mono and the
+                // today: the three texts share one baseline (Bricolage, JetBrains Mono and the
                 // caption have different metrics, so centring boxes would stagger them)
                 Item {
                     width: parent.width
@@ -110,10 +110,10 @@ Item {
                         anchors.rightMargin: doneTxt.visible ? Look.sL : 0
                         anchors.verticalCenter: parent.verticalCenter
                         text: Fmt.hm(Feed.today ? Feed.today.workedSec : 0)
-                        role: "title"
+                        role: "headline"
+                        mono: true
                         dim: card.dim
                         elide: Text.ElideNone
-                        font.family: Look.mono
                     }
                     Txt {
                         id: doneTxt
@@ -236,7 +236,7 @@ Item {
             Button {
                 objectName: "openPanel"
                 text: "Open panel"
-                icon: "open_in_full"
+                icon: "arrows-out-simple"
                 dim: card.dim
                 onClicked: card.panelRequested("today")
             }

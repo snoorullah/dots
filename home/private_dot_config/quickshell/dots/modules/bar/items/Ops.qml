@@ -5,8 +5,9 @@ import "../../theme"
 import "../../common"
 import "../../../services"
 
-// dots-ops. All ok -> zero width. warn (something asks for an answer) -> amber wash.
-// fail (a job failed, nobody is waiting) -> red wash. Source unreadable -> hollow "?".
+// dots-ops. All ok -> zero width. warn (something asks for an answer) -> waiting wash,
+// wrench and a filled circle. fail (a job failed, nobody is waiting) -> failed wash and
+// the filled warning diamond alone (the icon is the shape). Source unreadable -> hollow "?" (Stale).
 // Twin: `dots-ops status` in a terminal.
 Chip {
   id: chip
@@ -15,7 +16,7 @@ Chip {
 
   shown: Lamp.on || OpsState.stale || level !== "ok"
   wash: !OpsState.stale && level !== "ok"
-  tint: level === "fail" ? Theme.color.red : Theme.color.amber
+  tint: level === "fail" ? Theme.color.failed : Theme.color.waiting
 
   Row {
     anchors.verticalCenter: parent.verticalCenter
@@ -24,16 +25,22 @@ Chip {
     Icon {
       anchors.verticalCenter: parent.verticalCenter
       visible: !OpsState.stale
-      text: chip.level === "fail" ? "error" : "build"
+      name: chip.level === "fail" ? "warning-diamond" : "wrench"
+      active: chip.level === "fail"   // warning-diamond, filled weight: the icon is the shape
       size: Theme.font.size.title
       color: chip.tint
+    }
+    StatusMark {
+      anchors.verticalCenter: parent.verticalCenter
+      visible: !OpsState.stale && chip.level !== "fail"
+      level: "waiting"
     }
     DText {
       anchors.verticalCenter: parent.verticalCenter
       mono: true
       visible: !OpsState.stale
       text: OpsState.text !== "" ? OpsState.text : "ops"
-      color: Qt.tint(chip.tint, Qt.alpha(Theme.color.fg, 0.45))   // AA on its own wash
+      color: Theme.color.fg   // the shape carries the status, the label stays neutral
     }
     Stale {
       anchors.verticalCenter: parent.verticalCenter

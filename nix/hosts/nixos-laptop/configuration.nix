@@ -96,6 +96,8 @@ let user = "devsupreme"; in
   # ── Fonts ──
   fonts.packages = with pkgs; [
     nerd-fonts.jetbrains-mono
+    jetbrains-mono
+    bricolage-grotesque
     noto-fonts
     noto-fonts-cjk-sans
     noto-fonts-color-emoji

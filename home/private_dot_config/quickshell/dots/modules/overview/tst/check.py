@@ -93,7 +93,7 @@ class Img:
 
     def count_tone(self, tone, box=None):
         """Pixels that read as the status tone, by hue: wash plates are dark, and text on
-        its own wash is the tone lifted toward fg (Look.legible), so a fixed RGB would miss it."""
+        its own wash is the tone lifted toward fg, so a fixed RGB would miss it."""
         import colorsys
         lo, hi = {"red": (-15, 15), "amber": (22, 50)}[tone]
         x0, y0, x1, y1 = box or (0, 0, self.w, self.h)
@@ -192,8 +192,8 @@ def t5_card(out):
     report(near(m["notchCx"], m["pill"]["cx"], 1), "5 notch centre within 1px of the pill centre",
            "notch=%.2f pill=%.2f" % (m["notchCx"], m["pill"]["cx"]))
     report(m["notchW"] == 8 and m["notchH"] == 4, "5 notch is 8x4")
-    report(c["radius"] == 16, "5 card radius property is 16", "r=%s" % c["radius"])
-    # radius in pixels: with r=16, (4,4) from the corner lies outside the arc, (7,7) inside
+    report(c["radius"] == 14, "5 card radius property is 14", "r=%s" % c["radius"])
+    # radius in pixels: with r=14, (4,4) from the corner lies outside the arc, (7,7) inside
     x0, y0 = int(round(c["x"])), int(round(c["y"]))
     # the grabbed stage is transparent outside the card, so alpha tells card from nothing
     outside, inside = im.alpha(x0 + 3, y0 + 3), im.alpha(x0 + 8, y0 + 8)

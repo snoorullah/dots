@@ -23,7 +23,7 @@ Chip {
 
     Icon {
       anchors.verticalCenter: parent.verticalCenter
-      text: "timer"
+      name: "timer"
       size: Theme.font.size.title
     }
     DText {
