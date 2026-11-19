@@ -60,6 +60,14 @@ read -r -d '' ROWS <<'EOF'
   Super + Shift + ;       Salah logger (one-key)
   Super + Alt + D         Dose taken — start the health check-ins
   Super + Alt + M         Work mail (aerc)
+  Super + Shift + U       Log untracked work (whiteboard, call) — one key, no prompt
+━━━━━━━  CONTROL CENTRE  (Quickshell)  ━━━━━━━
+  Super + Alt + I         Overview — open / close
+  Super + Shift + I       Overview — Today (time worked)
+  Super + Alt + F         Start a focus block
+  Super + Alt + J         Jump back to the last pane
+  Super + Shift + T       Lamp test — light every bar indicator for 5 s
+  Super + Alt + Q         Switch shell: Quickshell ↔ Waybar
 ━━━━━━━  MEDIA  /  HARDWARE  ━━━━━━━
   Vol Up / Down / Mute    Volume (OSD)
   Mic Mute                Toggle microphone
@@ -70,7 +78,8 @@ read -r -d '' ROWS <<'EOF'
   Print                   Region screenshot
   Super + Print           Full-screen screenshot
 ━━━━━━━  SESSION  ━━━━━━━
-  Super + Escape          Lock screen (hyprlock)
+  Super + Escape          Break — say why, then lock (timer on the lock screen)
+  Super + Shift + F12     Performance mode (power profile + do-not-disturb)
   Super + I               Show / hide waybar — toggle bar (zen mode)
   Super + Shift + C / R   Reload Hyprland config
   Super + Delete          Exit Hyprland
