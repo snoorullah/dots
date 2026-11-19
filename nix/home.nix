@@ -74,7 +74,7 @@ in {
 
     # --- owner picks (addendum) ---
     # browsers / chat / mail
-    aether compat (gl google-chrome) (gl brave) brotab slack teams-for-linux thunderbird
+    aether compat (gl google-chrome) (gl brave) brotab (gl slack) teams-for-linux thunderbird
     # work mail in the terminal (dots-mail): encrypted store, OAuth2, sync, push, index, client.
     # isync needs the XOAUTH2 SASL plugin for Microsoft 365; it is off by default upstream.
     (isync.override { withCyrusSaslXoauth2 = true; }) pizauth goimapnotify gocryptfs libsecret notmuch afew aerc dots-inbox
@@ -109,7 +109,7 @@ in {
     # office
     hoppscotch libreoffice-fresh
     # secrets
-    cosign gnupg vault keepassxc kubeseal seahorse gnome-keyring sops step-cli
+    cosign gnupg vault kubeseal seahorse gnome-keyring sops step-cli
     # security
     binwalk conftest hadolint syft testdisk tflint trivy gitleaks scrub bpftrace bcc
     # ssh & network

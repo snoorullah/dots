@@ -1,0 +1,15 @@
+[Unit]
+Description=GNOME Keyring: Secret Service provider (org.freedesktop.secrets)
+# Replaces KeePassXC as the Secret Service (2026-11-20). Started by Hyprland and
+# enabled by run_onchange_after_24-systemd. The "login" keyring unlocks on first use;
+# set a keyring password in seahorse if you want it protected.
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.nix-profile/bin/gnome-keyring-daemon --foreground --components=secrets
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target

@@ -261,8 +261,8 @@ hl.on("hyprland.start", function()
   -- copies and anything that looks like a secret (and clears it from the live clipboard after 30 s).
   hl.exec_cmd("wl-paste --type text --watch ~/.local/bin/dots-clip-store")
   hl.exec_cmd("wl-paste --type image/png --watch clipse --wl-store")
-  -- vault: Secret Service, SSH keys (ssh-agent.service), browser logins
-  hl.exec_cmd("sh -c 'systemctl --user import-environment WAYLAND_DISPLAY; systemctl --user set-environment SSH_AUTH_SOCK=$XDG_RUNTIME_DIR/ssh-agent.socket; systemctl --user start ssh-agent.service keepassxc.service'")
+  -- Secret Service (gnome-keyring) + ssh-agent for SSH keys. Browser logins live in Zen's own store.
+  hl.exec_cmd("sh -c 'systemctl --user import-environment WAYLAND_DISPLAY; systemctl --user set-environment SSH_AUTH_SOCK=$XDG_RUNTIME_DIR/ssh-agent.socket; systemctl --user start ssh-agent.service gnome-keyring.service'")
   hl.exec_cmd("systemctl --user start awatcher.service")     -- ActivityWatch window+AFK watcher (needs Wayland env)
   hl.exec_cmd("sh -c '[ -e {{ .chezmoi.homeDir }}/.nix-profile/lib/libhyprcapture.so ] && hyprctl plugin load {{ .chezmoi.homeDir }}/.nix-profile/lib/libhyprcapture.so'")  -- HyprCapture plugin (Nix-built against this Hyprland); skipped if absent
   -- idle → lock/screen-off. Started through systemd: the distro unit is enabled too, and a
