@@ -25,12 +25,10 @@ let
       "tridactyl.vim@cmcaine.co.uk" = force "tridactyl-vim";                        # vim keys everywhere
       "{81b74d53-9416-4fb3-afa2-ab46684b253b}" = force "tabwrangler";               # close tabs idle 12h (set once, see below)
       "jid0-RvYT2rGWfM8q5yWxIxAHYAeo5Qg@jetpack" = force "duplicate-tabs-closer";   # jump to the open copy
-      "myallychou@gmail.com" = force "youtube-recommended-videos";                  # Unhook: no YouTube feed
       "leechblockng@proginosko.com" = force "leechblock-ng";                        # feeds blocked 24/7
       "uBlock0@raymondhill.net" = force "ublock-origin";
       "{ef87d84c-2127-493f-b952-5b4e744245bc}" = force "aw-watcher-web";             # ActivityWatch / timetrack
       "brotab_mediator@example.org" = force "brotab";                               # `bt` tab control
-      "keepassxc-browser@keepassxc.org" = force "keepassxc-browser";                # logins from the KeePassXC vault
     };
     # browser.storage.managed: re-applied on every start, so edits in the extension's own page revert.
     "3rdparty".Extensions = {
@@ -122,8 +120,8 @@ in {
         "privacy.userContext.ui.enabled" = true;
         "permissions.default.desktop-notification" = 2;        # no "allow notifications?" prompts
         "media.autoplay.default" = 5;                          # nothing plays until you press play
-        "signon.rememberSignons" = false;                      # logins live in KeePassXC, not the browser
-        "signon.autofillForms" = false;
+        "signon.rememberSignons" = true;                       # Zen is the password manager now (KeePassXC removed 2026-11-20)
+        "signon.autofillForms" = true;
         "zen.tab-unloader.enabled" = true;                     # idle tabs free memory after 30 min
         "zen.tab-unloader.timeout-minutes" = 30;
         "browser.newtabpage.activity-stream.showSponsored" = false;
