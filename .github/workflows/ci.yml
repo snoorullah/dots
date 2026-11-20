@@ -31,6 +31,11 @@ jobs:
       - run: bash tests/lint.sh
       # dots-theme token contract (needs no display; shell.sh needs Hyprland/quickshell and runs locally)
       - run: bash tests/theme.sh
+      # shell foundations: icon registry, cheatsheet coverage, font packages named on both hosts
+      # (no build, no fontconfig here: the runner never builds the closure, see R26)
+      - run: bash tests/icons.sh
+      - run: bash tests/keybinds.sh
+      - run: FONTS_SKIP_BUILD=1 FONTS_SKIP_FC=1 bash tests/fonts.sh
       - run: bash tests/extra-tools-dryrun.sh
       # The timetrack suites. They were written and then never run by anything but a
       # human remembering to -- which is the exact failure the package exists to correct.
@@ -49,6 +54,7 @@ jobs:
       - run: bash tests/webclass.sh
       - run: bash tests/term.sh
       - run: bash tests/away.sh
+      - run: bash tests/aw-gap.sh
       - run: bash tests/aw-live.sh
       - run: bash tests/break-labels.sh
       - run: bash tests/zsh-graphical.sh
