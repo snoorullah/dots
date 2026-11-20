@@ -11,6 +11,7 @@ QtObject {
   property var queue: []
   property string tag: ""
   signal finished(string tag, bool ok)
+  signal replied(string tag, var data)      // the parsed JSON line of a dots-layout call, else null
 
   function run(argv, tag) {
     if (!argv) { root.finished(tag, false); return; }
@@ -29,7 +30,9 @@ QtObject {
   property Process proc: Process {
     stdout: StdioCollector {
       onStreamFinished: {
-        root.finished(root.tag, D.ok(text));
+        var layout = root.tag.indexOf("layout:") === 0;
+        root.replied(root.tag, layout ? D.reply(text) : null);
+        root.finished(root.tag, layout ? D.okJson(text) : D.ok(text));
         root.pump();
       }
     }

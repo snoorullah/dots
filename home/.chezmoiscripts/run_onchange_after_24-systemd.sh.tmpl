@@ -38,6 +38,8 @@ systemctl --user enable --now dots-ops-dots-update.timer
 systemctl --user enable --now dots-ops-backup-watch.timer dots-ops-backup-check.timer
 systemctl --user enable --now dots-ops-pins-check.timer
 {{- end }}
+# window layout: saved every 10 minutes and once more when the graphical session stops (restore asks first)
+systemctl --user enable --now dots-layout-save.timer dots-layout-logout.service
 systemctl --user enable --now dots-ops-relay.path dots-ops-relay.service
 # work mail (dots-mail): each unit is a no-op until `dots-mail init` has created the store
 systemctl --user enable --now dots-mail-mount.service dots-mail-auth.service dots-mail-push.service dots-mail-sync.timer 2>/dev/null || true

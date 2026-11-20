@@ -186,4 +186,113 @@ TestCase {
         verify(!D.ok("Invalid dispatcher"))
         verify(!D.ok("ok\nerr"))
     }
+
+    // ---- mask, agent states, suggestions, launcher row, sets ----------------------------
+    function titles(m, name) { return prof(m, name).ws.reduce(function (a, w) { return a.concat(w.wins.map(function (x) { return x.title })) }, []) }
+    function test_mask_hides_sensitive_titles_only() {
+        var raw = build({ mask: false })
+        compare(titles(raw, "Comms")[0], "Chat")
+        verify(!raw.mask)
+        var m = build({ mask: true })
+        verify(m.mask)
+        compare(titles(m, "Comms")[0], "Masked title")      // chat
+        compare(titles(m, "Comms")[1], "Masked title")      // mail
+        compare(titles(m, "Web")[2], "Masked title")        // "Private window"
+        compare(titles(m, "Web")[0], "Search")              // an ordinary browser window keeps its title
+        compare(titles(m, "Dev")[0], "main.go - Editor")
+    }
+    function test_masked_titles_are_not_searchable() {
+        var m = build({ mask: true, query: "private", mode: "full" })
+        compare(m.resultCount, 0)                           // the hidden text must not leak through the filter
+        var n = build({ mask: false, query: "private", mode: "full" })
+        compare(n.resultCount, 1)
+    }
+    function test_agent_states() {
+        var m = build({}, function (f) {
+            f.windows[0].agent = "working"; f.windows[1].agent = "paused"; f.windows[2].agent = "needs"
+        })
+        var rows = prof(m, "Agents").ws[0].wins
+        compare(rows[0].state, "needs")                      // needs outranks working (the window also has needs)
+        compare(rows[1].state, "paused"); verify(rows[1].resumed)
+        compare(rows[2].state, "needs")
+        var w = build({}, function (f) { f.windows[1].agent = "working" })
+        compare(prof(w, "Agents").ws[0].wins[1].state, "working")
+        verify(!prof(w, "Agents").ws[0].wins[1].resumed)
+    }
+    function test_suggest_only_in_other() {
+        var m = build()
+        var other = prof(m, "Other").ws.reduce(function (a, w) { return a.concat(w.wins) }, [])
+        var term = other.filter(function (x) { return x.addr === "0xf2" })[0]
+        compare(term.suggest, "Dev")
+        compare(other.filter(function (x) { return x.addr === "0xf1" })[0].suggest, "")    // files: no guess
+        compare(other.filter(function (x) { return x.addr === "0xf3" })[0].suggest, "")    // settings: no guess
+        compare(prof(m, "Dev").ws[0].wins[1].suggest, "")                                  // already in a profile
+        compare(M.suggestFor("browser", "Other"), "Web")
+        compare(M.suggestFor("chat", "Other"), "Comms")
+    }
+    function test_launcher_row_and_enter() {
+        var m = build({ query: "zzz", mode: "full" })
+        compare(m.launcher.query, "zzz")
+        verify(m.launcher.text.indexOf("zzz") > 0 && m.launcher.text.indexOf("launcher") > 0)
+        var a = M.nav(m, "enter").act
+        compare(a.type, "launcher"); compare(a.query, "zzz")
+        var hit = build({ query: "term", mode: "full" })
+        compare(M.nav(hit, "enter").act.type, "focusWin")     // a match still wins
+        verify(hit.launcher !== null)                          // the row stays as a way out
+        compare(build({ query: "term", mode: "pop" }).launcher, null)
+        compare(build().launcher, null)
+    }
+    function test_sets_from_layout() {
+        var now = Date.parse("2026-11-20T09:00:00")
+        var layout = { saved_at: "2026-11-20T08:20:00", clients: [
+            { class: "code", workspace: 3 }, { class: "foot", workspace: 3 }, { class: "foot", workspace: 3 },
+            { class: "zen-beta", workspace: 2 }, { class: "foot", workspace: 11 } ] }
+        var m = build({}, function (f) { f.layout = layout; f.now = now })
+        verify(m.setsKnown)
+        var dev = prof(m, "Dev").ret
+        verify(dev.has); compare(dev.n, 3)
+        compare(dev.text, "3 win, 40 min ago")
+        compare(dev.sub, "3 windows, 40 min ago")
+        compare(dev.sum, "Editor, 2 terminals")
+        compare(dev.ws.length, 1); compare(dev.ws[0], 3)
+        compare(prof(m, "Comms").ret.has, false)
+        compare(prof(m, "Comms").ret.text, "No saved set")
+        compare(prof(m, "Other").ret.n, 1)                     // ws 11 is nobody's: Other
+        verify(!build().setsKnown)                             // no status yet: the rows stay hidden
+        var b = M.nav(build({ focus: "Dev" }, function (f) { f.layout = layout; f.now = now }), "b").act
+        compare(b.type, "backSet"); compare(b.ws[0], 3); compare(b.n, 3)
+        compare(Object.keys(M.nav(build({ focus: "Comms" }, function (f) { f.layout = layout; f.now = now }), "b")).length, 0)
+    }
+    function test_ago() {
+        compare(M.ago(0, 20 * 1000), "just now")
+        compare(M.ago(0, 12 * 60000), "12 min")
+        compare(M.ago(0, 2 * 3600000), "2 h")
+        compare(M.ago(0, 3 * 86400000), "3 d")
+    }
+    function test_new_workspace_key() {
+        var c = build({ focus: "Comms" }, function (f) { f.windows = f.windows.filter(function (w) { return w.wsId !== 5 }) })
+        compare(c.newWs, 5)                                    // Comms owns 4 and 5; 5 is free
+        compare(M.nav(c, "n").act.id, 5)
+        var d = build({ focus: "Dev" })
+        compare(d.newWs, 0)                                    // Dev owns only 3 and it is in use
+        compare(Object.keys(M.nav(d, "n")).length, 0)
+    }
+    function test_set_argv() {
+        compare(D.backSet("/b/dots-layout", [3, 6]).join(" "), "/b/dots-layout restore --apply --parts layout,apps --workspaces 3,6")
+        compare(D.backSet("/b/dots-layout", []), null)
+        compare(D.backSet("/b/dots-layout", [3, "x; rm"]), null)
+        compare(D.undoSet("/b/dots-layout").join(" "), "/b/dots-layout undo")
+        compare(D.startSet("/b/dots-layout", "Dev", 3).join(" "), "/b/dots-layout startup --workspace 3 --name Dev")
+        compare(D.startSet("/b/dots-layout", "Dev; x", 3), null)
+        var q = D.launcherQuery("kubectl get pods; rm -rf", "/qs")
+        compare(q[q.length - 1], "kubectl get pods; rm -rf")   // one argv element, nothing is parsed
+        compare(q.length, 8)
+        compare(q.slice(0, 4).join(" "), "quickshell ipc -p /qs")
+        compare(D.launcherQuery("", "/qs"), null)
+        compare(D.launcherQuery("x"), null)
+        verify(D.okJson('{"ok": true, "launched": 2}'))
+        verify(!D.okJson('{"ok": false}'))
+        verify(!D.okJson("garbage"))
+        compare(D.reply("noise\n{\"ok\": true}").ok, true)
+    }
 }

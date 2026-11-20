@@ -1,0 +1,366 @@
+#!/usr/bin/env python3
+"""dots-launch-snippets: text snippets with {blanks} for the launcher (prefix `s:`).
+
+  dots-launch-snippets query <text>
+  dots-launch-snippets render <abbr> [name=value ...]     the row with blanks filled
+  dots-launch-snippets act copy|pane <abbr> [name=value ...]
+  dots-launch-snippets draft                              a draft from the clipboard
+  dots-launch-snippets add <abbr> <kind> <title> <text> [--force]
+
+Store: $DOTS_SNIPPETS_DIR (default ~/.config/dots-launcher/snippets), one `<abbr>.json` each:
+  {"abbr","title","kind":"command|reply|path|block","text":"... {blank} ...","tags":[],"pinned":false,
+   "alt":{"shorter":"...","warmer":"..."}}
+Usage and last-used blanks: $DOTS_LAUNCHER_STATE/snippets.json. Built-in blanks: date repo branch clipboard ticket.
+Copy never pastes; `pane` types the text at a herdr prompt WITHOUT Enter. Token-like text is refused
+unless --force. Env: DOTS_BUILTINS (json, tests), DOTS_CWD, DOTS_TICKET, DOTS_HERDR_PANES, DOTS_LAUNCH_EXEC_LOG.
+"""
+import datetime, difflib, json, os, re, subprocess, sys, time
+
+BLANK = re.compile(r"\{([a-z_]+)\}")
+BUILTIN = ("date", "repo", "branch", "clipboard", "ticket")
+KINDS = {"command": ("terminal-window", "Command"), "reply": ("chat-circle", "Reply"),
+         "path": ("link", "Path or URL"), "block": ("note", "Multi-line block")}
+SENSITIVE = [(re.compile(p), why) for p, why in [
+    (r"AKIA[0-9A-Z]{16}", "looks like a cloud access key"), (r"gh[pousr]_[A-Za-z0-9]{30,}", "looks like a code-host token"),
+    (r"xox[abprs]-[A-Za-z0-9-]{10,}", "looks like a chat token"), (r"-----BEGIN [A-Z ]*PRIVATE KEY-----", "is a private key"),
+    (r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}", "looks like a signed token"),
+    (r"(?i)\b(password|passwd|secret|token|api[_-]?key)\b\s*[=:]\s*\S{6,}", "assigns a secret value"),
+    (r"\b[A-Fa-f0-9]{40,}\b", "has a long hex string"), (r"\b[A-Za-z0-9+/]{48,}={0,2}", "has a long encoded string")]]
+
+
+def out(o):
+    sys.stdout.write(json.dumps(o, ensure_ascii=False) + "\n")
+
+
+def sdir():
+    return os.environ.get("DOTS_SNIPPETS_DIR") or os.path.expanduser("~/.config/dots-launcher/snippets")
+
+
+def statedir():
+    return os.environ.get("DOTS_LAUNCHER_STATE") or os.path.expanduser("~/.local/state/dots-launcher")
+
+
+def load_usage():
+    try:
+        return json.load(open(os.path.join(statedir(), "snippets.json")))
+    except (OSError, ValueError):
+        return {}
+
+
+def save_usage(u):
+    try:
+        os.makedirs(statedir(), mode=0o700, exist_ok=True)
+        json.dump(u, open(os.path.join(statedir(), "snippets.json"), "w"))
+    except OSError:
+        pass
+
+
+def load_store():
+    """-> (list of snippets, error text or None). A missing dir is an empty store."""
+    d = sdir()
+    if not os.path.exists(d):
+        return [], None
+    try:
+        names = sorted(n for n in os.listdir(d) if n.endswith(".json"))
+    except OSError as e:
+        return [], "Store unreadable: %s (%s)" % (d, e.strerror)
+    res = []
+    for n in names:
+        p = os.path.join(d, n)
+        try:
+            s = json.load(open(p, encoding="utf-8"))
+            assert isinstance(s, dict) and s.get("abbr") and s.get("text") is not None
+        except (OSError, ValueError, AssertionError):
+            return [], "Store unreadable: %s" % p
+        s.setdefault("title", s["abbr"])
+        s.setdefault("kind", "block")
+        s.setdefault("tags", [])
+        res.append(s)
+    return res, None
+
+
+def builtins():
+    o = os.environ.get("DOTS_BUILTINS")
+    if o:
+        try:
+            return json.loads(o)
+        except ValueError:
+            pass
+    cwd = os.environ.get("DOTS_CWD") or os.getcwd()
+    vals = {"date": datetime.date.today().isoformat(), "ticket": os.environ.get("DOTS_TICKET", "")}
+
+    def git(*a):
+        try:
+            r = subprocess.run(["git", "-C", cwd] + list(a), capture_output=True, text=True, timeout=2)
+            return r.stdout.strip() if r.returncode == 0 else ""
+        except (OSError, subprocess.SubprocessError):
+            return ""
+    top = git("rev-parse", "--show-toplevel")
+    vals["repo"] = os.path.basename(top) if top else ""
+    vals["branch"] = git("rev-parse", "--abbrev-ref", "HEAD") if top else ""
+    try:
+        r = subprocess.run(["wl-paste", "-n"], capture_output=True, text=True, timeout=2)
+        vals["clipboard"] = r.stdout[:400] if r.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError):
+        vals["clipboard"] = ""
+    return vals
+
+
+def blanks(text):
+    seen = []
+    for m in BLANK.findall(text):
+        if m not in seen:
+            seen.append(m)
+    return seen
+
+
+def fill(snip, given, usage, bi):
+    """-> (rendered text, fields). A field is filled (typed or built-in), ghost (remembered) or empty."""
+    last = usage.get(snip["abbr"], {}).get("values", {})
+    vals, fields = {}, []
+    for n in blanks(snip["text"]):
+        if given.get(n):
+            vals[n], st = given[n], "filled"
+        elif n in BUILTIN and bi.get(n):
+            vals[n], st = bi[n], "builtin"
+        elif last.get(n):
+            vals[n], st = last[n], "ghost"
+        else:
+            vals[n], st = "", "empty"
+        fields.append({"name": n, "value": vals[n], "state": st, "builtin": n in BUILTIN})
+    text = BLANK.sub(lambda m: vals.get(m.group(1)) or m.group(0), snip["text"])
+    return text, fields
+
+
+def hl(title, q):
+    j, idx = 0, []
+    for i, ch in enumerate(title.lower()):
+        if j < len(q) and ch == q[j]:
+            idx.append(i)
+            j += 1
+    return idx if j == len(q) else []
+
+
+def ago(ts):
+    if not ts:
+        return ""
+    d = max(0, int(time.time() - ts))
+    for n, u in ((86400 * 7, "week"), (86400, "day"), (3600, "h"), (60, "min")):
+        if d >= n:
+            k = d // n
+            return "%d %s%s ago" % (k, u, "s" if k > 1 and u in ("week", "day") else "")
+    return "just now"
+
+
+def row(snip, usage, bi, q="", given=None, group=None):
+    text, fields = fill(snip, given or {}, usage, bi)
+    needs = [f["name"] for f in fields if f["state"] == "empty"]
+    icon, label = KINDS.get(snip["kind"], KINDS["block"])
+    u = usage.get(snip["abbr"], {})
+    acts = [{"label": "Copy", "primary": True, "verb": "copy", "arg": snip["abbr"], "disabled": bool(needs)}]
+    if snip["kind"] == "command":
+        acts.append({"label": "Send to pane", "verb": "pane", "arg": snip["abbr"], "disabled": bool(needs)})
+    for k in ("shorter", "warmer"):
+        if snip.get("alt", {}).get(k):
+            acts.append({"label": "Copy " + k + " version", "verb": "copy-alt-" + k, "arg": snip["abbr"]})
+    sub = " · ".join([label] + snip["tags"][:2] + ([ago(u["last_used"])] if u.get("last_used") else []))
+    r = {"key": snip["abbr"], "title": snip["title"], "abbr": snip["abbr"], "sub": sub, "icon": icon, "kind": snip["kind"],
+         "hl": hl(snip["title"], q.lower()) if q else [], "needs": needs, "used": u.get("n", 0),
+         "preview": {"head": snip["title"], "body": text, "template": snip["text"], "fields": fields, "kind": label,
+                     "alt": snip.get("alt", {})}, "actions": acts}
+    if group:
+        r["group"] = group
+    return r
+
+
+def sensitive_reason(text):
+    for rx, why in SENSITIVE:
+        if rx.search(text):
+            return why
+    return ""
+
+
+def score(s, q, usage):
+    ql = q.lower()
+    a, t = s["abbr"].lower(), s["title"].lower()
+    if a == ql:
+        base = 1.0
+    elif a.startswith(ql):
+        base = 0.9
+    elif t.startswith(ql):
+        base = 0.8
+    elif ql in t:
+        base = 0.7
+    elif ql in " ".join(s["tags"]).lower() or ql in s["text"].lower():
+        base = 0.5
+    elif hl(t, ql):
+        base = 0.4
+    else:
+        return 0.0
+    return round(base + min(usage.get(s["abbr"], {}).get("n", 0), 99) / 1000.0, 3)
+
+
+def query(q):
+    q = q.strip()
+    store, err = load_store()
+    if err:
+        return {"rows": [], "error": err}
+    usage, bi = load_usage(), builtins()
+    if not store:
+        return {"rows": [{"key": "new", "title": "Save a snippet from the clipboard", "sub": "Ctrl+N", "icon": "plus", "score": 0.5,
+                          "preview": {"head": "No snippets yet", "body": "Copy some text, then add it here. Use {name} for a blank you fill later."},
+                          "actions": [{"label": "Add from clipboard", "primary": True, "verb": "draft", "arg": ""}]}],
+                "hint": "No snippets yet. Ctrl+N adds one."}
+    if not q:
+        order = sorted(store, key=lambda s: (-usage.get(s["abbr"], {}).get("last_used", 0), -usage.get(s["abbr"], {}).get("n", 0), s["abbr"]))
+        pinned = [s for s in order if s.get("pinned")] or order[:6]
+        return {"rows": [row(s, usage, bi, "", None, "Pinned" if i == 0 else None) for i, s in enumerate(pinned[:8])], "hint": ""}
+    sc = sorted(((score(s, q, usage), s) for s in store), key=lambda t: (-t[0], t[1]["abbr"]))
+    rows = []
+    for v, s in sc:
+        if v > 0:
+            r = row(s, usage, bi, q)
+            r["score"] = v
+            rows.append(r)
+    if rows:
+        return {"rows": rows, "hint": ""}
+    names = {s["abbr"] + " " + s["title"]: s for s in store}
+    near = difflib.get_close_matches(q.lower(), [k.lower() for k in names], n=1, cutoff=0.3)
+    if near:
+        s = next(v for k, v in names.items() if k.lower() == near[0])
+        r = row(s, usage, bi, "")
+        r["title"], r["sub"], r["score"] = "Closest existing snippet: " + s["title"], "closest, not an exact match", 0.3
+        return {"rows": [r], "hint": "No snippet matches. Ctrl+N saves the query."}
+    return {"rows": [], "hint": "No snippet matches. Ctrl+N saves the query."}
+
+
+def render(abbr, given):
+    store, err = load_store()
+    if err:
+        return {"error": err}
+    s = next((x for x in store if x["abbr"] == abbr), None)
+    if not s:
+        return {"error": "unknown snippet " + abbr}
+    return {"row": row(s, load_usage(), builtins(), "", given)}
+
+
+def execute(argv, input_text=None):
+    log = os.environ.get("DOTS_LAUNCH_EXEC_LOG")
+    if log:
+        open(log, "a").write(json.dumps(argv) + "\n")
+        return "", True
+    try:
+        r = subprocess.run(argv, capture_output=True, text=True, timeout=5, input=input_text)
+        return r.stdout, r.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return "", False
+
+
+def act(verb, abbr, given):
+    store, err = load_store()
+    if err:
+        return {"error": err}
+    s = next((x for x in store if x["abbr"] == abbr), None)
+    if not s:
+        return {"error": "unknown snippet " + abbr}
+    usage, bi = load_usage(), builtins()
+    alt = verb.startswith("copy-alt-")
+    base = dict(s)
+    if alt:
+        base["text"] = s.get("alt", {}).get(verb[9:], s["text"])
+    text, fields = fill(base, given, usage, bi)
+    needs = [f["name"] for f in fields if f["state"] == "empty"]
+    if needs:
+        return {"error": "fill the blanks first: " + ", ".join(needs)}
+    if verb in ("copy",) or alt:
+        argv = ["wl-copy", "--sensitive", text] if sensitive_reason(text) else ["wl-copy", text]
+        _, ok = execute(argv)
+        if not ok:
+            return {"error": "wl-copy failed"}
+        msg = "Copied. Paste with Ctrl+V"
+    elif verb == "pane":
+        if s["kind"] != "command":
+            return {"error": "only command snippets go to a pane"}
+        pl = panes()
+        target = next((p["pane_id"] for p in pl if p.get("focused")), pl[0]["pane_id"] if pl else None)
+        if not target:
+            return {"error": "no herdr pane to send to"}
+        _, ok = execute(["herdr", "pane", "send-text", target, text])
+        if not ok:
+            return {"error": "could not send to the pane"}
+        msg = "Sent to pane. Press Enter there to run it"
+    else:
+        return {"error": "unknown verb " + verb}
+    e = usage.setdefault(abbr, {})
+    e["n"], e["last_used"] = e.get("n", 0) + 1, int(time.time())
+    e["values"] = {**e.get("values", {}), **{f["name"]: f["value"] for f in fields if f["state"] in ("filled", "ghost") and not f["builtin"]}}
+    save_usage(usage)
+    return {"toast": msg, "close": True}
+
+
+def panes():
+    p = os.environ.get("DOTS_HERDR_PANES")
+    try:
+        if p:
+            return json.load(open(p)).get("panes", [])
+        r = subprocess.run(["herdr", "pane", "list"], capture_output=True, text=True, timeout=3)
+        return json.loads(r.stdout).get("result", {}).get("panes", [])
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return []
+
+
+def draft():
+    text = builtins().get("clipboard", "")
+    why = sensitive_reason(text)
+    kind = "command" if re.match(r"^\s*(kubectl|git|ssh|docker|sudo|systemctl|npm|go|python3?)\b", text) else ("path" if re.match(r"^(~|/|https?://)\S+$", text.strip()) else ("block" if "\n" in text else "reply"))
+    abbr = re.sub(r"[^a-z0-9]", "", (text.split() or [""])[0].lower())[:3] or "new"
+    return {"draft": {"text": text if not why else "", "kind": kind, "abbr": abbr, "title": "", "sensitive": why}}
+
+
+def add(abbr, kind, title, text, force):
+    if not re.match(r"^[a-z0-9][a-z0-9_-]{0,15}$", abbr):
+        return {"error": "abbreviation: lowercase letters, digits, - or _, up to 16"}
+    if kind not in KINDS:
+        return {"error": "kind must be one of " + ", ".join(KINDS)}
+    if not text.strip():
+        return {"error": "nothing to save"}
+    why = sensitive_reason(text)
+    if why and not force:
+        return {"sensitive": True, "reason": "This text " + why + ". It is not saved or previewed. Enter again saves anyway."}
+    try:
+        os.makedirs(sdir(), mode=0o700, exist_ok=True)
+        with open(os.path.join(sdir(), abbr + ".json"), "w", encoding="utf-8") as f:
+            json.dump({"abbr": abbr, "title": title or abbr, "kind": kind, "text": text, "tags": [], "pinned": False}, f, indent=1, ensure_ascii=False)
+    except OSError as e:
+        return {"error": "could not save: " + (e.strerror or "write failed")}
+    return {"toast": "Saved snippet " + abbr, "close": False, "saved": abbr}
+
+
+def kv(args):
+    o = {}
+    for a in args:
+        k, _, v = a.partition("=")
+        if k:
+            o[k] = v
+    return o
+
+
+def main(argv):
+    a = argv[1:]
+    if a[:1] == ["query"]:
+        out(query(" ".join(a[1:])))
+    elif a[:1] == ["render"] and len(a) >= 2:
+        out(render(a[1], kv(a[2:])))
+    elif a[:1] == ["act"] and len(a) >= 3:
+        out(act(a[1], a[2], kv(a[3:])))
+    elif a[:1] == ["draft"]:
+        out(draft())
+    elif a[:1] == ["add"] and len(a) >= 5:
+        out(add(a[1], a[2], a[3], a[4], "--force" in a[5:]))
+    else:
+        out({"rows": [], "error": "usage: dots-launch-snippets query|render|act|draft|add ..."})
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

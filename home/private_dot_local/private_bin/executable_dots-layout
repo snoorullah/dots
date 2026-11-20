@@ -1,0 +1,664 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Shaik Noorullah Shareef
+"""dots-layout: save the window layout, ask to restore it after login, scratchpad notes.
+
+  save                    write ~/.local/state/dots-layout/<date>.json (the timer runs this every 10 min)
+  status                  JSON for the restore prompt and the switcher's "Back to last set"
+  restore [--apply]       plan (default) or run: relaunch apps to their workspaces, reopen herdr panes
+  undo                    close what the last restore or startup set opened
+  dismiss                 "Start clean": answer the prompt without restoring
+  startup --workspace N --name P   launch the startup set P (from startup-sets.json) onto workspace N
+  note get|set|save --profile P    the scratchpad note of one profile (set reads --text, else stdin)
+  pref get|set --profile P [--value V]   the tiling preset each profile last used
+
+Local only: reads hyprctl, herdr and /proc, writes files under the state directory, runs the
+argv it saved. No network, no shell: every command is an argv list. Agents are recorded
+PAUSED; restore reopens their pane as a plain shell in the same directory and never resumes them.
+"""
+import argparse
+import datetime
+import json
+import os
+import re
+import shlex
+import subprocess
+import sys
+import time
+
+VERSION = 1
+KEEP = 14                     # layout files kept
+GUARD_UPTIME = 1800           # seconds after boot during which a pending prompt blocks saving
+PARTS = ("layout", "apps", "panes", "agents", "finished")
+DEFAULT_PARTS = ("layout", "apps", "panes", "agents")
+# A secret is a flag or NAME=value whose NAME says so ("--token=x", "--api-key x", "API_TOKEN=x").
+# Flags that only name a store or file ("--password-store=basic") carry no secret and are kept.
+SECRET_ARG = re.compile(r"^-{0,2}[\w.-]*(token|secret|passw(or)?d|api[-_]?key)[\w.-]*(=|$)", re.I)
+SECRET_EXEMPT = re.compile(r"^-{0,2}[\w.-]*(password|passwd|token|secret|api[-_]?key)[-_](store|file|path|dir|manager|prompt)(=|$)", re.I)
+
+
+def has_secret(argv):
+    return any(SECRET_ARG.match(a) and not SECRET_EXEMPT.match(a) for a in argv)
+SAFE_WS = re.compile(r"^[A-Za-z0-9_:-]{1,40}$")
+SAFE_SLUG = re.compile(r"^[a-z0-9_-]{1,40}$")
+NOTE_MAX = 65536
+
+
+# ---- environment (tests point these at fakes) -------------------------------------------
+def env(name, default):
+    return os.environ.get(name) or default
+
+
+def state_dir():
+    return env("DOTS_LAYOUT_DIR", os.path.expanduser("~/.local/state/dots-layout"))
+
+
+def hyprctl_bin():
+    return env("DOTS_HYPRCTL", "hyprctl")
+
+
+def adopt_hyprland_instance():
+    """A user unit has no HYPRLAND_INSTANCE_SIGNATURE: take the newest live instance."""
+    if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+        return
+    base = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/run/user/%d" % os.getuid()), "hypr")
+    try:
+        cands = [os.path.join(base, n) for n in os.listdir(base)]
+        cands = [c for c in cands if os.path.exists(os.path.join(c, ".socket.sock"))]
+        if cands:
+            os.environ["HYPRLAND_INSTANCE_SIGNATURE"] = os.path.basename(max(cands, key=os.path.getmtime))
+    except OSError:
+        pass
+
+
+def herdr_bin():
+    return env("DOTS_HERDR", "herdr")
+
+
+def proc_root():
+    return env("DOTS_PROC", "/proc")
+
+
+def boot_id():
+    if os.environ.get("DOTS_BOOT_ID"):
+        return os.environ["DOTS_BOOT_ID"]
+    try:
+        return open("/proc/sys/kernel/random/boot_id").read().strip()
+    except OSError:
+        return "unknown"
+
+
+def uptime():
+    try:
+        return float(env("DOTS_UPTIME", "") or open("/proc/uptime").read().split()[0])
+    except (OSError, ValueError, IndexError):
+        return 1e9
+
+
+def now():
+    v = os.environ.get("DOTS_NOW")
+    return datetime.datetime.fromisoformat(v) if v else datetime.datetime.now().replace(microsecond=0)
+
+
+def pause():
+    try:
+        return float(env("DOTS_LAYOUT_PAUSE", "0.15"))
+    except ValueError:
+        return 0.15
+
+
+def startup_file():
+    return env("DOTS_STARTUP_SETS", os.path.expanduser("~/.config/dots/startup-sets.json"))
+
+
+# ---- files ------------------------------------------------------------------------------
+def ensure_dir(p):
+    os.makedirs(p, mode=0o700, exist_ok=True)
+    os.chmod(p, 0o700)
+
+
+def write_private(path, text):
+    ensure_dir(os.path.dirname(path))
+    tmp = path + ".tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(text)
+    os.replace(tmp, path)
+
+
+def read_json(path, default=None):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return default
+
+
+def layout_files():
+    d = state_dir()
+    try:
+        names = sorted(n for n in os.listdir(d) if re.fullmatch(r"\d{4}-\d{2}-\d{2}\.json", n))
+    except OSError:
+        return []
+    return [os.path.join(d, n) for n in names]
+
+
+# ---- reading the machine ----------------------------------------------------------------
+def run_json(argv):
+    try:
+        r = subprocess.run(argv, capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if r.returncode != 0:
+        return None
+    try:
+        return json.loads(r.stdout)
+    except ValueError:
+        return None
+
+
+def cmdline(pid):
+    try:
+        raw = open(os.path.join(proc_root(), str(int(pid)), "cmdline"), "rb").read()
+    except (OSError, ValueError, TypeError):
+        return []
+    argv = [a.decode("utf-8", "replace") for a in raw.split(b"\0") if a]
+    if has_secret(argv):
+        return []            # never write a token into the state file; the window just is not relaunched
+    return argv
+
+
+def hypr_clients():
+    data = run_json([hyprctl_bin(), "clients", "-j"])
+    return data if isinstance(data, list) else []
+
+
+def collect_clients():
+    raw = [c for c in hypr_clients() if c.get("mapped", True) and c.get("class")]
+    gid = {}
+    out = []
+    for c in raw:
+        ws = c.get("workspace") or {}
+        wid = int(ws.get("id", 0) or 0)
+        wname = str(ws.get("name", ""))
+        members = c.get("grouped") or []
+        g = -1
+        if len(members) > 1:
+            key = tuple(sorted(members))
+            g = gid.setdefault(key, len(gid))
+        out.append({
+            "class": str(c["class"]),
+            "workspace": wid,
+            "workspace_name": wname,
+            "floating": bool(c.get("floating")),
+            "at": [int(v) for v in (c.get("at") or [0, 0])[:2]],
+            "size": [int(v) for v in (c.get("size") or [0, 0])[:2]],
+            "group": g,
+            "argv": cmdline(c.get("pid")),
+        })
+    return out
+
+
+def find_key(obj, key):
+    if isinstance(obj, dict):
+        if key in obj and isinstance(obj[key], str):
+            return obj[key]
+        for v in obj.values():
+            r = find_key(v, key)
+            if r:
+                return r
+    elif isinstance(obj, list):
+        for v in obj:
+            r = find_key(v, key)
+            if r:
+                return r
+    return None
+
+
+def collect_herdr():
+    panes = run_json([herdr_bin(), "pane", "list"])
+    wss = run_json([herdr_bin(), "workspace", "list"])
+    plist = ((panes or {}).get("result") or {}).get("panes") or []
+    wlist = ((wss or {}).get("result") or {}).get("workspaces") or []
+    label = {w.get("workspace_id"): str(w.get("label") or "") for w in wlist}
+    order, by = [], {}
+    for p in plist:
+        wid = p.get("workspace_id")
+        cwd = p.get("cwd") or p.get("foreground_cwd") or ""
+        if not wid or not os.path.isabs(cwd):
+            continue
+        agent = p.get("agent") or ""
+        state = ""
+        if agent:
+            state = "finished" if p.get("agent_status") == "done" else "paused"
+        if wid not in by:
+            by[wid] = {"label": label.get(wid, "").strip("⠀​ ") or str(wid), "panes": []}
+            order.append(wid)
+        by[wid]["panes"].append({"cwd": cwd, "agent": agent, "state": state})
+    return {"workspaces": [by[w] for w in order]}
+
+
+# ---- save -------------------------------------------------------------------------------
+def candidate():
+    """The newest layout saved by an earlier boot: what the login prompt offers."""
+    me = boot_id()
+    for p in reversed(layout_files()):
+        d = read_json(p)
+        if isinstance(d, dict) and d.get("boot_id") != me and d.get("clients") is not None:
+            return p, d
+    return None, None
+
+
+def answered():
+    st = read_json(os.path.join(state_dir(), "state.json"), {}) or {}
+    return st.get("answered_boot") == boot_id()
+
+
+def mark_answered():
+    write_private(os.path.join(state_dir(), "state.json"), json.dumps({"answered_boot": boot_id()}))
+
+
+def pending():
+    p, d = candidate()
+    return bool(d) and not answered() and layout_has_content(d)
+
+
+def layout_has_content(d):
+    return bool(d.get("clients")) or any(w.get("panes") for w in (d.get("herdr") or {}).get("workspaces", []))
+
+
+def cmd_save(args):
+    if pending() and uptime() < GUARD_UPTIME and not args.force:
+        print(json.dumps({"saved": False, "why": "restore pending"}))
+        return 0
+    clients = collect_clients()
+    herdr = collect_herdr()
+    if not clients and not herdr["workspaces"]:
+        print(json.dumps({"saved": False, "why": "nothing open"}))
+        return 0
+    t = now()
+    doc = {"version": VERSION, "saved_at": t.isoformat(), "boot_id": boot_id(), "clients": clients, "herdr": herdr}
+    path = os.path.join(state_dir(), t.date().isoformat() + ".json")
+    write_private(path, json.dumps(doc, indent=1))
+    for old in layout_files()[:-KEEP]:
+        try:
+            os.unlink(old)
+        except OSError:
+            pass
+    print(json.dumps({"saved": True, "file": path, "windows": len(clients)}))
+    return 0
+
+
+# ---- status -----------------------------------------------------------------------------
+def summary(path, d):
+    clients = d.get("clients") or []
+    panes = [p for w in (d.get("herdr") or {}).get("workspaces", []) for p in w.get("panes", [])]
+    classes = []
+    for c in clients:
+        if c["class"] not in classes:
+            classes.append(c["class"])
+    return {
+        "file": path, "saved_at": d.get("saved_at", ""),
+        "windows": len(clients),
+        "workspaces": sorted({c["workspace"] for c in clients if c.get("workspace", 0) > 0}),
+        "apps": classes,
+        "clients": [{"class": c["class"], "workspace": c["workspace"], "group": c.get("group", -1)} for c in clients],
+        "groups": len({c.get("group", -1) for c in clients if c.get("group", -1) >= 0}),
+        "panes": sum(1 for p in panes if not p.get("agent")),
+        "agents": sum(1 for p in panes if p.get("state") == "paused"),
+        "finished": sum(1 for p in panes if p.get("state") == "finished"),
+    }
+
+
+def cmd_status(args):
+    pend = pending()
+    if pend:
+        path, d = candidate()
+    else:
+        files = layout_files()
+        path = files[-1] if files else None
+        d = read_json(path) if path else None
+    out = {"pending": pend, "layout": summary(path, d) if isinstance(d, dict) else None}
+    print(json.dumps(out))
+    return 0
+
+
+def cmd_dismiss(args):
+    mark_answered()
+    print(json.dumps({"ok": True}))
+    return 0
+
+
+# ---- restore ----------------------------------------------------------------------------
+def lua_exec(rules, argv):
+    """hl.dsp.exec_cmd of one shell-quoted argv with a rule prefix, as a Lua long string."""
+    body = "[" + rules + "] " + shlex.join(argv)
+    if "]==]" in body or "\0" in body:
+        return None
+    return "hl.dsp.exec_cmd([==[" + body + "]==])"
+
+
+def ws_rule(c):
+    wid = int(c.get("workspace", 0) or 0)
+    name = str(c.get("workspace_name", ""))
+    if wid > 0:
+        return "workspace %d silent" % wid
+    if name.startswith("special:") and SAFE_WS.match(name):
+        return "workspace %s silent" % name
+    return ""
+
+
+def launch_step(c, with_layout, ws_override=None):
+    rules = []
+    if with_layout or ws_override:
+        r = ("workspace %d silent" % ws_override) if ws_override else ws_rule(c)
+        if r:
+            rules.append(r)
+    if with_layout and c.get("floating") and c.get("size", [0, 0])[0] > 0 and not ws_override:
+        w, h = c["size"]
+        x, y = c.get("at", [0, 0])
+        rules += ["float", "size %d %d" % (w, h), "move %d %d" % (x, y)]
+    expr = lua_exec("; ".join(rules), c["argv"]) if rules else None
+    if expr is None:
+        # no rules: plain exec still goes through Hyprland so the process is its child
+        expr = lua_exec("", c["argv"])
+        expr = expr.replace("[] ", "", 1) if expr else None
+    return {"kind": "launch", "class": c["class"], "workspace": c.get("workspace", 0), "argv": c["argv"],
+            "dispatch": ["hyprctl", "dispatch", expr] if expr else None}
+
+
+def plan_restore(d, parts, workspaces, running):
+    steps = []
+    if "apps" in parts:
+        have = {}
+        for cls in running:
+            have[cls] = have.get(cls, 0) + 1
+        for c in d.get("clients") or []:
+            if workspaces and c.get("workspace") not in workspaces:
+                continue
+            if not c.get("argv"):
+                steps.append({"kind": "skip", "class": c["class"], "why": "no command saved"})
+                continue
+            if have.get(c["class"], 0) > 0:
+                have[c["class"]] -= 1
+                steps.append({"kind": "skip", "class": c["class"], "why": "already open"})
+                continue
+            steps.append(launch_step(c, "layout" in parts))
+    if not workspaces:
+        wanted = {"panes": "", "agents": "paused", "finished": "finished"}
+        for w in (d.get("herdr") or {}).get("workspaces", []):
+            panes = [p for p in w.get("panes", []) if wanted_part(p, parts)]
+            if panes:
+                steps.append({"kind": "herdr", "label": w.get("label", ""), "panes": [
+                    {"cwd": p["cwd"], "agent": p.get("agent", ""), "state": p.get("state", "")} for p in panes]})
+    return steps
+
+
+def wanted_part(p, parts):
+    if not p.get("agent"):
+        return "panes" in parts
+    return ("finished" if p.get("state") == "finished" else "agents") in parts
+
+
+def live_herdr_labels():
+    wss = run_json([herdr_bin(), "workspace", "list"])
+    wl = ((wss or {}).get("result") or {}).get("workspaces") or []
+    return {str(w.get("label") or "").strip("⠀​ ") for w in wl}
+
+
+def dispatch(expr):
+    try:
+        r = subprocess.run([hyprctl_bin(), "dispatch", expr], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return r.stdout.strip() == "ok"
+
+
+def herdr_run(argv):
+    try:
+        r = subprocess.run([herdr_bin()] + argv, capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if r.returncode != 0:
+        return None
+    try:
+        return json.loads(r.stdout)
+    except ValueError:
+        return {}
+
+
+def apply_steps(steps, journal):
+    launched = failed = skipped = 0
+    live = None
+    for s in steps:
+        if s["kind"] == "skip":
+            skipped += 1
+        elif s["kind"] == "launch":
+            if s["dispatch"] and dispatch(s["dispatch"][2]):
+                launched += 1
+                journal["classes"].append(s["class"])
+                time.sleep(pause())
+            else:
+                failed += 1
+        elif s["kind"] == "herdr":
+            live = live if live is not None else live_herdr_labels()
+            if s["label"] in live:
+                skipped += 1
+                continue
+            first = s["panes"][0]
+            r = herdr_run(["workspace", "create", "--cwd", first["cwd"], "--label", s["label"], "--no-focus"])
+            wid = find_key(r, "workspace_id") if r is not None else None
+            if not wid:
+                failed += 1
+                continue
+            journal["herdr_workspaces"].append(wid)
+            launched += 1
+            for p in s["panes"][1:]:
+                t = herdr_run(["tab", "create", "--workspace", wid, "--cwd", p["cwd"], "--no-focus"])
+                if t is None:
+                    failed += 1
+                else:
+                    launched += 1
+    return launched, failed, skipped
+
+
+def new_journal():
+    return {"at": now().isoformat(), "before": [c.get("address") for c in hypr_clients()], "classes": [], "herdr_workspaces": []}
+
+
+def cmd_restore(args):
+    parts = tuple(p for p in (args.parts or ",".join(DEFAULT_PARTS)).split(",") if p)
+    if any(p not in PARTS for p in parts):
+        print(json.dumps({"ok": False, "error": "unknown part"}))
+        return 2
+    wanted = None
+    if args.workspaces:
+        try:
+            wanted = {int(x) for x in args.workspaces.split(",") if x}
+        except ValueError:
+            print(json.dumps({"ok": False, "error": "bad workspace list"}))
+            return 2
+    if args.file:
+        path, d = args.file, read_json(args.file)
+    elif pending():
+        path, d = candidate()
+    else:
+        files = layout_files()
+        path = files[-1] if files else None
+        d = read_json(path) if path else None
+    if not isinstance(d, dict):
+        print(json.dumps({"ok": False, "error": "no saved layout"}))
+        return 1
+    running = [c.get("class") for c in hypr_clients()]
+    steps = plan_restore(d, parts, wanted, running)
+    if not args.apply:
+        print(json.dumps({"ok": True, "applied": False, "steps": steps}))
+        return 0
+    journal = new_journal()
+    launched, failed, skipped = apply_steps(steps, journal)
+    write_private(os.path.join(state_dir(), "restore-journal.json"), json.dumps(journal))
+    if not args.workspaces:
+        mark_answered()
+    print(json.dumps({"ok": failed == 0, "applied": True, "launched": launched, "failed": failed, "skipped": skipped}))
+    return 0 if failed == 0 else 1
+
+
+def cmd_undo(args):
+    jp = os.path.join(state_dir(), "restore-journal.json")
+    j = read_json(jp)
+    if not isinstance(j, dict):
+        print(json.dumps({"ok": False, "error": "nothing to undo"}))
+        return 1
+    before = set(j.get("before") or [])
+    classes = set(j.get("classes") or [])
+    closed = 0
+    for c in hypr_clients():
+        addr = str(c.get("address", ""))
+        if addr in before or c.get("class") not in classes or not re.fullmatch(r"0x[0-9a-f]{1,16}", addr):
+            continue
+        batch = "dispatch hl.dsp.focus({ window = \"address:%s\" }) ; dispatch hl.dsp.window.close()" % addr
+        try:
+            subprocess.run([hyprctl_bin(), "--batch", batch], capture_output=True, text=True, timeout=10)
+            closed += 1
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    for wid in j.get("herdr_workspaces") or []:
+        herdr_run(["workspace", "close", wid])
+    try:
+        os.unlink(jp)
+    except OSError:
+        pass
+    print(json.dumps({"ok": True, "closed": closed}))
+    return 0
+
+
+# ---- startup sets -----------------------------------------------------------------------
+def cmd_startup(args):
+    sets = read_json(startup_file(), {}) or {}
+    cmds = sets.get(args.name) if isinstance(sets, dict) else None
+    if not isinstance(cmds, list) or not cmds:
+        print(json.dumps({"ok": False, "error": "no startup set"}))
+        return 1
+    if args.workspace < 1:
+        print(json.dumps({"ok": False, "error": "bad workspace"}))
+        return 2
+    journal = new_journal()
+    steps = []
+    for argv in cmds:
+        if not (isinstance(argv, list) and argv and all(isinstance(a, str) for a in argv)):
+            continue
+        steps.append(launch_step({"class": os.path.basename(argv[0]), "argv": argv, "workspace": args.workspace}, True, args.workspace))
+    if args.plan:
+        print(json.dumps({"ok": True, "applied": False, "steps": steps}))
+        return 0
+    launched, failed, _ = apply_steps(steps, journal)
+    write_private(os.path.join(state_dir(), "restore-journal.json"), json.dumps(journal))
+    print(json.dumps({"ok": failed == 0, "applied": True, "launched": launched, "failed": failed}))
+    return 0 if failed == 0 else 1
+
+
+# ---- scratchpad notes -------------------------------------------------------------------
+def note_path(profile, ext="txt", sub="notes"):
+    slug = str(profile).lower()
+    if not SAFE_SLUG.match(slug):
+        return None
+    return os.path.join(state_dir(), sub, slug + "." + ext)
+
+
+def cmd_note(args):
+    p = note_path(args.profile)
+    if not p:
+        print(json.dumps({"ok": False, "error": "bad profile"}))
+        return 2
+    if args.action == "get":
+        try:
+            text = open(p).read()
+        except OSError:
+            text = ""
+        print(json.dumps({"ok": True, "text": text}))
+        return 0
+    if args.action == "set":
+        text = args.text if args.text is not None else sys.stdin.read(NOTE_MAX + 1)
+        if len(text) > NOTE_MAX:
+            print(json.dumps({"ok": False, "error": "note too long"}))
+            return 1
+        write_private(p, text)
+        print(json.dumps({"ok": True}))
+        return 0
+    # save: a dated copy under notes/saved, local only
+    try:
+        text = open(p).read()
+    except OSError:
+        text = ""
+    if not text.strip():
+        print(json.dumps({"ok": False, "error": "empty note"}))
+        return 1
+    stamp = now().strftime("%Y%m%d-%H%M%S")
+    out = note_path(args.profile + "-" + stamp, "md", "saved")
+    if not out:
+        print(json.dumps({"ok": False, "error": "bad name"}))
+        return 2
+    write_private(out, text)
+    print(json.dumps({"ok": True, "file": out}))
+    return 0
+
+
+SAFE_PRESET = re.compile(r"^[a-z][a-z0-9-]{0,23}$")
+
+
+def cmd_pref(args):
+    path = os.path.join(state_dir(), "prefs.json")
+    prefs = read_json(path, {}) or {}
+    if not isinstance(prefs, dict):
+        prefs = {}
+    if not SAFE_SLUG.match(str(args.profile).lower()):
+        print(json.dumps({"ok": False, "error": "bad profile"}))
+        return 2
+    key = args.profile.lower()
+    if args.action == "get":
+        print(json.dumps({"ok": True, "value": str((prefs.get("layout") or {}).get(key, ""))}))
+        return 0
+    if not args.value or not SAFE_PRESET.match(args.value):
+        print(json.dumps({"ok": False, "error": "bad value"}))
+        return 2
+    prefs.setdefault("layout", {})[key] = args.value
+    write_private(path, json.dumps(prefs))
+    print(json.dumps({"ok": True}))
+    return 0
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="dots-layout", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    s = sub.add_parser("save"); s.add_argument("--force", action="store_true"); s.set_defaults(fn=cmd_save)
+    s = sub.add_parser("status"); s.set_defaults(fn=cmd_status)
+    s = sub.add_parser("dismiss"); s.set_defaults(fn=cmd_dismiss)
+    s = sub.add_parser("restore")
+    s.add_argument("--apply", action="store_true")
+    s.add_argument("--parts", default="")
+    s.add_argument("--workspaces", default="")
+    s.add_argument("--file", default="")
+    s.set_defaults(fn=cmd_restore)
+    s = sub.add_parser("undo"); s.set_defaults(fn=cmd_undo)
+    s = sub.add_parser("startup")
+    s.add_argument("--workspace", type=int, required=True)
+    s.add_argument("--name", required=True)
+    s.add_argument("--plan", action="store_true")
+    s.set_defaults(fn=cmd_startup)
+    s = sub.add_parser("note")
+    s.add_argument("action", choices=["get", "set", "save"])
+    s.add_argument("--profile", required=True)
+    s.add_argument("--text", default=None)
+    s.set_defaults(fn=cmd_note)
+    s = sub.add_parser("pref")
+    s.add_argument("action", choices=["get", "set"])
+    s.add_argument("--profile", required=True)
+    s.add_argument("--value", default="")
+    s.set_defaults(fn=cmd_pref)
+    a = ap.parse_args(argv)
+    adopt_hyprland_instance()
+    return a.fn(a)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

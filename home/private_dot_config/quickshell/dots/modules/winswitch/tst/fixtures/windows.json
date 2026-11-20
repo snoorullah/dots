@@ -1,0 +1,18 @@
+{
+  "activeWs": 2,
+  "activeAddr": "0xa2",
+  "windows": [
+    {"addr": "0xa1", "cls": "code", "title": "switcher.qml - dots", "wsId": 2, "focusHist": 3},
+    {"addr": "0xa2", "cls": "foot", "title": "zsh - ~/dots (git status)", "wsId": 2, "focusHist": 0},
+    {"addr": "0xa3", "cls": "zen-beta", "title": "Hyprland groups - docs", "wsId": 3, "focusHist": 1,
+      "tabs": ["Hyprland groups - docs", "Quickshell keyboard grab", "hl.dsp.focus reference"]},
+    {"addr": "0xa4", "cls": "thunderbird", "title": "Inbox (4)", "wsId": 4, "focusHist": 5},
+    {"addr": "0xa5", "cls": "slack", "title": "Team channel - design", "wsId": 4, "focusHist": 6},
+    {"addr": "0xa6", "cls": "md.obsidian.Obsidian", "title": "Switcher spec - review notes", "wsId": 5, "focusHist": 2},
+    {"addr": "0xa7", "cls": "mpv", "title": "Lecture 07 - graphs", "wsId": 5, "focusHist": 7, "hidden": true},
+    {"addr": "0xa8", "cls": "spotify", "title": "Slow Orbit - queue", "wsId": 8, "focusHist": 4},
+    {"addr": "0xa9", "cls": "org.gnome.Nautilus", "title": "Downloads", "wsId": 1, "focusHist": 8},
+    {"addr": "0xaa", "cls": "org.gnome.Calculator", "title": "Calculator", "wsId": -99, "special": true, "focusHist": 9}
+  ],
+  "pins": {"0xa1": "TICKET-123", "0xa2": "TICKET-123", "0xa3": "TICKET-123", "0xa6": "TICKET-123"}
+}

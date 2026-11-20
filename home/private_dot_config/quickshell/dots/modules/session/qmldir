@@ -1,0 +1,10 @@
+module qs.modules.session
+singleton SessIcons 1.0 SessIcons.qml
+SessGlyph 1.0 SessGlyph.qml
+AwayList 1.0 AwayList.qml
+AwayPicker 1.0 AwayPicker.qml
+SessionCard 1.0 SessionCard.qml
+SessionMenu 1.0 SessionMenu.qml
+PolkitCard 1.0 PolkitCard.qml
+PolkitPrompt 1.0 PolkitPrompt.qml
+AwayReturn 1.0 AwayReturn.qml

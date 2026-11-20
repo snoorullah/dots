@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+"""dots-launch-emoji: emoji and symbol table for the launcher (prefix `e:`).
+
+  dots-launch-emoji query <text>
+  dots-launch-emoji act <verb> <glyph>      copy (never types into a window)
+
+The table is built from `unicodedata` (names) plus a small keyword list; nothing to download.
+Recents live in $DOTS_LAUNCHER_STATE (default ~/.local/state/dots-launcher)/emoji.json.
+Env: DOTS_FC_CHARSET_MISSING (hex codepoints forced to tofu, tests), DOTS_LAUNCH_EXEC_LOG.
+"""
+import json, os, shutil, subprocess, sys, unicodedata
+
+RANGES = [("Arrows", 0x2190, 0x21FF), ("Math", 0x2200, 0x22FF), ("Punctuation", 0x2010, 0x2027),
+          ("Currency", 0x20A0, 0x20C0), ("Symbols", 0x2600, 0x27BF), ("Marks", 0xA0, 0xBF),
+          ("Arabic", 0xFD3E, 0xFD3F), ("Arabic", 0xFDF2, 0xFDFD), ("Symbols", 0x2B00, 0x2BFF),
+          ("Emoji", 0x1F300, 0x1F64F), ("Emoji", 0x1F680, 0x1F6FF), ("Emoji", 0x1F900, 0x1FAFF)]
+EXTRA = {0x24: "Currency", 0xD7: "Math", 0xF7: "Math", 0x2122: "Marks", 0x2705: "Symbols"}
+KW = {
+    0x2713: "tick,yes,done,ok", 0x2714: "tick,yes,done", 0x2705: "ok,done,complete", 0x1F44C: "ok,perfect,fine",
+    0x2717: "cross,no,wrong", 0x2192: "arrow,next,right", 0x2190: "arrow,back,left", 0x21BB: "reload,loop,refresh",
+    0x1F501: "loop,again,cycle", 0x2014: "dash,break,pause", 0x2013: "range,dash,hyphen", 0xB0: "temperature,angle,celsius",
+    0xD7: "times,multiply,x", 0x20AC: "money,eur,currency", 0x1F642: "smile,happy,friendly", 0x1F44D: "approve,like,yes",
+    0x1F389: "celebrate,tada,congrats", 0x1F525: "hot,flame,lit", 0x1F680: "launch,ship,space", 0x1F44B: "hello,bye,greet",
+    0x1F319: "night,moon,lunar", 0x2728: "shiny,new,clean", 0x2615: "coffee,tea,break", 0x1F511: "lock,access,secret",
+    0x1F3C1: "finish,race,done", 0xFDFA: "salutation,prophet,peace", 0xFDFD: "basmala,begin,opening",
+    0x221E: "endless,forever,math", 0x2248: "approx,about,math", 0x2260: "different,unequal,math",
+}
+ALIAS = {0x2713: "ok", 0x2192: "->", 0x2190: "<-", 0x2122: "tm", 0x1F44D: "+1"}
+SC = {0x1F44D: ":thumbsup:", 0x1F389: ":tada:", 0x1F525: ":fire:", 0x1F680: ":rocket:", 0x1F44B: ":wave:",
+      0x1F642: ":slightly_smiling_face:", 0x2705: ":white_check_mark:", 0x1F44C: ":ok_hand:", 0x2728: ":sparkles:"}
+
+
+def out(o):
+    sys.stdout.write(json.dumps(o, ensure_ascii=False) + "\n")
+
+
+def state_path():
+    return os.path.join(os.environ.get("DOTS_LAUNCHER_STATE") or os.path.expanduser("~/.local/state/dots-launcher"), "emoji.json")
+
+
+def load_state():
+    try:
+        return json.load(open(state_path()))
+    except (OSError, ValueError):
+        return {"recent": []}
+
+
+def save_state(st):
+    try:
+        os.makedirs(os.path.dirname(state_path()), mode=0o700, exist_ok=True)
+        json.dump(st, open(state_path(), "w"))
+    except OSError:
+        pass
+
+
+_TABLE = None
+
+
+def table():
+    global _TABLE
+    if _TABLE is not None:
+        return _TABLE
+    seen, rows = set(), []
+    spans = [(c, a, b) for c, a, b in RANGES] + [(c, cp, cp) for cp, c in EXTRA.items()]
+    for cat, a, b in spans:
+        for cp in range(a, b + 1):
+            if cp in seen:
+                continue
+            try:
+                name = unicodedata.name(chr(cp)).lower()
+            except ValueError:
+                continue
+            if unicodedata.category(chr(cp)) in ("Cc", "Cs", "Mn", "Me", "Cn") or "variation selector" in name:
+                continue
+            seen.add(cp)
+            rows.append({"cp": cp, "name": name, "cat": cat})
+    _TABLE = rows
+    return rows
+
+
+def glyph(cp):
+    return chr(cp)
+
+
+def tofu(cp):
+    missing = [int(x, 16) for x in os.environ.get("DOTS_FC_CHARSET_MISSING", "").split() if x]
+    if cp in missing:
+        return True
+    if "DOTS_FC_CHARSET_MISSING" in os.environ or not shutil.which("fc-list"):
+        return False
+    try:
+        p = subprocess.run(["fc-list", ":charset=%x" % cp, "family"], capture_output=True, text=True, timeout=3)
+        return not p.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def score(e, toks):
+    hay_name = e["name"]
+    kws = KW.get(e["cp"], "").replace(",", " ")
+    sc = SC.get(e["cp"], ":" + hay_name.replace(" ", "_") + ":")
+    al = ALIAS.get(e["cp"], "")
+    best = 0.0
+    total = 0.0
+    for t in toks:
+        if t == hay_name or t == al:
+            s = 1.0
+        elif t in kws.split() or any(w.startswith(t) for w in kws.split()):
+            s = 0.8
+        elif any(w.startswith(t) for w in hay_name.split()):
+            s = 0.7
+        elif t in hay_name or t in sc or t in al:
+            s = 0.5
+        else:
+            return 0.0
+        total += s
+    best = total / len(toks)
+    return round(best, 3)
+
+
+def row(e, group=None):
+    cp = e["cp"]
+    g = glyph(cp)
+    code = "U+%04X" % cp
+    sc = SC.get(cp, ":" + e["name"].replace(" ", "_") + ":") if cp >= 0x1F000 else ""
+    nm = e["name"].capitalize()
+    t = tofu(cp)
+    body = "%s\n%s%s" % (nm, code, "  " + sc if sc else "")
+    if t:
+        body += "\nNo installed font draws this glyph yet. It may show as a box in some apps."
+    acts = [{"label": "Copy", "primary": True, "verb": "copy", "arg": g},
+            {"label": "Copy code", "verb": "copy", "arg": code},
+            {"label": "Add to tray", "verb": "tray", "arg": g}]
+    r = {"key": code, "title": nm, "sub": code + ("  " + sc if sc else ""), "icon": "smiley", "glyph": g,
+         "score": 0.5, "preview": {"head": g, "body": body, "glyph": g}, "actions": acts, "tofu": t}
+    if t:
+        r["chips"] = [{"t": "may show as a box", "tone": "warn"}]
+    if group:
+        r["group"] = group
+    return r
+
+
+def query(q):
+    q = q.strip().lower()
+    tab = table()
+    st = load_state()
+    if not q:
+        by = {e["cp"]: e for e in tab}
+        rec = [by[c] for c in st.get("recent", []) if c in by][:12]
+        rows = [row(e, "Recent" if i == 0 else None) for i, e in enumerate(rec)]
+        if not rows:
+            order = ["Emoji", "Arrows", "Math", "Punctuation", "Currency", "Marks", "Symbols", "Arabic"]
+            picks = [e for e in tab if e["cp"] in KW]
+            picks.sort(key=lambda e: (order.index(e["cat"]) if e["cat"] in order else 99, e["cp"]))
+            last = None
+            for e in picks:
+                rows.append(row(e, e["cat"] if e["cat"] != last else None))
+                last = e["cat"]
+        return {"rows": rows, "hint": "Type a name or keyword. Recent glyphs appear here." if not rec else ""}
+    toks = q.split()
+    scored = [(score(e, toks), e) for e in tab]
+    scored = [(s, e) for s, e in scored if s > 0]
+    rec = st.get("recent", [])
+    scored.sort(key=lambda t: (-(t[0] + (0.1 if t[1]["cp"] in rec else 0)), t[1]["cp"]))
+    rows = []
+    for s, e in scored[:30]:
+        r = row(e)
+        r["score"] = s
+        rows.append(r)
+    return {"rows": rows, "hint": "" if rows else "No glyph matches " + q}
+
+
+def execute(argv):
+    log = os.environ.get("DOTS_LAUNCH_EXEC_LOG")
+    if log:
+        open(log, "a").write(json.dumps(argv) + "\n")
+        return True
+    try:
+        return subprocess.run(argv, timeout=5).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def remember(g):
+    if len(g) != 1:
+        return
+    st = load_state()
+    cp = ord(g)
+    st["recent"] = [cp] + [c for c in st.get("recent", []) if c != cp][:19]
+    save_state(st)
+
+
+def act(verb, arg):
+    if verb == "copy":
+        if not execute(["wl-copy", arg]):
+            return {"error": "wl-copy failed"}
+        remember(arg)
+        return {"toast": "Copied " + arg, "close": True}
+    if verb == "type":
+        return {"error": "copy only: emoji never types into the focused window"}
+    if verb == "tray":
+        return {"toast": "", "close": False}
+    return {"error": "unknown verb " + verb}
+
+
+def main(argv):
+    if len(argv) >= 2 and argv[1] == "query":
+        out(query(" ".join(argv[2:])))
+    elif len(argv) == 4 and argv[1] == "act":
+        out(act(argv[2], argv[3]))
+    else:
+        out({"rows": [], "error": "usage: dots-launch-emoji query <text> | act <verb> <glyph>"})
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

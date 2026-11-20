@@ -1,0 +1,5 @@
+module qs.modules.logomenu
+LogoPanel 1.0 LogoPanel.qml
+LogoMenu 1.0 LogoMenu.qml
+Dispatcher 1.0 Dispatcher.qml
+LogoCtl 1.0 LogoCtl.qml

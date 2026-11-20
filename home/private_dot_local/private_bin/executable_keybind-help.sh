@@ -33,7 +33,11 @@ read -r -d '' ROWS <<'EOF'
   Super + Scroll ↑ / ↓    Previous / next workspace
 ━━━━━━━  LAUNCHERS  (otter)  ━━━━━━━
   Super + D               otter-launcher — main panel
-  Super + Space           Apps
+  Super + Space           Launcher — apps, clipboard, files, math, emoji, hosts
+  Super + Alt + Space     otter-launcher — apps (was Super + Space)
+  Alt + Tab               Window switcher — hold Alt, Tab to cycle, release to pick
+  Alt + Shift + Tab       Window switcher — cycle backwards
+  Alt + Alt_L             Window switcher — release Alt to pick
   Super + Tab             Profiles and workspaces (switcher)
   Super + Alt + Tab       Windows
   Super + Shift + S       Run a command
@@ -50,7 +54,7 @@ read -r -d '' ROWS <<'EOF'
   Super + Shift + M       YouTube Music
   Super + Shift + E       Power menu
   Super + Ctrl + S        System menu
-  Super + C               Clipboard history (clipse)
+  Super + C               Clipboard history (launcher, c: mode)
   Super + Shift + B       Bluetooth (bluetuith)
   Super + Shift + W       Wallpaper picker
 ━━━━━━━  TASKS  /  ADHD  ━━━━━━━
@@ -85,7 +89,13 @@ read -r -d '' ROWS <<'EOF'
   Print                   Region screenshot
   Super + Print           Full-screen screenshot
 ━━━━━━━  SESSION  ━━━━━━━
-  Super + Escape          Break — say why, then lock (timer on the lock screen)
+  Super + Escape          Away — say why, then lock (terminal picker if Quickshell is down)
+  Super + Alt + E         Session menu — lock, log out, suspend, reboot, power off
+  Super + Alt + W         Wallpaper picker card
+  Super + Alt + L         Logo menu
+  Super + Alt + T         Tiling assistant
+  Super + Alt + R         Restore the saved window layout (asks first)
+  Super + grave           Scratchpad note for this profile
   Super + Shift + F12     Performance mode (power profile + do-not-disturb)
   Super + I               Show / hide waybar — toggle bar (zen mode)
   Super + Shift + C / R   Reload Hyprland config

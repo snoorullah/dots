@@ -1,0 +1,7 @@
+module qs.modules.winswitch.parts
+Tag 1.0 Tag.qml
+Card 1.0 Card.qml
+ListRow 1.0 ListRow.qml
+HintRow 1.0 HintRow.qml
+ScopeBar 1.0 ScopeBar.qml
+QueryBar 1.0 QueryBar.qml

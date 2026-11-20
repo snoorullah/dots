@@ -15,6 +15,7 @@ Item {
   signal picked(string addr)
   signal move(string name)
   signal retry(string addr)
+  signal suggested(string name)
 
   objectName: "winRow"
   implicitHeight: head.height + (w.sel ? extra.height + Theme.space.xl : 0) + (w.err ? errRow.height + Theme.space.m : 0)
@@ -31,22 +32,48 @@ Item {
     id: head
     width: parent.width
     height: 40
+    Chip { id: tile; x: Theme.space.xl; anchors.verticalCenter: parent.verticalCenter; icon: root.w.icon || "squares-four"; tone: root.w.app === "browser" || root.w.app === "editor" ? Theme.color.accent : Theme.color.fgDim }
     Row {
-      anchors.fill: parent
-      anchors.leftMargin: Theme.space.xl
+      id: tail
+      anchors.right: parent.right
       anchors.rightMargin: Theme.space.xl
-      spacing: Theme.space.xl - 2
-      Chip { anchors.verticalCenter: parent.verticalCenter; icon: root.w.icon || "squares-four"; tone: root.w.app === "browser" || root.w.app === "editor" ? Theme.color.accent : Theme.color.fgDim }
-      DText {
-        objectName: "winTitle"
+      anchors.verticalCenter: parent.verticalCenter
+      spacing: Theme.space.l
+      Rectangle {
+        id: sug
+        objectName: "suggestChip"
+        visible: !!root.w.suggest && !root.w.masked
         anchors.verticalCenter: parent.verticalCenter
-        width: parent.width - 24 - 12 - 2 * (Theme.space.xl - 2)
-        text: root.w.title || ""
-        role: "bodyS"
-        elide: Text.ElideRight
-        textFormat: Text.PlainText
+        width: sugText.implicitWidth + 2 * Theme.space.l
+        height: 22
+        radius: 11
+        color: sugMa.containsMouse ? Qt.alpha(Theme.color.accent, Theme.alpha.hover) : "transparent"
+        border.width: 1
+        border.color: Theme.color.accent
+        Cap { id: sugText; anchors.centerIn: parent; text: (root.w.suggest || "") + "?"; color: Theme.color.accent; dim: false }
+        MouseArea { id: sugMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.suggested(root.w.suggest) }
       }
-      Dot { anchors.verticalCenter: parent.verticalCenter; kind: root.w.state || "running" }
+      Row {
+        objectName: "pausedTag"
+        visible: !!root.w.resumed
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: Theme.space.s + 2
+        Gly { anchors.verticalCenter: parent.verticalCenter; name: "pause"; box: 14; color: Theme.color.fgDim }
+        Cap { anchors.verticalCenter: parent.verticalCenter; text: "resumed paused" }
+      }
+      Dot { anchors.verticalCenter: parent.verticalCenter; visible: root.w.state !== "paused"; kind: root.w.state || "running" }
+    }
+    DText {
+      objectName: "winTitle"
+      x: tile.x + tile.width + Theme.space.xl - 2
+      anchors.verticalCenter: parent.verticalCenter
+      width: Math.max(40, tail.x - x - Theme.space.l)
+      text: root.w.title || ""
+      role: "bodyS"
+      elide: Text.ElideRight
+      textFormat: Text.PlainText
+      dim: !!root.w.masked
+      font.italic: !!root.w.masked
     }
     MouseArea {
       id: ma
@@ -54,6 +81,7 @@ Item {
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       onClicked: root.picked(root.w.addr)
+      z: -1
     }
   }
 

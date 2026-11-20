@@ -1,0 +1,20 @@
+{
+  "folder": { "name": "Wallpapers", "count": 12, "skipped": 0, "exists": true },
+  "cur": "/w/wallpaper-03.png",
+  "monitors": ["DP-1", "HDMI-A-1"],
+  "items": [
+    { "name": "wallpaper-01", "path": "/w/wallpaper-01.png", "rel": "wallpaper-01.png", "ok": true, "fav": true },
+    { "name": "wallpaper-02", "path": "/w/wallpaper-02.png", "rel": "wallpaper-02.png", "ok": true, "fav": false },
+    { "name": "wallpaper-03", "path": "/w/wallpaper-03.png", "rel": "wallpaper-03.png", "ok": true, "fav": false },
+    { "name": "wallpaper-04", "path": "/w/wallpaper-04.png", "rel": "wallpaper-04.png", "ok": false, "fav": false },
+    { "name": "wallpaper-05", "path": "/w/wallpaper-05.png", "rel": "wallpaper-05.png", "ok": true, "fav": false },
+    { "name": "wallpaper-06", "path": "/w/wallpaper-06.png", "rel": "wallpaper-06.png", "ok": true, "fav": true },
+    { "name": "wallpaper-07", "path": "/w/wallpaper-07.png", "rel": "wallpaper-07.png", "ok": true, "fav": false },
+    { "name": "wallpaper-08", "path": "/w/wallpaper-08.png", "rel": "wallpaper-08.png", "ok": true, "fav": false }
+  ],
+  "pals": {
+    "/w/wallpaper-03.png": { "surface": "#0f1a1f", "text": "#e7edf0", "ratio": 14.1, "tuned": false, "tunedText": "#e7edf0", "tags": ["dark", "calm", "cool"] },
+    "/w/wallpaper-05.png": { "surface": "#2a1a1c", "text": "#e9dede", "ratio": 11.0, "tuned": false, "tunedText": "#e9dede", "tags": ["dark", "calm", "warm"] },
+    "/w/wallpaper-08.png": { "surface": "#c7d3d8", "text": "#5f6f76", "ratio": 2.6, "tuned": true, "tunedText": "#1a2a31", "tags": ["light", "calm", "cool"] }
+  }
+}

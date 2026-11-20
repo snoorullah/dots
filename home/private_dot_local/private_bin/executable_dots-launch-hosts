@@ -1,0 +1,331 @@
+#!/usr/bin/env python3
+"""dots-launch-hosts: ssh hosts for the launcher (prefix `h:`).
+
+  dots-launch-hosts query <text>
+  dots-launch-hosts act <verb> <alias or user@host[:port]>
+      connect | focus | copy-ssh | copy-host | edit | forget | stub
+
+Hosts = `Host` entries of ~/.ssh/config (no wildcards). Tags come from a comment right above the
+entry: `# tags: db prod`. Reachability is NOT probed (nothing talks to a host from the launcher).
+Env: DOTS_SSH_CONFIG, DOTS_LAUNCHER_STATE, DOTS_HERDR_PANES (json file, tests), DOTS_LAUNCH_EXEC_LOG.
+"""
+import glob, json, os, re, shlex, subprocess, sys, time
+
+ADHOC = re.compile(r"^(?:[A-Za-z0-9_][A-Za-z0-9._-]*@)?[A-Za-z0-9][A-Za-z0-9.-]*(?::\d{1,5})?$")
+
+
+def out(o):
+    sys.stdout.write(json.dumps(o, ensure_ascii=False) + "\n")
+
+
+def cfg_path():
+    return os.environ.get("DOTS_SSH_CONFIG") or os.path.expanduser("~/.ssh/config")
+
+
+def state_path():
+    return os.path.join(os.environ.get("DOTS_LAUNCHER_STATE") or os.path.expanduser("~/.local/state/dots-launcher"), "hosts.json")
+
+
+def load_state():
+    try:
+        return json.load(open(state_path()))
+    except (OSError, ValueError):
+        return {}
+
+
+def save_state(st):
+    try:
+        os.makedirs(os.path.dirname(state_path()), mode=0o700, exist_ok=True)
+        json.dump(st, open(state_path(), "w"))
+    except OSError:
+        pass
+
+
+def parse(path, depth=0):
+    """-> (hosts dict alias -> fields, defaults dict, error or None)"""
+    hosts, defaults = {}, {}
+    try:
+        lines = open(path, encoding="utf-8", errors="replace").read().splitlines()
+    except OSError as e:
+        return hosts, defaults, ("%s: %s" % (path, e.strerror or "unreadable"))
+    cur, tags = [], []
+    for raw in lines:
+        s = raw.strip()
+        if not s:
+            tags = []
+            continue
+        if s.startswith("#"):
+            m = re.match(r"#\s*tags?:\s*(.*)$", s, re.I)
+            if m:
+                tags = m.group(1).replace(",", " ").split()
+            continue
+        m = re.match(r"(\S+?)\s*(?:=|\s)\s*(.*)$", s)
+        if not m:
+            continue
+        key, val = m.group(1).lower(), m.group(2).strip().strip('"')
+        if key == "include" and depth < 2:
+            base = os.path.dirname(path)
+            for pat in shlex.split(val):
+                pat = pat if os.path.isabs(pat) else os.path.join(base, pat)
+                for f in sorted(glob.glob(os.path.expanduser(pat))):
+                    h, d, _ = parse(f, depth + 1)
+                    hosts.update(h)
+                    for k, v in d.items():
+                        defaults.setdefault(k, v)
+            continue
+        if key == "host":
+            cur = []
+            for a in val.split():
+                if any(c in a for c in "*?!"):
+                    if a == "*":
+                        cur.append("*")
+                    continue
+                cur.append(a)
+                hosts[a] = {"alias": a, "tags": tags[:]}
+            tags = []
+            continue
+        for a in cur:
+            tgt = defaults if a == "*" else hosts[a]
+            tgt.setdefault(key, val)
+    return hosts, defaults, None
+
+
+def load_hosts():
+    hosts, defaults, err = parse(cfg_path())
+    rows = {}
+    for a, h in hosts.items():
+        if a.startswith("-"):
+            continue
+        rows[a] = {
+            "alias": a, "tags": h.get("tags", []), "host": h.get("hostname", a),
+            "user": h.get("user", defaults.get("user", "")), "port": int(h.get("port", defaults.get("port", 22)) or 22),
+            "via": h.get("proxyjump", defaults.get("proxyjump", "")),
+            "key": os.path.basename(h.get("identityfile", defaults.get("identityfile", ""))),
+        }
+    return rows, err
+
+
+def panes():
+    p = os.environ.get("DOTS_HERDR_PANES")
+    if p:
+        try:
+            return json.load(open(p)).get("panes", [])
+        except (OSError, ValueError):
+            return []
+    try:
+        r = subprocess.run(["herdr", "pane", "list"], capture_output=True, text=True, timeout=3)
+        return json.loads(r.stdout).get("result", {}).get("panes", [])
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return []
+
+
+def open_panes(alias, plist):
+    pat = re.compile(r"(?<![\w.-])ssh\s+(?:\S+\s+)*(?:\S+@)?%s(?![\w.-])" % re.escape(alias))
+    out_ = []
+    for p in plist:
+        t = " ".join(str(p.get(k, "")) for k in ("terminal_title_stripped", "terminal_title", "label", "command"))
+        if pat.search(t):
+            out_.append(p)
+    return out_
+
+
+def ago(ts):
+    d = max(0, int(time.time() - ts))
+    for n, u in ((86400 * 14, "w"), (86400, "d"), (3600, "h"), (60, "m")):
+        if d >= n:
+            return "%d%s" % (d // n, u)
+    return "now"
+
+
+def ssh_cmd(h):
+    return "ssh " + h["alias"]
+
+
+def match_score(h, q):
+    ql = q.lower()
+    a = h["alias"].lower()
+    if a == ql:
+        return 1.0
+    if a.startswith(ql):
+        return 0.9
+    if ql in a:
+        return 0.8
+    if ql in h["host"].lower():
+        return 0.6
+    if any(ql in t.lower() for t in h["tags"]) or ql in h["user"].lower():
+        return 0.5
+    it = iter(a)
+    return 0.4 if all(c in it for c in ql) else 0.0
+
+
+def hl(alias, q):
+    if not q:
+        return []
+    i = alias.lower().find(q.lower())
+    return list(range(i, i + len(q))) if i >= 0 else []
+
+
+def host_row(h, st, plist, q, group=None):
+    opens = open_panes(h["alias"], plist)
+    last = st.get(h["alias"], {}).get("last", 0)
+    sub = "%s%s:%d%s" % (h["user"] + "@" if h["user"] else "", h["host"], h["port"], " · via " + h["via"] if h["via"] else "")
+    chips = [{"t": t, "tone": "warn" if t == "prod" else "muted"} for t in h["tags"][:3]]
+    if opens:
+        chips.append({"t": "%d open" % len(opens), "tone": "accent"})
+    body = ["%s" % ssh_cmd(h)]
+    if h["via"]:
+        body.append("Jump host: " + h["via"])
+    if h["key"]:
+        body.append("Key: " + h["key"])
+    if h["tags"]:
+        body.append("Tags: " + ", ".join(h["tags"]))
+    body.append("Last used: " + (ago(last) + " ago" if last else "never"))
+    body.append("Open sessions: %d" % len(opens))
+    body.append("Reachability: not checked")
+    verb = "focus" if opens else "connect"
+    a = h["alias"]
+    acts = [{"label": "Focus" if opens else "Open", "primary": True, "verb": verb, "arg": a},
+            {"label": "Copy ssh command", "verb": "copy-ssh", "arg": a},
+            {"label": "SFTP in file pane", "verb": "stub", "arg": a, "disabled": True},
+            {"label": "Port-forward", "verb": "stub", "arg": a, "disabled": True},
+            {"label": "Run one command", "verb": "stub", "arg": a, "disabled": True},
+            {"label": "Edit config entry", "verb": "edit", "arg": a},
+            {"label": "Copy hostname", "verb": "copy-host", "arg": a},
+            {"label": "Forget host key", "verb": "forget", "arg": a, "danger": True}]
+    r = {"key": a, "title": a, "sub": sub, "icon": "terminal-window", "score": round(match_score(h, q), 3) if q else 0.5,
+         "hl": hl(a, q), "chips": chips, "open": len(opens), "reach": "unk", "last": ago(last) if last else "",
+         "preview": {"head": a, "body": "\n".join(body)}, "actions": acts}
+    if group:
+        r["group"] = group
+    return r
+
+
+def is_adhoc(q, hosts):
+    return bool(q) and bool(ADHOC.match(q)) and ("@" in q or "." in q or ":" in q) and not any(match_score(h, q) > 0 for h in hosts.values())
+
+
+def adhoc_row(q):
+    return {"key": "adhoc:" + q, "title": "Connect to " + q, "sub": "New session, runs ssh %s. Not saved to config." % q,
+            "icon": "terminal-window", "score": 1.0, "group": "Connect",
+            "preview": {"head": q, "body": "After a successful connect, Save to ssh config is offered. Never before."},
+            "actions": [{"label": "Connect", "primary": True, "verb": "connect", "arg": q}]}
+
+
+def query(q):
+    q = q.strip()
+    hosts, err = load_hosts()
+    st = load_state()
+    if err and not hosts:
+        if not os.path.exists(cfg_path()):
+            return {"rows": [], "hint": "No hosts yet. Type user@host to connect, or add Host entries to ~/.ssh/config"}
+        return {"rows": [], "error": err}
+    if is_adhoc(q, hosts):
+        return {"rows": [adhoc_row(q)], "hint": ""}
+    plist = panes()
+    if q:
+        sc = sorted(((match_score(h, q), h) for h in hosts.values()), key=lambda t: (-t[0], -st.get(t[1]["alias"], {}).get("last", 0), t[1]["alias"]))
+        rows = [host_row(h, st, plist, q) for s, h in sc if s > 0]
+        return {"rows": rows, "hint": "No host matches " + q}
+    recent = sorted((h for h in hosts.values() if st.get(h["alias"], {}).get("last")), key=lambda h: -st[h["alias"]]["last"])
+    rest = sorted((h for h in hosts.values() if not st.get(h["alias"], {}).get("last")), key=lambda h: h["alias"])
+    rows = [host_row(h, st, plist, "", "Recent" if i == 0 else None) for i, h in enumerate(recent)]
+    rows += [host_row(h, st, plist, "", "All hosts" if i == 0 else None) for i, h in enumerate(rest)]
+    return {"rows": rows, "hint": "No hosts yet. Type user@host to connect."}
+
+
+def execute(argv, detach=False):
+    log = os.environ.get("DOTS_LAUNCH_EXEC_LOG")
+    if log:
+        open(log, "a").write(json.dumps(argv) + "\n")
+        return "", True
+    try:
+        if detach:
+            subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            return "", True
+        r = subprocess.run(argv, capture_output=True, text=True, timeout=8)
+        return r.stdout, r.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return "", False
+
+
+def resolve(arg, hosts):
+    if arg.startswith("-"):
+        return None
+    if arg in hosts:
+        return {"argv": ["ssh", arg], "alias": arg, "host": hosts[arg]["host"]}
+    if ADHOC.match(arg):
+        m = re.match(r"^(.*?)(?::(\d+))?$", arg)
+        target, port = m.group(1), m.group(2)
+        return {"argv": ["ssh"] + (["-p", port] if port else []) + [target], "alias": arg, "host": target.split("@")[-1]}
+    return None
+
+
+def remember(alias):
+    st = load_state()
+    e = st.get(alias, {})
+    st[alias] = {"last": int(time.time()), "count": e.get("count", 0) + 1}
+    save_state(st)
+
+
+def new_pane_and_run(argv):
+    plist = panes()
+    focused = next((p["pane_id"] for p in plist if p.get("focused")), plist[0]["pane_id"] if plist else None)
+    if not focused:
+        return False
+    so, ok = execute(["herdr", "pane", "split", focused])
+    if not ok:
+        return False
+    new = focused
+    try:
+        res = json.loads(so).get("result", {})
+        new = res.get("pane", {}).get("pane_id") or res.get("pane_id") or focused
+    except (ValueError, AttributeError):
+        pass
+    _, ok = execute(["herdr", "pane", "run", new] + argv)
+    return ok
+
+
+def act(verb, arg):
+    hosts, _ = load_hosts()
+    t = resolve(arg, hosts)
+    if verb == "stub":
+        return {"toast": "Not available yet", "close": False}
+    if not t:
+        return {"error": "not a known host: " + arg}
+    if verb == "connect":
+        if not new_pane_and_run(t["argv"]):
+            return {"error": "could not open a herdr pane"}
+        remember(t["alias"])
+        return {"toast": "Opening " + arg, "close": True}
+    if verb == "focus":
+        for p in open_panes(arg, panes()):
+            _, ok = execute(["herdr", "tab", "focus", p["tab_id"]])
+            return {"toast": "", "close": True} if ok else {"error": "could not focus the session"}
+        return act("connect", arg)
+    if verb == "copy-ssh":
+        _, ok = execute(["wl-copy", " ".join(t["argv"])])
+        return {"toast": "Copied: " + " ".join(t["argv"]), "close": True} if ok else {"error": "wl-copy failed"}
+    if verb == "copy-host":
+        _, ok = execute(["wl-copy", t["host"]])
+        return {"toast": "Copied: " + t["host"], "close": True} if ok else {"error": "wl-copy failed"}
+    if verb == "edit":
+        _, ok = execute(["xdg-open", cfg_path()], detach=True)
+        return {"toast": "", "close": True} if ok else {"error": "could not open the config"}
+    if verb == "forget":
+        _, ok = execute(["ssh-keygen", "-R", t["host"]])
+        return {"toast": "Forgot host key for " + t["host"], "close": False} if ok else {"error": "ssh-keygen failed"}
+    return {"error": "unknown verb " + verb}
+
+
+def main(argv):
+    if len(argv) >= 2 and argv[1] == "query":
+        out(query(" ".join(argv[2:])))
+    elif len(argv) == 4 and argv[1] == "act":
+        out(act(argv[2], argv[3]))
+    else:
+        out({"rows": [], "error": "usage: dots-launch-hosts query <text> | act <verb> <host>"})
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

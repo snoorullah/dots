@@ -1,0 +1,354 @@
+#!/usr/bin/env python3
+"""dots-launch-kube: kubeconfig contexts for the launcher (prefix `k:`). Read-only by default.
+
+  dots-launch-kube query <text>             contexts (tier words filter: prod staging dev local)
+  dots-launch-kube namespaces <context>     namespace rows, recent first
+  dots-launch-kube act <verb> <arg>
+      use <ctx>   set-ns <ctx>/<ns>   undo   peek <ctx>   probe <ctx>   confirm <ctx>
+
+Only these write anything: `use` (kubectl config use-context), `set-ns` (kubectl config set-context
+--namespace) and our own state file. Switching always asks first (`confirm` returns the card text).
+Tiers: ~/.config/dots-launcher/kube-tiers.json
+  {"contexts": {"<name>": "prod"}, "aliases": {"<name>": "Pretty"}, "patterns": {"prod": ["prod"]}}
+Env: DOTS_KUBECTL (argv), DOTS_KUBE_TIERS, DOTS_LAUNCHER_STATE, DOTS_KUBE_CONFIRM (all|prod, default all),
+     DOTS_KUBECONFIG_FILE (path for the "no kubeconfig" check), DOTS_LAUNCH_EXEC_LOG, DOTS_HERDR_PANES.
+"""
+import json, os, re, shlex, subprocess, sys, time
+
+TIER_PATTERNS = {"prod": ["prod", "prd", "production"], "staging": ["stg", "stage", "staging"], "dev": ["dev"],
+                 "local": ["kind", "minikube", "k3d", "local", "docker-desktop"]}
+CHIP = {"prod": ("PROD", "danger"), "staging": ("STAGING", "accent"), "dev": ("DEV", "muted"),
+        "local": ("LOCAL", "muted"), "unset": ("TIER UNSET", "warn")}
+NOTE = {"prod": "look, then switch", "staging": "switch, undo for 5 s", "dev": "switch, undo for 5 s",
+        "local": "on this machine", "unset": "set the tier once in kube-tiers.json"}
+NAME_OK = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:@/-]*$")
+
+
+def out(o):
+    sys.stdout.write(json.dumps(o, ensure_ascii=False) + "\n")
+
+
+def kubectl():
+    return shlex.split(os.environ.get("DOTS_KUBECTL", "")) or ["kubectl"]
+
+
+def sdir():
+    return os.environ.get("DOTS_LAUNCHER_STATE") or os.path.expanduser("~/.local/state/dots-launcher")
+
+
+def load_state():
+    try:
+        return json.load(open(os.path.join(sdir(), "kube.json")))
+    except (OSError, ValueError):
+        return {}
+
+
+def save_state(st):
+    try:
+        os.makedirs(sdir(), mode=0o700, exist_ok=True)
+        json.dump(st, open(os.path.join(sdir(), "kube.json"), "w"))
+    except OSError:
+        pass
+
+
+def tiers_conf():
+    p = os.environ.get("DOTS_KUBE_TIERS") or os.path.expanduser("~/.config/dots-launcher/kube-tiers.json")
+    try:
+        return json.load(open(p))
+    except (OSError, ValueError):
+        return {}
+
+
+def tier_of(name, conf):
+    t = conf.get("contexts", {}).get(name)
+    if t in CHIP:
+        return t
+    pats = dict(TIER_PATTERNS)
+    for k, v in conf.get("patterns", {}).items():
+        if k in CHIP:
+            pats[k] = list(v)
+    low = name.lower()
+    for tier in ("prod", "staging", "dev", "local"):
+        if any(re.search(r"(^|[-_.:/])%s($|[-_.:/0-9])" % re.escape(p), low) or low == p for p in pats[tier]):
+            return tier
+    return "unset"
+
+
+def kubeconfig_file():
+    p = os.environ.get("DOTS_KUBECONFIG_FILE")
+    if p:
+        return p
+    kc = os.environ.get("KUBECONFIG", "")
+    return kc.split(os.pathsep)[0] if kc else os.path.expanduser("~/.kube/config")
+
+
+def view():
+    try:
+        p = subprocess.run(kubectl() + ["config", "view", "-o", "json"], capture_output=True, text=True, timeout=8)
+    except FileNotFoundError:
+        return None, "kubectl is not installed (package kubectl)"
+    except subprocess.TimeoutExpired:
+        return None, "kubectl timed out"
+    if p.returncode != 0:
+        return None, "kubectl config view failed"
+    try:
+        return json.loads(p.stdout), None
+    except ValueError:
+        return None, "kubectl returned unreadable output"
+
+
+def ago(ts):
+    if not ts:
+        return "never"
+    d = max(0, int(time.time() - ts))
+    for n, u in ((86400 * 7, "weeks"), (86400, "days"), (3600, "h"), (60, "min")):
+        if d >= n:
+            k = d // n
+            return "%d %s ago" % (k, u[:-1] if k == 1 and u.endswith("s") else u)
+    return "just now"
+
+
+def contexts(v, conf, st):
+    cur = v.get("current-context", "")
+    clusters = {c["name"]: c.get("cluster", {}) for c in v.get("clusters", []) or []}
+    res = []
+    for c in v.get("contexts", []) or []:
+        name, ctx = c["name"], c.get("context", {})
+        ns = st.get("ns", {}).get(name) or ctx.get("namespace") or "default"
+        res.append({"name": name, "alias": conf.get("aliases", {}).get(name, name), "cluster": ctx.get("cluster", ""),
+                    "user": ctx.get("user", ""), "ns": ns, "tier": tier_of(name, conf), "current": name == cur,
+                    "server": re.sub(r"^https?://", "", clusters.get(ctx.get("cluster", ""), {}).get("server", "")),
+                    "last": st.get("last", {}).get(name, 0), "ok": name not in st.get("unreach", [])})
+    return res
+
+
+def subseq(needle, hay):
+    it = iter(hay)
+    return all(ch in it for ch in needle)
+
+
+def ctx_row(c, q, idx, undo_ok):
+    chip, tone = CHIP[c["tier"]]
+    nodes = st_nodes(c["name"])
+    fields = [{"name": "API server", "value": "unreachable, last check failed" if not c["ok"] else "not checked", "state": "warn" if not c["ok"] else "ghost"},
+              {"name": "Nodes", "value": nodes or "unknown", "state": "filled" if nodes else "ghost"},
+              {"name": "Last used", "value": ago(c["last"]) if not c["current"] else "now", "state": "filled"},
+              {"name": "Namespace", "value": c["ns"], "state": "filled"}]
+    label = "Current context" if c["current"] else ("Review switch to PROD" if c["tier"] == "prod" else "Switch to " + c["alias"])
+    acts = [{"label": label, "primary": True, "verb": "use", "arg": c["name"], "disabled": c["current"], "danger": c["tier"] == "prod"},
+            {"label": "Namespace", "verb": "ns", "arg": c["name"]},
+            {"label": "Peek", "verb": "peek", "arg": c["name"]},
+            {"label": "Check API server", "verb": "probe", "arg": c["name"]}]
+    if undo_ok:
+        acts.append({"label": "Undo last switch", "verb": "undo", "arg": c["name"]})
+    i = c["alias"].lower().find(q.lower()) if q and q.lower() not in CHIP else -1
+    r = {"key": c["name"], "title": c["alias"], "sub": "%s · %s%s" % (c["cluster"], c["ns"], "" if c["ok"] else " · unreachable"),
+         "icon": "cube", "score": 0.5, "current": c["current"], "tier": c["tier"], "tierLabel": chip, "ok": c["ok"],
+         "num": "-" if c["tier"] == "prod" else str(idx),
+         "chips": [{"t": chip, "tone": tone}], "hl": list(range(i, i + len(q))) if i >= 0 else [],
+         "preview": {"head": c["alias"], "body": "%s / %s\n%s" % (c["cluster"], c["ns"], NOTE[c["tier"]]), "fields": fields,
+                     "tier": c["tier"], "tierLabel": chip},
+         "actions": acts}
+    return r
+
+
+def st_nodes(name):
+    return load_state().get("nodes", {}).get(name, "")
+
+
+def query(q):
+    q = q.strip()
+    v, err = view()
+    if err:
+        return {"rows": [], "error": err}
+    conf, st = tiers_conf(), load_state()
+    cl = contexts(v, conf, st)
+    if not cl:
+        if not os.path.exists(kubeconfig_file()):
+            return {"rows": [], "state": "nokube", "hint": "No kubeconfig at %s. The launcher only reads; it never creates one." % kubeconfig_file().replace(os.path.expanduser("~"), "~")}
+        return {"rows": [], "hint": "The kubeconfig has no contexts"}
+    note = ""
+    try:
+        mt = os.path.getmtime(kubeconfig_file())
+        if st.get("seen_mtime") and abs(st["seen_mtime"] - mt) > 1:
+            note = "updated"
+        st["seen_mtime"] = mt
+        save_state(st)
+    except OSError:
+        pass
+    ql = q.lower()
+    if ql in CHIP and ql != "unset":
+        cl = [c for c in cl if c["tier"] == ql]
+    elif ql:
+        cl = [c for c in cl if subseq(ql, (c["alias"] + " " + c["cluster"] + " " + c["ns"]).lower())]
+    cl.sort(key=lambda c: (not c["current"], c["tier"] == "prod", -c["last"], c["alias"].lower()))
+    undo_ok = bool(st.get("prev")) and time.time() - st.get("prev_at", 0) < 300
+    rows = [ctx_row(c, q, i + 1, undo_ok and c["current"]) for i, c in enumerate(cl)]
+    o = {"rows": rows, "hint": ""}
+    if note:
+        o["note"] = note
+    if not rows:
+        names = [c["alias"] for c in contexts(v, conf, st)]
+        near = sorted(names, key=lambda n: -len(set(ql) & set(n.lower())))[:1]
+        o["hint"] = "No context matches %s%s" % (q, ". Closest: " + near[0] if near else "")
+        o["nearest"] = near[0] if near else ""
+    return o
+
+
+def namespaces(ctx):
+    if not NAME_OK.match(ctx):
+        return {"rows": [], "error": "bad context name"}
+    try:
+        p = subprocess.run(kubectl() + ["--context", ctx, "get", "namespaces", "-o", "json", "--request-timeout=5s"],
+                           capture_output=True, text=True, timeout=10)
+        names = [i["metadata"]["name"] for i in json.loads(p.stdout).get("items", [])] if p.returncode == 0 else None
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError):
+        names = None
+    st = load_state()
+    last = st.get("ns", {}).get(ctx, "")
+    if names is None:
+        return {"rows": [], "error": "could not list namespaces for " + ctx}
+    recent = st.get("ns_recent", {}).get(ctx, [])
+    names.sort(key=lambda n: (n != last, recent.index(n) if n in recent else 99, n))
+    rows = [{"key": ctx + "/" + n, "title": n, "sub": "last used here" if n == last else "", "icon": "folder", "score": 0.5,
+             "current": n == last, "preview": {"head": n, "body": "Namespace in " + ctx},
+             "actions": [{"label": "Use namespace", "primary": True, "verb": "set-ns", "arg": ctx + "/" + n}]} for n in names]
+    return {"rows": rows, "hint": "No namespaces"}
+
+
+def execute(argv, detach=False):
+    log = os.environ.get("DOTS_LAUNCH_EXEC_LOG")
+    if log:
+        open(log, "a").write(json.dumps(argv) + "\n")
+        return "", True
+    try:
+        r = subprocess.run(argv, capture_output=True, text=True, timeout=10)
+        return r.stdout, r.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return "", False
+
+
+def current_ctx():
+    v, _ = view()
+    return (v or {}).get("current-context", ""), v
+
+
+def confirm_spec(ctx):
+    v, err = view()
+    c = next((x for x in contexts(v or {}, tiers_conf(), load_state()) if x["name"] == ctx), None) if v else None
+    if not c:
+        return {"error": err or "unknown context"}
+    prod = c["tier"] == "prod"
+    mode = os.environ.get("DOTS_KUBE_CONFIRM", "all")
+    return {"confirm": mode == "all" or prod or c["tier"] == "unset",
+            "spec": {"title": "Switch to %s%s?" % ("PROD " if prod else "", c["alias"]),
+                     "detail": "%s / %s. Moves the local current-context only; nothing in the cluster changes." % (c["cluster"], c["ns"]),
+                     "danger": prod, "label": "Switch to PROD" if prod else "Switch",
+                     "alt": {"label": "Peek instead (safer)", "verb": "peek", "arg": ctx}}}
+
+
+def act(verb, arg):
+    if verb == "confirm":
+        return confirm_spec(arg)
+    if verb == "use":
+        if not NAME_OK.match(arg):
+            return {"error": "bad context name"}
+        prev, _ = current_ctx()
+        _, ok = execute(kubectl() + ["config", "use-context", arg])
+        if not ok:
+            return {"error": "kubectl could not switch to " + arg}
+        st = load_state()
+        st.setdefault("last", {})[arg] = int(time.time())
+        if prev and prev != arg:
+            st["prev"], st["prev_at"] = prev, int(time.time())
+        save_state(st)
+        return {"toast": "now: " + arg, "close": True, "undo": bool(prev and prev != arg)}
+    if verb == "undo":
+        st = load_state()
+        prev = st.get("prev")
+        if not prev or not NAME_OK.match(prev):
+            return {"error": "nothing to undo"}
+        _, ok = execute(kubectl() + ["config", "use-context", prev])
+        if not ok:
+            return {"error": "kubectl could not restore " + prev}
+        st.pop("prev", None)
+        save_state(st)
+        return {"toast": "restored: " + prev, "close": False}
+    if verb == "set-ns":
+        ctx, _, ns = arg.partition("/")
+        if not (NAME_OK.match(ctx) and NAME_OK.match(ns)):
+            return {"error": "bad context or namespace"}
+        _, ok = execute(kubectl() + ["config", "set-context", ctx, "--namespace", ns])
+        if not ok:
+            return {"error": "kubectl could not set the namespace"}
+        st = load_state()
+        st.setdefault("ns", {})[ctx] = ns
+        rec = st.setdefault("ns_recent", {}).setdefault(ctx, [])
+        st["ns_recent"][ctx] = [ns] + [n for n in rec if n != ns][:9]
+        save_state(st)
+        return {"toast": "namespace: %s / %s" % (ctx, ns), "close": False}
+    if verb == "peek":
+        if not NAME_OK.match(arg):
+            return {"error": "bad context name"}
+        cur, _ = current_ctx()
+        if not new_pane(kubectl() + ["--context", arg, "get", "nodes", "-o", "wide"]):
+            return {"error": "could not open a herdr pane"}
+        return {"toast": "peek: pinned --context %s, global stays %s" % (arg, cur), "close": True}
+    if verb == "probe":
+        if not NAME_OK.match(arg):
+            return {"error": "bad context name"}
+        so, ok = execute(kubectl() + ["--context", arg, "get", "nodes", "--no-headers", "--request-timeout=3s"])
+        st = load_state()
+        un = [c for c in st.get("unreach", []) if c != arg]
+        if ok:
+            st.setdefault("nodes", {})[arg] = str(len([ln for ln in so.splitlines() if ln.strip()]))
+        else:
+            un.append(arg)
+        st["unreach"] = un
+        save_state(st)
+        return {"toast": ("%s reachable" % arg) if ok else ("%s unreachable" % arg), "close": False}
+    return {"error": "unknown verb " + verb}
+
+
+def panes():
+    p = os.environ.get("DOTS_HERDR_PANES")
+    try:
+        if p:
+            return json.load(open(p)).get("panes", [])
+        r = subprocess.run(["herdr", "pane", "list"], capture_output=True, text=True, timeout=3)
+        return json.loads(r.stdout).get("result", {}).get("panes", [])
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return []
+
+
+def new_pane(argv):
+    pl = panes()
+    focused = next((p["pane_id"] for p in pl if p.get("focused")), pl[0]["pane_id"] if pl else None)
+    if not focused:
+        return False
+    so, ok = execute(["herdr", "pane", "split", focused])
+    if not ok:
+        return False
+    new = focused
+    try:
+        res = json.loads(so).get("result", {})
+        new = res.get("pane", {}).get("pane_id") or res.get("pane_id") or focused
+    except (ValueError, AttributeError):
+        pass
+    return execute(["herdr", "pane", "run", new] + argv)[1]
+
+
+def main(argv):
+    if len(argv) >= 2 and argv[1] == "query":
+        out(query(" ".join(argv[2:])))
+    elif len(argv) == 3 and argv[1] == "namespaces":
+        out(namespaces(argv[2]))
+    elif len(argv) == 4 and argv[1] == "act":
+        out(act(argv[2], argv[3]))
+    else:
+        out({"rows": [], "error": "usage: dots-launch-kube query <text> | namespaces <ctx> | act <verb> <arg>"})
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

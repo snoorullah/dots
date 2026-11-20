@@ -1,0 +1,5 @@
+module qs.modules.winswitch
+WinPanel 1.0 WinPanel.qml
+WinSwitcher 1.0 WinSwitcher.qml
+Dispatcher 1.0 Dispatcher.qml
+WinCtl 1.0 WinCtl.qml
