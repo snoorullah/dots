@@ -39,6 +39,7 @@ final: prev:
   dotsAdhanPython = final.python3.withPackages (ps: [
     (final.callPackage ./adhanpy.nix { python3Packages = ps; })
     ps.ansible-core
+    ps.cryptography                                                            # dots-clip (Fernet)
     (final.callPackage ./sophosfirewall-python.nix { python3Packages = ps; })   # sophos.sophos_firewall
   ]);
   # tmux plugins pinned by tools/pin-tmux-plugins.sh; ~/.config/tmux/plugins -> ~/.nix-profile/share/tmux-plugins

@@ -68,6 +68,7 @@ Item {
       id: trail
       anchors.verticalCenter: parent.verticalCenter
       spacing: Theme.space.xl
+      Pill { objectName: "maskPill"; visible: !!root.m.mask; anchors.verticalCenter: parent.verticalCenter; text: "Masked"; tone: "accent"; bordered: true }
       Pill { objectName: "salahPill"; visible: !!root.m.salah; anchors.verticalCenter: parent.verticalCenter; text: "Salah"; tone: "accent"; bordered: true }
       Cap { anchors.verticalCenter: parent.verticalCenter; text: "Tab view" }
     }

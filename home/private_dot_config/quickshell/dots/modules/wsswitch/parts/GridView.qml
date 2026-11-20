@@ -11,6 +11,8 @@ Item {
   signal pickedProfile(string name)
   signal pickedWin(string addr)
   signal move(string name)
+  signal launcher(string query)
+  signal backSet(string profile)
 
   readonly property int gap: 12
   readonly property real cardW: (width - 32 - 3 * gap) / 4
@@ -104,6 +106,22 @@ Item {
           }
         }
 
+        Item {
+          objectName: "cardRet"
+          visible: !!root.m.setsKnown && !footBtn.visible
+          x: 10
+          y: parent.height - 38
+          width: parent.width - 20
+          height: 28
+          Row {
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Theme.space.m
+            Gly { anchors.verticalCenter: parent.verticalCenter; name: "arrow-counter-clockwise"; box: 14; color: c.modelData.ret.has ? Theme.color.accent : Theme.color.fgFaint }
+            Cap { anchors.verticalCenter: parent.verticalCenter; text: c.modelData.ret.has ? c.modelData.ret.text : "No saved set"; color: c.modelData.ret.has ? Theme.color.accent : Theme.color.fgDim; dim: false }
+          }
+          MouseArea { anchors.fill: parent; enabled: c.modelData.ret.has; cursorShape: Qt.PointingHandCursor; onClicked: root.backSet(c.modelData.name) }
+        }
+
         Row {
           objectName: "cardFoot"
           visible: footBtn.visible
@@ -120,6 +138,27 @@ Item {
           }
         }
       }
+    }
+
+    Rectangle {
+      objectName: "launcherCard"
+      visible: !!root.m.launcher
+      width: root.cardW
+      height: 214
+      radius: Theme.radius.card
+      color: lma.containsMouse ? Qt.alpha(Theme.color.fg, Theme.alpha.rest) : "transparent"
+      border.width: 1
+      border.color: Theme.color.outlineVariant
+      Column {
+        anchors.fill: parent
+        anchors.margins: 14
+        spacing: Theme.space.m
+        Item { width: 1; height: 54 }
+        Gly { name: "magnifying-glass"; box: 20; color: Theme.color.accent }
+        DText { text: "Open in launcher"; role: "bodyS" }
+        Cap { width: parent.width; text: "Enter on no match, or Super+Space."; wrapMode: Text.WordWrap }
+      }
+      MouseArea { id: lma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.launcher(root.m.launcher ? root.m.launcher.query : "") }
     }
 
     Rectangle {
@@ -151,7 +190,7 @@ Item {
     Column {
       anchors.centerIn: parent
       DText { anchors.horizontalCenter: parent.horizontalCenter; text: "No window matches."; role: "body" }
-      Cap { anchors.horizontalCenter: parent.horizontalCenter; text: "Esc clears the filter." }
+      Cap { anchors.horizontalCenter: parent.horizontalCenter; text: "Enter opens it in the launcher." }
     }
   }
 }

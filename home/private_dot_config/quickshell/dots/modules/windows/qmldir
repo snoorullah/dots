@@ -1,0 +1,8 @@
+module qs.modules.windows
+TilingAssistant 1.0 TilingAssistant.qml
+TabsBar 1.0 TabsBar.qml
+RestorePrompt 1.0 RestorePrompt.qml
+ScratchPanel 1.0 ScratchPanel.qml
+Runner 1.0 Runner.qml
+WindowsPopout 1.0 WindowsPopout.qml
+TabsOverlay 1.0 TabsOverlay.qml

@@ -15,6 +15,10 @@ Item {
   signal pickedWin(string addr)
   signal focusWs(int id)
   signal move(string name)
+  signal startSet(string profile)
+  signal newWs(int id)
+  signal backSet()
+  signal launcher(string query)
 
   readonly property var fp: m.fp || ({ ws: [], total: 0, needs: 0, name: "", empty: true, primary: 1 })
 
@@ -80,7 +84,13 @@ Item {
           anchors.centerIn: parent
           spacing: Theme.space.xl
           DText { anchors.horizontalCenter: parent.horizontalCenter; text: "Nothing open"; role: "body" }
-          Btn { anchors.horizontalCenter: parent.horizontalCenter; label: "Go to workspace " + root.fp.primary; kind: "primary"; onClicked: root.focusWs(root.fp.primary) }
+          Row {
+            anchors.horizontalCenter: parent.horizontalCenter
+            spacing: Theme.space.l
+            Btn { objectName: "startSet"; label: "Start startup set"; kind: "primary"; onClicked: root.startSet(root.fp.name) }
+            Btn { objectName: "newWs"; label: "New workspace"; kind: "ghost"; stub: root.m.newWs <= 0; tip: "this profile has no free workspace"; onClicked: root.newWs(root.m.newWs) }
+          }
+          Btn { anchors.horizontalCenter: parent.horizontalCenter; label: "Go to workspace " + root.fp.primary; kind: "link"; onClicked: root.focusWs(root.fp.primary) }
         }
       }
 
@@ -110,7 +120,7 @@ Item {
               Dot { anchors.verticalCenter: parent.verticalCenter; kind: t.modelData.state }
             }
             Item { width: 1; height: Math.max(0, t.height - 12 - 24 - 16) }
-            Cap { text: t.modelData.state === "needs" ? "needs you" : (t.modelData.state === "active" ? "focused" : "running") }
+            Cap { text: ({ needs: "needs you", active: "focused", working: "agent working", paused: "resumed paused" })[t.modelData.state] || "running" }
           }
           MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.pickedWin(t.modelData.addr) }
         }
@@ -125,6 +135,14 @@ Item {
       onPick: name => root.move(name)
     }
 
-    Cap { objectName: "noMatchLine"; visible: !!root.m.noResults; text: "No window matches. Esc clears the filter."; dim: false }
+    SetRow {
+      visible: !!root.m.setsKnown
+      width: parent.width
+      height: visible ? 44 : 0
+      ret: root.fp.ret || ({ has: false })
+      onPressed: root.backSet()
+    }
+    Cap { objectName: "noMatchLine"; visible: !!root.m.noResults; text: "No window matches. Enter opens it in the launcher."; dim: false }
+    LauncherRow { width: parent.width; launcher: root.m.filtering ? root.m.launcher : null; onOpened: q => root.launcher(q) }
   }
 }

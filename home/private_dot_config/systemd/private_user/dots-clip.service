@@ -1,0 +1,19 @@
+[Unit]
+Description=dots-clip: encrypted clipboard history for the launcher (text and PNG watchers)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+Environment=PATH=%h/.local/bin:%h/.nix-profile/bin:/usr/local/bin:/usr/bin:/bin
+# Needs WAYLAND_DISPLAY in the user manager; Hyprland's autostart imports it, then starts this unit.
+# Two watchers in one cgroup: the image one in the background, the text one in the foreground.
+# The shell line is fixed text; nothing user-supplied reaches it.
+ExecStart=/bin/sh -c 'wl-paste --type image/png --watch "$HOME/.local/bin/dots-clip" store --image & exec wl-paste --type text --watch "$HOME/.local/bin/dots-clip" store'
+# Stopping the unit (logout) drops everything that is not pinned.
+ExecStop=%h/.local/bin/dots-clip clear
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+
+# Not enabled: Hyprland starts it after the Wayland environment is imported.

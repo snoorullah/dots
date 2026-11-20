@@ -1,0 +1,171 @@
+#!/usr/bin/env python3
+"""dots-launch-files: file search for the launcher (prefix `f:`).
+
+  dots-launch-files query <text>          rows over $HOME, JSON on stdout
+  dots-launch-files act <verb> <path>     open | copy | agent
+
+Env: DOTS_FILES_ROOT (search root, default $HOME), DOTS_FD (fd binary),
+     DOTS_LAUNCH_EXEC_LOG (file: log argv instead of running it).
+Argv only; nothing leaves the machine.
+"""
+import json, os, subprocess, sys, time
+
+EXCLUDE = [".git", "node_modules", ".cache", ".ssh", ".gnupg", ".password-store", "Mail",
+           ".mozilla", ".local/share/Trash", "__pycache__", ".venv", "target"]
+CODE = {".md", ".py", ".go", ".qml", ".js", ".ts", ".sh", ".lua", ".nix", ".yaml", ".yml", ".json",
+        ".toml", ".rs", ".c", ".h", ".css", ".html", ".tmpl", ".txt", ".conf", ".sql", ".org"}
+IMAGE = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".avif"}
+LIMIT = 40
+
+
+def out(o):
+    sys.stdout.write(json.dumps(o, ensure_ascii=False) + "\n")
+
+
+def root():
+    return os.environ.get("DOTS_FILES_ROOT") or os.path.expanduser("~")
+
+
+def tilde(p):
+    home = os.path.expanduser("~")
+    return "~" + p[len(home):] if p == home or p.startswith(home + os.sep) else p
+
+
+def ago(ts, now=None):
+    d = max(0, int((now or time.time()) - ts))
+    for n, u in ((86400 * 7, "w"), (86400, "d"), (3600, "h"), (60, "m")):
+        if d >= n:
+            return "%d%s ago" % (d // n, u)
+    return "just now"
+
+
+def kind_of(path, is_dir):
+    ext = os.path.splitext(path)[1].lower()
+    if is_dir:
+        return "folder", "Folder"
+    if ext in IMAGE:
+        return "image", "Image"
+    if ext in CODE:
+        return "file-code", "Text"
+    return "note", "File"
+
+
+def read_preview(path, maxlines=14):
+    try:
+        with open(path, "rb") as f:
+            raw = f.read(2400)
+    except OSError:
+        return None
+    if b"\0" in raw:
+        return None
+    return "\n".join(raw.decode("utf-8", "replace").splitlines()[:maxlines])
+
+
+def score(rel, q, mtime, now):
+    base = os.path.basename(rel).lower()
+    ql = q.lower()
+    s = 0.5
+    if base == ql:
+        s = 1.0
+    elif os.path.splitext(base)[0] == ql:
+        s = 0.95
+    elif base.startswith(ql):
+        s = 0.9
+    elif ql in base:
+        s = 0.75
+    age_days = max(0.0, (now - mtime) / 86400)
+    return round(min(1.0, s + max(0.0, 0.04 - age_days / 1000)), 3)
+
+
+def row(path, q, now):
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    is_dir = os.path.isdir(path)
+    icon, label = kind_of(path, is_dir)
+    rel = os.path.relpath(path, root())
+    prev = {"head": os.path.basename(path), "body": ""}
+    if icon == "image":
+        prev["image"] = path
+        prev["body"] = "Image preview appears here."
+    elif icon == "folder":
+        try:
+            names = sorted(os.listdir(path))[:12]
+        except OSError:
+            names = []
+        prev["body"] = "\n".join(names) or "Empty folder."
+    else:
+        text = read_preview(path)
+        prev["body"] = text if text is not None else "%s, %d bytes. No text preview." % (label, st.st_size)
+    acts = [{"label": "Open", "primary": True, "verb": "open", "arg": path},
+            {"label": "Copy path", "verb": "copy", "arg": path},
+            {"label": "Send to agent", "verb": "agent", "arg": path}]
+    return {"key": path, "title": rel, "sub": "%s, edited %s" % (tilde(os.path.dirname(path)), ago(st.st_mtime, now)),
+            "icon": icon, "score": score(rel, q, st.st_mtime, now), "preview": prev, "actions": acts}
+
+
+def query(q):
+    q = q.strip()
+    if not q:
+        return {"rows": [], "hint": "Type to search files under ~"}
+    fd = os.environ.get("DOTS_FD") or "fd"
+    cmd = [fd, "--type", "f", "--type", "d", "--hidden", "--absolute-path", "--ignore-case",
+           "--fixed-strings", "--max-results", "200"]
+    for e in EXCLUDE:
+        cmd += ["--exclude", e]
+    cmd += ["--", q, root()]
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=8)
+    except FileNotFoundError:
+        return {"rows": [], "error": "fd is not installed (package fd)"}
+    except subprocess.TimeoutExpired:
+        return {"rows": [], "error": "file search timed out"}
+    now = time.time()
+    rows = [r for r in (row(x, q, now) for x in p.stdout.splitlines() if x.strip()) if r]
+    rows.sort(key=lambda r: -r["score"])
+    return {"rows": rows[:LIMIT], "hint": "No files match" if not rows else ""}
+
+
+def execute(argv, detach=True):
+    log = os.environ.get("DOTS_LAUNCH_EXEC_LOG")
+    if log:
+        with open(log, "a") as f:
+            f.write(json.dumps(argv) + "\n")
+        return True
+    try:
+        if detach:
+            subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, start_new_session=True)
+            return True
+        return subprocess.run(argv, timeout=5).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def act(verb, arg):
+    if verb == "open":
+        ok = execute(["xdg-open", arg])
+        return {"toast": "Opened" if ok else "", "close": ok, **({} if ok else {"error": "could not open the file"})}
+    if verb == "copy":
+        ok = execute(["wl-copy", arg], detach=False)
+        return {"toast": "Copied path" if ok else "", "close": ok, **({} if ok else {"error": "wl-copy failed"})}
+    if verb == "agent":
+        return {"toast": "Send to agent is not wired yet", "close": False}
+    return {"error": "unknown verb " + verb}
+
+
+def main(argv):
+    if len(argv) >= 3 and argv[1] == "query":
+        out(query(" ".join(argv[2:])))
+    elif len(argv) >= 2 and argv[1] == "query":
+        out(query(""))
+    elif len(argv) == 4 and argv[1] == "act":
+        out(act(argv[2], argv[3]))
+    else:
+        out({"rows": [], "error": "usage: dots-launch-files query <text> | act <verb> <path>"})
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

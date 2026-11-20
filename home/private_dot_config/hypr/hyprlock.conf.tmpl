@@ -1,5 +1,10 @@
-# hyprlock — lock screen on the Foundations palette (hexes rendered from .chezmoidata/palette.yaml).
-# Bound to $mod+Escape in hyprland.lua. https://wiki.hypr.land/Hypr-Ecosystem/hyprlock/
+# hyprlock: lock screen on the Foundations palette (hexes rendered from .chezmoidata/palette.yaml).
+# Board: Lock.dc.html. Bound to $mod+Escape and the idle lock in hyprland.lua. Unlock is hyprlock's
+# own PAM prompt: it never depends on Quickshell. Dynamic lines come from ~/.local/bin/dots-lock-info
+# (counts only, no task names, no network). Font sizes are lock-screen-only, outside the token scale.
+# https://wiki.hypr.land/Hypr-Ecosystem/hyprlock/
+{{- $c := printf "--up %s --down %s --dim %s" (trimPrefix "#" .palette.accent) (trimPrefix "#" .palette.waiting) (trimPrefix "#" .palette.text_dim) }}
+{{- $info := "~/.local/bin/dots-lock-info" }}
 
 general {
     hide_cursor = true
@@ -7,7 +12,7 @@ general {
     ignore_empty_input = true
 }
 
-# Blurred snapshot of whatever was on screen.
+# Blurred snapshot of whatever was on screen, darkened so the text reads.
 background {
     monitor =
     path = screenshot
@@ -15,64 +20,76 @@ background {
     blur_size = 8
     noise = 0.012
     contrast = 0.9
-    brightness = 0.7
+    brightness = 0.5
     vibrancy = 0.18
     color = rgb({{ trimPrefix "#" .palette.ground }})
 }
 
-# Big clock. Font sizes here (96 and the date/labels below) are lock-screen-only, outside the token scale.
+# Top right: host, network, volume, layout.
 label {
     monitor =
-    text = cmd[update:1000] echo "$(date '+%H:%M')"
-    color = rgb({{ trimPrefix "#" .palette.accent }})
-    font_size = 96
+    text = cmd[update:10000] {{ $info }} status {{ $c }}
+    color = rgb({{ trimPrefix "#" .palette.text_dim }})
+    font_size = 13
+    font_family = JetBrains Mono
+    position = -40, -40
+    halign = right
+    valign = top
+    text_align = right
+}
+
+# Big clock (Digits).
+label {
+    monitor =
+    text = cmd[update:1000] date '+%H:%M'
+    color = rgb({{ trimPrefix "#" .palette.text }})
+    font_size = 170
     font_family = Bricolage Grotesque
-    position = 0, 170
+    position = 0, 200
     halign = center
     valign = center
 }
 
-# Date.
+# Gregorian date.
 label {
     monitor =
-    text = cmd[update:60000] echo "$(date '+%A, %d %B')"
-    color = rgb({{ trimPrefix "#" .palette.text_dim }})
-    font_size = 18
-    font_family = JetBrains Mono
+    text = cmd[update:60000] date '+%A %-d %B'
+    color = rgb({{ trimPrefix "#" .palette.text }})
+    font_size = 20
+    font_family = Bricolage Grotesque
     position = 0, 95
     halign = center
     valign = center
 }
 
-# Why the user is away and for how long (Super+Esc picker; timetrack-away-label).
-# Empty when nothing was declared, e.g. the 5-minute idle lock.
+# Hijri date.
 label {
     monitor =
-    text = cmd[update:1000] ~/.local/bin/timetrack-away-label
-    color = rgb({{ trimPrefix "#" .palette.waiting }})
-    font_size = 22
-    font_family = JetBrains Mono
-    position = 0, 40
-    halign = center
-    valign = center
-}
-
-# Gentle prompt (on-brand).
-label {
-    monitor =
-    text = what are you chasing?
+    text = cmd[update:60000] {{ $info }} date {{ $c }}
     color = rgb({{ trimPrefix "#" .palette.text_dim }})
-    font_size = 13
+    font_size = 16
     font_family = JetBrains Mono
-    position = 0, -10
+    position = 0, 62
     halign = center
     valign = center
 }
 
-# Password input — accent ring.
+# "Out for <reason> mm:ss" chip; empty unless stepped out (timetrack away intent).
+label {
+    monitor =
+    text = cmd[update:1000] {{ $info }} away {{ $c }}
+    color = rgb({{ trimPrefix "#" .palette.accent }})
+    font_size = 18
+    font_family = JetBrains Mono
+    position = 0, 20
+    halign = center
+    valign = center
+}
+
+# Password input: accent ring, hairline outline.
 input-field {
     monitor =
-    size = 300, 52
+    size = 340, 52
     outline_thickness = 2
     dots_size = 0.28
     dots_spacing = 0.3
@@ -82,12 +99,152 @@ input-field {
     inner_color = rgb({{ trimPrefix "#" .palette.panel }})
     font_color = rgb({{ trimPrefix "#" .palette.text }})
     font_family = JetBrains Mono
-    placeholder_text = <span foreground="##{{ trimPrefix "#" .palette.text_dim }}">password</span>
+    placeholder_text = <span foreground="##{{ trimPrefix "#" .palette.text_dim }}">Password</span>
     check_color = rgb({{ trimPrefix "#" .palette.waiting }})
     fail_color = rgb({{ trimPrefix "#" .palette.failed }})
-    fail_text = <span foreground="##{{ trimPrefix "#" .palette.failed }}">◆ failed: $FAIL ($ATTEMPTS)</span>
+    fail_text = <span foreground="##{{ trimPrefix "#" .palette.failed }}">failed: $FAIL ($ATTEMPTS)</span>
     fade_on_empty = false
-    position = 0, -65
+    position = 0, -60
     halign = center
     valign = center
+}
+
+# Unlock hint.
+label {
+    monitor =
+    text = Enter to unlock · your timer keeps running
+    color = rgb({{ trimPrefix "#" .palette.text_dim }})
+    font_size = 13
+    font_family = JetBrains Mono
+    position = 0, -125
+    halign = center
+    valign = center
+}
+
+# Left column header.
+label {
+    monitor =
+    text = TODAY SO FAR
+    color = rgb({{ trimPrefix "#" .palette.text_dim }})
+    font_size = 12
+    font_family = JetBrains Mono
+    position = 60, 285
+    halign = left
+    valign = bottom
+}
+
+# Stat 1 vs 30-day average. Omitted stats (focus, PRs) have no data source.
+label {
+    monitor =
+    text = cmd[update:30000] {{ $info }} stat1 {{ $c }}
+    color = rgb({{ trimPrefix "#" .palette.text }})
+    font_size = 16
+    font_family = JetBrains Mono
+    position = 60, 165
+    halign = left
+    valign = bottom
+    text_align = left
+}
+
+# Stat 2 vs 30-day average. Omitted stats (focus, PRs) have no data source.
+label {
+    monitor =
+    text = cmd[update:30000] {{ $info }} stat2 {{ $c }}
+    color = rgb({{ trimPrefix "#" .palette.text }})
+    font_size = 16
+    font_family = JetBrains Mono
+    position = 260, 165
+    halign = left
+    valign = bottom
+    text_align = left
+}
+
+# Stat 3 vs 30-day average. Omitted stats (focus, PRs) have no data source.
+label {
+    monitor =
+    text = cmd[update:30000] {{ $info }} stat3 {{ $c }}
+    color = rgb({{ trimPrefix "#" .palette.text }})
+    font_size = 16
+    font_family = JetBrains Mono
+    position = 460, 165
+    halign = left
+    valign = bottom
+    text_align = left
+}
+
+# Day line: worked of 8:00, logout time and countdown.
+label {
+    monitor =
+    text = cmd[update:30000] {{ $info }} day {{ $c }}
+    color = rgb({{ trimPrefix "#" .palette.text }})
+    font_size = 16
+    font_family = JetBrains Mono
+    position = 60, 100
+    halign = left
+    valign = bottom
+    text_align = left
+}
+
+# Next prayer.
+label {
+    monitor =
+    text = cmd[update:30000] {{ $info }} prayer {{ $c }}
+    color = rgb({{ trimPrefix "#" .palette.text }})
+    font_size = 16
+    font_family = JetBrains Mono
+    position = 60, 50
+    halign = left
+    valign = bottom
+    text_align = left
+}
+
+# Right column header.
+label {
+    monitor =
+    text = WHILE YOU WERE AWAY
+    color = rgb({{ trimPrefix "#" .palette.text_dim }})
+    font_size = 12
+    font_family = JetBrains Mono
+    position = -60, 285
+    halign = right
+    valign = bottom
+    text_align = right
+}
+
+# Counts only: no titles, no names.
+label {
+    monitor =
+    text = cmd[update:10000] {{ $info }} away-counts {{ $c }}
+    color = rgb({{ trimPrefix "#" .palette.text }})
+    font_size = 16
+    font_family = JetBrains Mono
+    position = -60, 100
+    halign = right
+    valign = bottom
+    text_align = right
+}
+
+# Music (playerctl), only while playing.
+label {
+    monitor =
+    text = cmd[update:5000] {{ $info }} music {{ $c }}
+    color = rgb({{ trimPrefix "#" .palette.text }})
+    font_size = 16
+    font_family = JetBrains Mono
+    position = 0, 100
+    halign = center
+    valign = bottom
+    text_align = center
+}
+
+# Footer hints.
+label {
+    monitor =
+    text = Super+Esc step out and lock
+    color = rgb({{ trimPrefix "#" .palette.text_dim }})
+    font_size = 12
+    font_family = JetBrains Mono
+    position = 0, 24
+    halign = center
+    valign = bottom
 }

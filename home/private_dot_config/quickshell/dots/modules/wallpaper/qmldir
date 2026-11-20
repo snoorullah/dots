@@ -1,0 +1,5 @@
+module qs.modules.wallpaper
+WallPanel 1.0 WallPanel.qml
+WallpaperPicker 1.0 WallpaperPicker.qml
+Dispatcher 1.0 Dispatcher.qml
+WallCtl 1.0 WallCtl.qml

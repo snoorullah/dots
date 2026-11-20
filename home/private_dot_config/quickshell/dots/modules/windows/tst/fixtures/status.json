@@ -1,0 +1,20 @@
+{
+  "pending": true,
+  "layout": {
+    "file": "state/2026-11-19.json",
+    "saved_at": "2026-11-19T23:27:00",
+    "windows": 14,
+    "workspaces": [1, 2, 3, 4, 6, 7, 8],
+    "apps": ["zen-beta", "code", "slack", "obsidian", "foot", "org.gnome.Nautilus"],
+    "clients": [
+      {"class": "zen-beta", "workspace": 2, "group": -1}, {"class": "code", "workspace": 3, "group": -1},
+      {"class": "slack", "workspace": 4, "group": -1}, {"class": "obsidian", "workspace": 7, "group": -1},
+      {"class": "foot", "workspace": 1, "group": 0}, {"class": "foot", "workspace": 1, "group": 0},
+      {"class": "foot", "workspace": 3, "group": -1}, {"class": "zen-beta", "workspace": 6, "group": -1},
+      {"class": "code", "workspace": 6, "group": -1}, {"class": "foot", "workspace": 6, "group": -1},
+      {"class": "zen-beta", "workspace": 2, "group": -1}, {"class": "foot", "workspace": 8, "group": -1},
+      {"class": "org.gnome.Nautilus", "workspace": 8, "group": -1}, {"class": "foot", "workspace": 11, "group": -1}
+    ],
+    "groups": 1, "panes": 9, "agents": 3, "finished": 2
+  }
+}

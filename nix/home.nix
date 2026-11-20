@@ -86,6 +86,7 @@ in {
     # CLI utilities
     p7zip ast-grep buf doxygen ffmpeg glslang imagemagick ipmitool lm_sensors pandoc
     qalculate-gtk restic yt-dlp zip unzip glow kcat grass-sass
+    wordnet   # launcher Dictionary mode (dots-launch-dict)
     python3Packages.trafilatura python3Packages.courlan python3Packages.htmldate
     # disks, filesystems, boot media, hardware (triage add_dots_all)
     exfatprogs hfsprogs mtools mtdutils lsscsi db cramfsswap ncompress arj syslinux iucode-tool rdma-core pahole

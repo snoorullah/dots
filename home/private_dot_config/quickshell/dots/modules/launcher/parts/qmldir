@@ -1,0 +1,10 @@
+module qs.modules.launcher.parts
+SearchBar 1.0 SearchBar.qml
+ModeTabs 1.0 ModeTabs.qml
+ResultList 1.0 ResultList.qml
+ActionButton 1.0 ActionButton.qml
+PreviewPane 1.0 PreviewPane.qml
+FooterBar 1.0 FooterBar.qml
+ConfirmCard 1.0 ConfirmCard.qml
+ClosedCard 1.0 ClosedCard.qml
+Card 1.0 Card.qml

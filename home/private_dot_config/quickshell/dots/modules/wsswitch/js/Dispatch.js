@@ -39,3 +39,30 @@ function ok(text) {
   var lines = String(text || "").trim().split("\n").filter(function (l) { return l !== "" })
   return lines.length > 0 && lines.every(function (l) { return l.trim() === "ok" })
 }
+
+// ---- layout sets (dots-layout) and the launcher ------------------------------------------
+// `tool` is the dots-layout path the caller resolved (HOME/.local/bin/dots-layout). Its replies are
+// one JSON line, not "ok": use okJson/reply for those.
+function profileOk(name) { return /^[A-Za-z0-9_-]{1,40}$/.test(String(name)) }
+
+// bring back the last saved windows of one profile's workspaces (apps only, placed by workspace)
+function backSet(tool, wsIds) {
+  var ids = (wsIds || []).map(ws).filter(function (n) { return n > 0 })
+  if (!tool || ids.length === 0 || ids.length !== (wsIds || []).length) return null
+  return [tool, "restore", "--apply", "--parts", "layout,apps", "--workspaces", ids.join(",")]
+}
+function undoSet(tool) { return tool ? [tool, "undo"] : null }
+function startSet(tool, name, n) {
+  var id = ws(n)
+  return tool && profileOk(name) && id > 0 ? [tool, "startup", "--workspace", String(id), "--name", String(name)] : null
+}
+// the launcher takes the text through its IPC target; the query is one argv element, never a string
+// same argv form as logomenu: quickshell ipc -p <shellDir> call dots.launcher query <text>
+function launcherQuery(q, qsDir) {
+  var t = String(q || "").slice(0, 200)
+  return t === "" || !qsDir ? null : ["quickshell", "ipc", "-p", String(qsDir), "call", "dots.launcher", "query", t]
+}
+function reply(text) {
+  try { return JSON.parse(String(text || "").trim().split("\n").pop()) } catch (e) { return null }
+}
+function okJson(text) { var r = reply(text); return !!r && r.ok === true }

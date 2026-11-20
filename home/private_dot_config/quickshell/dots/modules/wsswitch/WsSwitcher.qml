@@ -19,6 +19,11 @@ PanelWindow {
 
   readonly property string name: "workspaces"
   property bool locked: false            // no lock-state source yet; a surface can set it
+  property bool masked: false            // screen share on: sensitive window titles read "Masked title"
+  property var agentStates: ({})         // { "0xaddr": "working" | "paused" | "needs" } from an agent monitor
+  property var layout: null              // dots-layout status().layout: the last saved set, or null
+  property var lastSet: null             // { n } while "Restored n windows" can still be undone
+  readonly property string tool: Quickshell.env("HOME") + "/.local/bin/dots-layout"
   readonly property bool wanted: Ui.open === name
   readonly property bool shown: wanted && !locked
 
@@ -43,7 +48,8 @@ PanelWindow {
       addr: a.indexOf("0x") === 0 ? a : "0x" + a,
       cls: o["class"] || "", title: t.title || o.title || "",
       wsId: o.workspace ? o.workspace.id : (t.workspace ? t.workspace.id : -1),
-      floating: !!o.floating
+      floating: !!o.floating,
+      agent: win.agentStates[a.indexOf("0x") === 0 ? a : "0x" + a] || ""
     };
   })
   readonly property int activeWs: Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : -1
@@ -61,9 +67,10 @@ PanelWindow {
     workspaces: wsList, windows: winList, activeWs: activeWs, activeAddr: activeAddr,
     st: {
       focus: st.focus, sel: st.sel, hover: st.hover, query: st.query, wsIdx: st.wsIdx,
-      variant: st.variant, mode: st.mode, salah: salah, locked: locked,
+      variant: st.variant, mode: st.mode, salah: salah, locked: locked, mask: masked,
       err: st.err, toast: st.toast, moved: st.moved
-    }
+    },
+    layout: layout, now: Date.now()
   })
 
   // ---- window ----------------------------------------------------------------------------
@@ -92,6 +99,7 @@ PanelWindow {
   onWantedChanged: {
     if (wanted) {
       win.st = ({ focus: "", sel: "", hover: "", query: "", wsIdx: 0, variant: "a", mode: "pop", err: "", toast: "", moved: "" });
+      disp.run([win.tool, "status"], "layout:status");
       Hyprland.refreshWorkspaces();
       Hyprland.refreshToplevels();
       keys.forceActiveFocus();
@@ -102,11 +110,22 @@ PanelWindow {
   // ---- actions ---------------------------------------------------------------------------
   Dispatcher {
     id: disp
+    onReplied: (tag, data) => {
+      if (tag === "layout:status") win.layout = data && data.layout ? data.layout : null;
+      else if (tag === "layout:back" && data && data.ok) {
+        win.lastSet = { n: data.launched };
+        win.patch({ toast: "Restored " + data.launched + (data.launched === 1 ? " window" : " windows") + "." });
+        setTimer.restart();
+      }
+    }
     onFinished: (tag, ok) => {
       if (ok) return;
       if (tag.indexOf("move:") === 0) win.patch({ err: tag.slice(5), toast: "" });
+      else if (tag === "layout:back") win.patch({ toast: "Nothing to bring back." });
+      else if (tag === "layout:start") win.patch({ toast: "No startup set for this profile." });
     }
   }
+  Timer { id: setTimer; interval: 10000; onTriggered: { win.lastSet = null; win.patch({ toast: "" }); } }
   Timer { id: toastTimer; interval: 6000; onTriggered: win.patch({ toast: "", moved: "" }) }
 
   function profileNamed(n) { return M.findProfile(win.m.profiles, n); }
@@ -125,7 +144,20 @@ PanelWindow {
     win.patch({ err: "", toast: "Moved " + win.lastMove.title + " to " + p.name + ".", moved: a, sel: a });
     toastTimer.restart();
   }
+  function backSet(act) {
+    disp.run(D.backSet(win.tool, act.ws), "layout:back");
+  }
+  function startSet(profile) {
+    var p = profileNamed(profile);
+    if (p) disp.run(D.startSet(win.tool, profile, p.primary), "layout:start");
+  }
   function undo() {
+    if (win.lastSet) {
+      disp.run(D.undoSet(win.tool), "layout:undo");
+      win.lastSet = null;
+      win.patch({ toast: "" });
+      return;
+    }
     var l = win.lastMove;
     if (!l || l.from < 1) return;
     disp.run(D.moveWin(l.addr, l.from, false), "undo");
@@ -142,6 +174,9 @@ PanelWindow {
     if (act.type === "focusWs") win.focusWs(act.id);
     else if (act.type === "focusWin") win.focusWin(act.addr);
     else if (act.type === "moveWin") win.moveWin(act.addr, act.profile, act.follow);
+    else if (act.type === "newWs") win.focusWs(act.id);
+    else if (act.type === "backSet") win.backSet(act);
+    else if (act.type === "launcher") { disp.run(D.launcherQuery(act.query, Quickshell.shellDir), "launcher"); Ui.close(); }
   }
 
   function pickProfile(name) {
@@ -190,6 +225,8 @@ PanelWindow {
       else if (e.key === Qt.Key_J) key = "down";
       else if (e.key === Qt.Key_Slash) { win.patch({ mode: "full" }); panel.filter.forceActiveFocus(); e.accepted = true; return; }
       else if (e.key === Qt.Key_Z) { win.undo(); e.accepted = true; return; }
+      else if (!shift && e.key === Qt.Key_N) key = "n";
+      else if (!shift && e.key === Qt.Key_B) key = "b";
       else if (shift && win.shiftDigitKeys[e.key]) key = win.shiftDigitKeys[e.key];
       else if (!shift && win.digitKeys[e.key]) key = win.digitKeys[e.key];
     }
@@ -245,6 +282,10 @@ PanelWindow {
       onWinPicked: addr => win.pickWin(addr)
       onMoveTo: (addr, profile) => win.moveWin(addr, profile, false)
       onRetry: addr => win.retry(addr)
+      onStartSet: p => win.startSet(p)
+      onNewWs: id => win.focusWs(id)
+      onBackSet: p => { var pr = win.profileNamed(p); if (pr && pr.ret && pr.ret.has) win.backSet({ ws: pr.ret.ws }); }
+      onLauncher: q => { disp.run(D.launcherQuery(q, Quickshell.shellDir), "launcher"); Ui.close(); }
       onUndo: win.undo()
       onEdited: q => win.patch({ query: q, mode: (win.st.variant === "a" && q !== "") ? "full" : win.st.mode })
       onKeyed: e => win.onKey(e)

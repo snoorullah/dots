@@ -15,3 +15,5 @@ FilteredView 1.0 FilteredView.qml
 GridView 1.0 GridView.qml
 MapView 1.0 MapView.qml
 Toast 1.0 Toast.qml
+LauncherRow 1.0 LauncherRow.qml
+SetRow 1.0 SetRow.qml

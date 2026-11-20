@@ -15,6 +15,8 @@ Scope {
   property var notifs: null
   property var toasts: null
   property var capture: null
+  property var launcher: null
+  property var winSwitcher: null
 
   function screenFor() {
     var name = Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : "";
@@ -56,6 +58,83 @@ Scope {
 
     function toggle(): void { root.openPopout("system", 0.93); }
   }
+  // Centred cards: screen from the focused monitor, then Ui.toggle (no notch to point at).
+  function toggleCard(name) {
+    var s = root.screenFor();
+    Ui.toggle(name, s ? s.name : "", -1);
+  }
+
+  IpcHandler {
+    target: "dots.launcher"
+
+    // prefix: "" for All, or a mode prefix such as "c:" (clipboard) or "d:" (dictionary)
+    function toggle(prefix: string): void {
+      if (!root.launcher) return;
+      root.launcher.startMode = prefix;
+      root.toggleCard("launcher");
+    }
+    // open with text already typed (the workspace switcher's "Open in launcher" row)
+    function query(text: string): void {
+      if (!root.launcher) return;
+      var s = root.screenFor();
+      if (s) Ui.screenName = s.name;
+      root.launcher.openWith(text);
+    }
+  }
+
+  IpcHandler {
+    target: "dots.away"
+
+    function toggle(): void { root.toggleCard("away"); }
+  }
+
+  IpcHandler {
+    target: "dots.session"
+
+    function toggle(): void { root.openPopout("session", 0.93); }
+  }
+
+  IpcHandler {
+    target: "dots.winswitch"
+
+    // held-Alt cycling: Alt+Tab calls next/prev, the Alt release calls release (commit() picks now)
+    function next(): void { if (root.winSwitcher) root.winSwitcher.next(); }
+    function prev(): void { if (root.winSwitcher) root.winSwitcher.prev(); }
+    function release(): void { if (root.winSwitcher) root.winSwitcher.release(); }
+    function commit(): void { if (root.winSwitcher) root.winSwitcher.ctl.commit(); }
+  }
+
+  IpcHandler {
+    target: "dots.wallpaper"
+
+    function toggle(): void { root.toggleCard("wallpaper"); }
+  }
+
+  IpcHandler {
+    target: "dots.logomenu"
+
+    function toggle(): void { root.openPopout("logomenu", 0.03); }
+  }
+
+  IpcHandler {
+    target: "dots.scratchpad"
+
+    function toggle(): void { root.toggleCard("scratchpad"); }
+  }
+
+  IpcHandler {
+    target: "dots.restore"
+
+    // ask "Restore yesterday's layout?" (the windows module also asks once at login by itself)
+    function prompt(): void { root.toggleCard("restore"); }
+  }
+
+  IpcHandler {
+    target: "dots.tiling"
+
+    function toggle(): void { root.toggleCard("tiling"); }
+  }
+
   IpcHandler {
     target: "dots.workspaces"
 

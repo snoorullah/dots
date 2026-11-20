@@ -260,10 +260,9 @@ hl.on("hyprland.start", function()
   -- dots-shell passes swayosd its stylesheet with -s; without it the OSD renders stock GTK.
   hl.exec_cmd("~/.local/bin/dots-shell start")
   hl.exec_cmd("~/.local/bin/wallpaper --restore")
-  -- clipboard history for the clipse TUI. Text goes through dots-clip-store, which drops password-manager
-  -- copies and anything that looks like a secret (and clears it from the live clipboard after 30 s).
-  hl.exec_cmd("wl-paste --type text --watch ~/.local/bin/dots-clip-store")
-  hl.exec_cmd("wl-paste --type image/png --watch clipse --wl-store")
+  -- clipboard history for the launcher's clipboard mode (Super+C): dots-clip encrypts it, drops password-manager
+  -- copies and anything that looks like a secret, and clears it at logout. One user unit runs both watchers.
+  hl.exec_cmd("systemctl --user start dots-clip.service")
   -- Secret Service (gnome-keyring) + ssh-agent for SSH keys. Browser logins live in Zen's own store.
   hl.exec_cmd("sh -c 'systemctl --user import-environment WAYLAND_DISPLAY; systemctl --user set-environment SSH_AUTH_SOCK=$XDG_RUNTIME_DIR/ssh-agent.socket; systemctl --user start ssh-agent.service gnome-keyring.service'")
   hl.exec_cmd("systemctl --user start awatcher.service")     -- ActivityWatch window+AFK watcher (needs Wayland env)
@@ -292,12 +291,13 @@ hl.bind(mod .. " + SHIFT + Q", hl.dsp.window.close())
 hl.bind("ALT + F4",            hl.dsp.window.close())
 
 -- Launcher menus (otter-launcher popups)
-hl.bind(mod .. " + SPACE",     hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e otter-launcher app"))
+hl.bind(mod .. " + SPACE",     hl.dsp.exec_cmd("qs -c dots ipc call dots.launcher toggle ''"))  -- launcher (was otter-launcher app)
+hl.bind(mod .. " + ALT + SPACE", hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e otter-launcher app"))  -- otter-launcher apps (was Super+Space)
 hl.bind(mod .. " + Tab",       hl.dsp.exec_cmd("qs -c dots ipc call dots.workspaces toggle"))  -- profile and workspace switcher
 hl.bind(mod .. " + ALT + Tab", hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e otter-launcher win"))  -- window list (was Super+Tab)
 hl.bind(mod .. " + SHIFT + S", hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e otter-launcher run"))
 hl.bind(mod .. " + SHIFT + F", hl.dsp.exec_cmd("ghostty --class=dots.yazi --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e ~/.local/bin/yazi-launch.sh"))  -- file manager (yazi)
-hl.bind(mod .. " + C",         hl.dsp.exec_cmd("ghostty --class=dots.clipse --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e clipse"))  -- clipse clipboard history (was legacy-menu-clipboard.sh)
+hl.bind(mod .. " + C",         hl.dsp.exec_cmd("qs -c dots ipc call dots.launcher toggle c:"))  -- launcher, clipboard mode (was the clipse TUI)
 hl.bind(mod .. " + SHIFT + B", hl.dsp.exec_cmd("ghostty --class=dots.bluetuith --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup-bluetuith -e bluetuith"))  -- bluetuith panel (was legacy-menu-bluetooth.sh)
 hl.bind(mod .. " + SHIFT + W", hl.dsp.exec_cmd("ghostty --class=dots.wallpaper --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e ~/.local/bin/wallpaper"))  -- wallpaper picker (otter-styled fzf + swww, no caelestia)
 -- HyprCapture plugin when loaded (modes: region|fullscreen|window), else grim/slurp script
@@ -355,7 +355,7 @@ hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("~/.local/bin/dots-shell key br
 hl.bind("Caps_Lock",             hl.dsp.exec_cmd("swayosd-client --caps-lock"))
 
 -- Super+Esc asks WHY before it locks (timetrack D7); the lock screen then shows it with a timer.
-hl.bind(mod .. " + Escape",     hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e {{ .chezmoi.homeDir }}/.local/bin/timetrack-away-pick --declare"))
+hl.bind(mod .. " + Escape",     hl.dsp.exec_cmd("sh -c 'qs -c dots ipc call dots.away toggle || exec ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e {{ .chezmoi.homeDir }}/.local/bin/timetrack-away-pick --declare'"))  -- away picker (Quickshell); falls back to the terminal picker when Quickshell is down
 
 -- Focus (vim + arrows)
 local focusdirs = { H = "l", J = "d", K = "u", L = "r", left = "l", down = "d", up = "u", right = "r" }
@@ -416,6 +416,19 @@ hl.bind(mod .. " + ALT + B",       hl.dsp.exec_cmd("qs -c dots ipc call dots.ret
 hl.bind(mod .. " + ALT + Q",       hl.dsp.exec_cmd("~/.local/bin/dots-shell toggle"))  -- quickshell <-> waybar
 hl.bind(mod .. " + ALT + D",       hl.dsp.exec_cmd("~/.nix-profile/bin/timetrack health dose"))  -- dose taken: schedules the check-ins
 hl.bind(mod .. " + ALT + M",       hl.dsp.exec_cmd("ghostty --class=dots.mail --gtk-single-instance=false -e aerc"))  -- work mail (aerc over notmuch)
+
+-- Window switcher (held-Alt cycling): Alt+Tab opens and steps, releasing Alt picks. The release bind does not
+-- consume the key, so a bare Alt tap still reaches apps.
+hl.bind("ALT + Tab",         hl.dsp.exec_cmd("qs -c dots ipc call dots.winswitch next"))
+hl.bind("ALT + SHIFT + Tab", hl.dsp.exec_cmd("qs -c dots ipc call dots.winswitch prev"))
+hl.bind("ALT + Alt_L",       hl.dsp.exec_cmd("qs -c dots ipc call dots.winswitch release"), { release = true, non_consuming = true })
+-- Shell surfaces (Quickshell cards)
+hl.bind(mod .. " + ALT + E",       hl.dsp.exec_cmd("qs -c dots ipc call dots.session toggle"))    -- session menu (lock, logout, suspend, reboot, power off)
+hl.bind(mod .. " + ALT + W",       hl.dsp.exec_cmd("qs -c dots ipc call dots.wallpaper toggle"))  -- wallpaper picker card
+hl.bind(mod .. " + ALT + L",       hl.dsp.exec_cmd("qs -c dots ipc call dots.logomenu toggle"))   -- logo menu (Super+Shift+Space is taken: float)
+hl.bind(mod .. " + ALT + T",       hl.dsp.exec_cmd("qs -c dots ipc call dots.tiling toggle"))     -- tiling assistant
+hl.bind(mod .. " + ALT + R",       hl.dsp.exec_cmd("qs -c dots ipc call dots.restore prompt"))    -- restore the saved layout (asks first)
+hl.bind(mod .. " + grave",         hl.dsp.exec_cmd("qs -c dots ipc call dots.scratchpad toggle")) -- scratchpad note for this profile
 
 -- Resize submap
 hl.bind(mod .. " + R", hl.dsp.submap("resize"))

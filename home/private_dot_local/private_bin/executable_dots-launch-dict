@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+"""dots-launch-dict: offline dictionary and local grammar check (prefix `d:`).
+
+  dots-launch-dict query <word or text>   rows, JSON on stdout
+  dots-launch-dict grammar <text>         one row with the corrected text (local `llm`)
+  dots-launch-dict act copy <text>
+
+Dictionary = WordNet files (nixpkgs `wordnet`: dir with index.* and data.*), parsed here.
+Env: WNSEARCHDIR (dict dir), DOTS_LLM (llm argv, shell-split, default `llm`),
+     DOTS_LAUNCH_EXEC_LOG. The only process that may think is `llm` on localhost.
+"""
+import difflib, glob, json, os, shlex, subprocess, sys
+
+POS = [("noun", "noun"), ("verb", "verb"), ("adj", "adjective"), ("adv", "adverb")]
+
+
+def out(o):
+    sys.stdout.write(json.dumps(o, ensure_ascii=False) + "\n")
+
+
+def dict_dir():
+    home = os.path.expanduser("~")
+    cands = [os.environ.get("WNSEARCHDIR", ""), home + "/.nix-profile/dict", "/run/current-system/sw/dict",
+             "/usr/share/wordnet", "/usr/share/wordnet/dict", "/usr/local/share/wordnet/dict"]
+    cands += sorted(glob.glob("/nix/store/*-wordnet-*/dict"))
+    if "WNSEARCHDIR" in os.environ:   # an explicit dir is the only dir
+        cands = [os.environ["WNSEARCHDIR"]]
+    for c in cands:
+        if c and os.path.isfile(os.path.join(c, "index.noun")):
+            return c
+    return None
+
+
+def linear_index(path, word):
+    key = word + " "
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if line.startswith(key):
+                return line
+    return None
+
+
+def synset(path, offset):
+    with open(path, "rb") as f:
+        f.seek(int(offset))
+        line = f.readline().decode("utf-8", "replace")
+    head, _, gloss = line.partition("|")
+    f_ = head.split()
+    n = int(f_[3], 16)
+    words = [f_[4 + 2 * i].replace("_", " ").split("(")[0] for i in range(n)]
+    defn, examples = gloss.strip(), []
+    parts = [p.strip() for p in gloss.split(";")]
+    if parts:
+        defn = parts[0]
+        examples = [p.strip('" ') for p in parts[1:] if p.startswith('"')]
+    return {"words": words, "gloss": defn, "examples": examples}
+
+
+def lookup(word, ddir):
+    w = word.strip().lower().replace(" ", "_")
+    out_rows = []
+    for fname, label in POS:
+        idx = os.path.join(ddir, "index." + fname)
+        if not os.path.isfile(idx):
+            continue
+        line = linear_index(idx, w)
+        if not line:
+            continue
+        f = line.split()
+        cnt = int(f[2])
+        offs = f[-cnt:]
+        senses = [synset(os.path.join(ddir, "data." + fname), o) for o in offs[:3]]
+        out_rows.append((label, senses))
+    return out_rows
+
+
+def word_row(word, label, senses):
+    body = []
+    for i, s in enumerate(senses, 1):
+        body.append("%d. %s" % (i, s["gloss"]))
+        if s["examples"]:
+            body.append("   Used in: " + s["examples"][0])
+    syn = [x for s in senses for x in s["words"] if x.lower() != word.lower()]
+    syn = list(dict.fromkeys(syn))[:6]
+    if syn:
+        body.append("\nAlso: " + ", ".join(syn))
+    return {"key": "word:%s:%s" % (word, label), "title": word, "sub": label, "icon": "book-open-text",
+            "score": 0.9, "preview": {"head": word, "body": "\n".join(body)},
+            "actions": [{"label": "Copy word", "primary": True, "verb": "copy", "arg": word},
+                        {"label": "Check my text", "verb": "grammar", "arg": word}]}
+
+
+def grammar_row(text=""):
+    body = "Paste text after d: and press Ctrl+2. The check runs on the local model; nothing leaves the PC."
+    acts = [{"label": "Check grammar", "primary": True, "verb": "grammar", "arg": text, "disabled": not text}]
+    return {"key": "grammar", "title": "Grammar: paste text to check", "sub": "Local, nothing leaves the PC",
+            "icon": "pen-nib", "score": 0.4, "preview": {"head": "Check grammar", "body": body}, "actions": acts}
+
+
+def query(q):
+    q = q.strip()
+    if not q:
+        return {"rows": [grammar_row()], "hint": "Type a word, or paste text to check"}
+    if len(q.split()) >= 4:
+        return {"rows": [grammar_row(q)], "hint": ""}
+    ddir = dict_dir()
+    if not ddir:
+        return {"rows": [grammar_row(q)], "error": "WordNet is not installed (package wordnet)"}
+    found = lookup(q, ddir)
+    rows = [word_row(q, label, senses) for label, senses in found]
+    rows.append(grammar_row(q))
+    return {"rows": rows, "hint": "" if found else "No definition for " + q}
+
+
+def llm_argv():
+    return shlex.split(os.environ.get("DOTS_LLM", "llm"))
+
+
+def fixes(a, b):
+    x, y = a.split(), b.split()
+    return sum(1 for op in difflib.SequenceMatcher(None, x, y).get_opcodes() if op[0] != "equal")
+
+
+def grammar(text):
+    text = text.strip()
+    if not text:
+        return {"rows": [grammar_row()], "error": "nothing to check"}
+    prompt = ("Fix spelling and grammar in the text between the markers. Reply with the corrected text only, "
+              "no quotes, no commentary. Keep the meaning and the language.\n<<<\n%s\n>>>" % text)
+    try:
+        p = subprocess.run(llm_argv() + [prompt], capture_output=True, text=True, timeout=90)
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        return {"rows": [grammar_row(text)], "error": "local model unavailable (%s)" % type(e).__name__}
+    fixed = p.stdout.strip()
+    if p.returncode != 0 or not fixed:
+        return {"rows": [grammar_row(text)], "error": "local model failed"}
+    n = fixes(text, fixed)
+    body = "%s\n→ %s\n\n%s. Enter copies the result." % (text, fixed, ("%d fix%s" % (n, "" if n == 1 else "es")) if n else "No changes needed")
+    return {"rows": [{"key": "fixed", "title": "Grammar: %s" % ("%d fixes" % n if n != 1 else "1 fix") if n else "Grammar: looks fine",
+                      "sub": "Local, nothing leaves the PC", "icon": "pen-nib", "score": 0.9,
+                      "preview": {"head": "Check grammar", "body": body},
+                      "actions": [{"label": "Copy result", "primary": True, "verb": "copy", "arg": fixed}]}], "hint": ""}
+
+
+def act(verb, arg):
+    if verb == "copy":
+        argv = ["wl-copy", "--sensitive", arg]  # pasted text is private: keep it out of clipboard history
+        log = os.environ.get("DOTS_LAUNCH_EXEC_LOG")
+        if log:
+            with open(log, "a") as f:
+                f.write(json.dumps(argv) + "\n")
+            return {"toast": "Copied", "close": True}
+        try:
+            ok = subprocess.run(argv, timeout=5).returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            ok = False
+        return {"toast": "Copied", "close": True} if ok else {"error": "wl-copy failed"}
+    if verb == "grammar":
+        return grammar(arg)
+    return {"error": "unknown verb " + verb}
+
+
+def main(argv):
+    if len(argv) >= 2 and argv[1] == "query":
+        out(query(" ".join(argv[2:])))
+    elif len(argv) >= 3 and argv[1] == "grammar":
+        out(grammar(" ".join(argv[2:])))
+    elif len(argv) == 4 and argv[1] == "act":
+        out(act(argv[2], argv[3]))
+    else:
+        out({"rows": [], "error": "usage: dots-launch-dict query <text> | grammar <text> | act <verb> <arg>"})
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

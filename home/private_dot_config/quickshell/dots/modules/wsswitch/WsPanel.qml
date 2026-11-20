@@ -27,6 +27,10 @@ Item {
   signal undo()
   signal edited(string q)
   signal keyed(var event)
+  signal startSet(string profile)
+  signal newWs(int id)
+  signal backSet(string profile)
+  signal launcher(string query)
 
   readonly property bool pop: m.variant === "a" && m.mode === "pop"
   readonly property bool lock: !!m.locked
@@ -96,6 +100,9 @@ Item {
         onPicked: addr => root.winPicked(addr)
         onMove: (addr, name) => root.moveTo(addr, name)
         onRetry: addr => root.retry(addr)
+        onStartSet: p => root.startSet(p)
+        onNewWs: id => root.newWs(id)
+        onBackSet: root.backSet(root.m.focus)
       }
     }
     Item {
@@ -156,6 +163,9 @@ Item {
           onPicked: addr => root.winPicked(addr)
           onMove: (addr, name) => root.moveTo(addr, name)
           onRetry: addr => root.retry(addr)
+          onStartSet: p => root.startSet(p)
+          onNewWs: id => root.newWs(id)
+          onBackSet: root.backSet(root.m.focus)
         }
         FilteredView {
           x: rail.width + 1
@@ -164,6 +174,7 @@ Item {
           visible: !!root.m.filtering
           m: root.m
           onPicked: addr => root.winPicked(addr)
+          onLauncher: q => root.launcher(q)
         }
       }
       GridView {
@@ -173,6 +184,8 @@ Item {
         onPickedProfile: name => root.profilePicked(name)
         onPickedWin: addr => root.winPicked(addr)
         onMove: name => root.moveTo(root.selAddr, name)
+        onLauncher: q => root.launcher(q)
+        onBackSet: p => root.backSet(p)
       }
       MapView {
         anchors.fill: parent
@@ -183,6 +196,10 @@ Item {
         onPickedWin: addr => root.winPicked(addr)
         onFocusWs: id => root.wsFocus(id)
         onMove: name => root.moveTo(root.selAddr, name)
+        onStartSet: p => root.startSet(p)
+        onNewWs: id => root.newWs(id)
+        onBackSet: root.backSet(root.m.focus)
+        onLauncher: q => root.launcher(q)
       }
     }
     Item {

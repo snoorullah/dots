@@ -27,6 +27,20 @@ ShellRoot {
         var dev = { focus: "Dev", sel: "0xd2" }
         function c(tag, st, o) { return { tag: tag, st: st, strip: !!(o && o.strip === false ? false : true), edit: o && o.edit } }
         var moved = function (f) { f.windows.forEach(function (w) { if (w.addr === "0xf2") w.wsId = 3 }) }
+        // the last saved layout (what dots-layout status reports) 40 minutes before "now"
+        var saved = function (f) {
+            f.now = Date.parse("2026-11-20T09:00:00")
+            f.layout = { saved_at: "2026-11-20T08:20:00", clients: [
+                { class: "code", workspace: 3 }, { class: "foot", workspace: 3 }, { class: "foot", workspace: 3 },
+                { class: "zen-beta", workspace: 2 }, { class: "zen-beta", workspace: 2 },
+                { class: "slack", workspace: 4 }, { class: "foot", workspace: 11 } ] }
+        }
+        var agents = function (f) {
+            f.windows.forEach(function (w) {
+                if (w.addr === "0xa2") w.agent = "working"
+                if (w.addr === "0xa3") w.agent = "paused"
+            })
+        }
         var list = [
             c("pop-default", dev),
             c("pop-hover", { hover: "Web" }),
@@ -50,7 +64,25 @@ ShellRoot {
             c("map-comms", { variant: "c", focus: "Comms", wsIdx: 1 }),
             c("map-filter", { variant: "c", focus: "Dev", query: "term" })
         ]
-        return list
+        // unbuilt-board parts (SCENE=ext, run by tests/windows-ui.sh): mask, agent states, suggest chip,
+        // launcher row, saved sets
+        var ext = [
+            c("pop-mask", { focus: "Comms", mask: true }),
+            c("pop-mask-web", { focus: "Web", mask: true }),
+            c("pop-states", { focus: "Agents", sel: "0xa2" }, { edit: agents }),
+            c("pop-suggest", { focus: "Other" }),
+            c("pop-sets", { focus: "Dev" }, { edit: saved }),
+            c("pop-sets-none", { focus: "Review" }, { edit: saved }),
+            c("pop-restored", { focus: "Dev", toast: "Restored 3 windows." }, { edit: saved }),
+            c("pop-empty-set", { focus: "Notes" }, { edit: saved }),
+            c("full-launcher", { variant: "a", mode: "full", query: "term" }),
+            c("grid-sets", { variant: "b", focus: "Dev" }, { edit: saved }),
+            c("grid-launcher", { variant: "b", query: "zzz" }),
+            c("map-sets", { variant: "c", focus: "Dev" }, { edit: saved }),
+            c("map-nomatch", { variant: "c", focus: "Dev", query: "zzz" }),
+            c("map-empty-set", { variant: "c", focus: "Notes" }, { edit: saved })
+        ]
+        return Quickshell.env("SCENE") === "ext" ? ext : list
     }
 
     property var caseList: cases()

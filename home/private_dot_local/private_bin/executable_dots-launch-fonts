@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""dots-launch-fonts: installed fonts and Phosphor icon names for the launcher (prefix `t:`).
+
+  dots-launch-fonts query <text>
+  dots-launch-fonts act <verb> <arg>        copy
+
+Env: DOTS_FC_LIST (argv of fc-list, shell-split), DOTS_PHOSPHOR_QML (registry file),
+     DOTS_LAUNCH_EXEC_LOG. Local only.
+"""
+import json, os, re, shlex, subprocess, sys
+
+SAMPLE = "The quick brown fox jumps over the lazy dog.\nHD 4412 12m 0:45"
+
+
+def out(o):
+    sys.stdout.write(json.dumps(o, ensure_ascii=False) + "\n")
+
+
+def fonts():
+    argv = shlex.split(os.environ.get("DOTS_FC_LIST", "")) or ["fc-list", ":", "family", "spacing"]
+    try:
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=8)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+    fam = {}
+    for line in p.stdout.splitlines():
+        m = re.match(r"^(.*?)(?::\s*(?:spacing=(\d+))?)?\s*$", line.strip())
+        if not m:
+            continue
+        for name in m.group(1).split(","):
+            name = name.strip()
+            if name:
+                fam[name] = fam.get(name, False) or m.group(2) == "100"
+    return fam
+
+
+def icons():
+    path = os.environ.get("DOTS_PHOSPHOR_QML") or os.path.expanduser(
+        "~/.config/quickshell/dots/modules/common/PhosphorIcons.qml")
+    try:
+        src = open(path, encoding="utf-8").read()
+    except OSError:
+        return None
+    return sorted(set(re.findall(r'^\s*"([a-z][a-z0-9_-]*)"\s*:\s*\[', src, re.M)))
+
+
+def generic(name, mono):
+    if mono:
+        return "monospace"
+    return "serif" if re.search(r"serif(?!\s*sans)|roman|times|garamond", name, re.I) and "sans" not in name.lower() else "sans-serif"
+
+
+def match(q, name):
+    n, ql = name.lower(), q.lower()
+    if n == ql:
+        return 1.0
+    if n.startswith(ql):
+        return 0.9
+    if ql in n:
+        return 0.75
+    it = iter(n)
+    return 0.4 if all(c in it for c in ql) else 0.0
+
+
+def font_row(name, mono, s):
+    g = generic(name, mono)
+    css = "font-family: '%s', %s;" % (name, g)
+    short = name.split()[0]
+    return {"key": "font:" + name, "title": name, "sub": "Font, installed" + (", monospace" if mono else ""),
+            "icon": "text-aa", "score": s,
+            "preview": {"head": "%s 0O Il1" % short if len(name) > 14 else "%s 0O Il1" % name, "body": SAMPLE, "font": name},
+            "actions": [{"label": "Copy name", "primary": True, "verb": "copy", "arg": name},
+                        {"label": "Copy CSS", "verb": "copy", "arg": css},
+                        {"label": "Install", "verb": "install", "arg": name, "disabled": True}]}
+
+
+def icon_row(name, s):
+    return {"key": "icon:" + name, "title": "Icon: " + name, "sub": "Phosphor Regular", "icon": name, "score": s,
+            "preview": {"head": name, "body": "Copies the name. Search covers all Phosphor icons.", "icon": name},
+            "actions": [{"label": "Copy name", "primary": True, "verb": "copy", "arg": name},
+                        {"label": "Copy SVG", "verb": "svg", "arg": name, "disabled": True}]}
+
+
+def query(q):
+    q = q.strip()
+    if not q:
+        return {"rows": [], "hint": "Type a font or icon name"}
+    fam, ic = fonts(), icons()
+    rows, errs = [], []
+    if fam is None:
+        errs.append("fc-list is not installed")
+    else:
+        hits = sorted(((match(q, n), n, m) for n, m in fam.items()), key=lambda t: (-t[0], t[1]))
+        rows += [font_row(n, m, round(s, 3)) for s, n, m in hits if s > 0][:12]
+    if ic is not None:
+        hits = sorted(((match(q, n), n) for n in ic), key=lambda t: (-t[0], t[1]))
+        rows += [icon_row(n, round(s * 0.9, 3)) for s, n in hits if s > 0][:12]
+    rows.sort(key=lambda r: -r["score"])
+    o = {"rows": rows, "hint": "" if rows else "No font or icon matches"}
+    if errs and not rows:
+        o["error"] = errs[0]
+    return o
+
+
+def act(verb, arg):
+    if verb == "copy":
+        argv = ["wl-copy", arg]
+        log = os.environ.get("DOTS_LAUNCH_EXEC_LOG")
+        if log:
+            open(log, "a").write(json.dumps(argv) + "\n")
+            return {"toast": "Copied", "close": True}
+        try:
+            ok = subprocess.run(argv, timeout=5).returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            ok = False
+        return {"toast": "Copied", "close": True} if ok else {"error": "wl-copy failed"}
+    if verb in ("install", "svg"):
+        return {"toast": "Not available yet", "close": False}
+    return {"error": "unknown verb " + verb}
+
+
+def main(argv):
+    if len(argv) >= 2 and argv[1] == "query":
+        out(query(" ".join(argv[2:])))
+    elif len(argv) == 4 and argv[1] == "act":
+        out(act(argv[2], argv[3]))
+    else:
+        out({"rows": [], "error": "usage: dots-launch-fonts query <text> | act copy <text>"})
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

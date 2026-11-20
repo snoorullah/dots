@@ -1,0 +1,4 @@
+module qs.modules.wallpaper.parts
+WallTile 1.0 WallTile.qml
+MiniShell 1.0 MiniShell.qml
+Chip 1.0 Chip.qml

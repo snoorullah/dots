@@ -1,0 +1,15 @@
+[Unit]
+Description=dots-layout: save the layout when the graphical session ends
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=PATH=%h/.nix-profile/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/true
+ExecStop=%h/.local/bin/dots-layout save --force
+TimeoutStopSec=20
+
+[Install]
+WantedBy=graphical-session.target

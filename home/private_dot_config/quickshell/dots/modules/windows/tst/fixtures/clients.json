@@ -1,0 +1,13 @@
+{
+  "activeAddr": "0xc2",
+  "activeWs": 3,
+  "clients": [
+    {"addr": "0xc1", "cls": "code",     "title": "deliver.ts",     "grouped": ["0xc1", "0xc2", "0xc3", "0xc4"]},
+    {"addr": "0xc2", "cls": "zen-beta", "title": "PR #2288",       "grouped": ["0xc1", "0xc2", "0xc3", "0xc4"]},
+    {"addr": "0xc3", "cls": "foot",     "title": "pane 2",         "grouped": ["0xc1", "0xc2", "0xc3", "0xc4"]},
+    {"addr": "0xc4", "cls": "obsidian", "title": "Webhook notes",  "grouped": ["0xc1", "0xc2", "0xc3", "0xc4"]},
+    {"addr": "0xd1", "cls": "foot",     "title": "Terminal",       "grouped": ["0xd1"]},
+    {"addr": "0xd2", "cls": "slack",    "title": "Chat",           "grouped": ["0xd2"]},
+    {"addr": "0xd3", "cls": "thunderbird", "title": "Mail",        "grouped": ["0xd3"]}
+  ]
+}

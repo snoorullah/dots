@@ -1,0 +1,388 @@
+#!/usr/bin/env python3
+"""dots-lock-info: the dynamic lines the hyprlock screen shows (cmd[] labels).
+
+    dots-lock-info <field> [--up HEX] [--down HEX] [--dim HEX]
+
+Fields: date away status stat1 stat2 stat3 day prayer music away-counts all
+One field per call, Pango markup out, XML-escaped. Never fails: missing or corrupt
+data prints nothing and exits 0. Local reads only, no network. No task names: the
+lock screen shows counts, never titles.
+
+Env (tests): DOTS_STATE_DIR DOTS_TIMETRACK_DIR DOTS_ADHD_DIR DOTS_LOCK_NOW
+"""
+import json
+import os
+import socket
+import subprocess
+import sys
+import time
+from datetime import datetime
+from xml.sax.saxutils import escape
+
+HOME = os.path.expanduser("~")
+STATE = os.environ.get("DOTS_STATE_DIR") or os.path.join(HOME, ".local/state/dots-overview")
+TRACK = os.environ.get("DOTS_TIMETRACK_DIR") or os.path.join(HOME, ".local/share/timetrack")
+ADHD_CONF = os.environ.get("DOTS_ADHD_DIR") or os.path.join(HOME, ".config/adhd")
+ADHD_DATA = os.environ.get("DOTS_ADHD_DATA") or os.path.join(HOME, ".local/share/adhd")
+TARGET_SEC = 8 * 3600
+COL = {"up": None, "down": None, "dim": None}
+
+
+def now():
+    v = os.environ.get("DOTS_LOCK_NOW")
+    return float(v) if v else time.time()
+
+
+def jload(path):
+    try:
+        with open(path) as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def run(argv, t=0.6):
+    try:
+        r = subprocess.run(argv, capture_output=True, text=True, timeout=t)
+        return r.stdout if r.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+def span(text, color=None, extra=""):
+    t = escape(str(text))
+    attrs = (f' foreground="{color}"' if color else "") + (" " + extra if extra else "")
+    return f"<span{attrs}>{t}</span>" if attrs else t
+
+
+def hm(sec):
+    sec = max(0, int(sec))
+    return f"{sec // 3600}:{sec % 3600 // 60:02d}"
+
+
+def hms(sec):
+    sec = max(0, int(sec))
+    if sec >= 3600:
+        return f"{sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}"
+    return f"{sec // 60:02d}:{sec % 60:02d}"
+
+
+# ---- date ------------------------------------------------------------------------------
+HIJRI = ["Muharram", "Safar", "Rabi al-Awwal", "Rabi al-Thani", "Jumada al-Ula", "Jumada al-Thania",
+         "Rajab", "Shaban", "Ramadan", "Shawwal", "Dhu al-Qadah", "Dhu al-Hijjah"]
+
+
+def hijri(d):
+    """Civil tabular Islamic calendar (Kuwaiti algorithm). Can differ one day from moon sighting."""
+    jd = d.toordinal() + 1721425
+    l = jd - 1948440 + 10632
+    n = (l - 1) // 10631
+    l = l - 10631 * n + 354
+    j = ((10985 - l) // 5316) * ((50 * l) // 17719) + (l // 5670) * ((43 * l) // 15238)
+    l = l - ((30 - j) // 15) * ((17719 * j) // 50) - (j // 16) * ((15238 * j) // 43) + 29
+    m = (24 * l) // 709
+    return l - (709 * m) // 24, m - 1, 30 * n + j - 30
+
+
+def f_date(_):
+    d = datetime.fromtimestamp(now())
+    day, month, year = hijri(d.date())
+    return f"{day} {HIJRI[month]} {year}"
+
+
+# ---- away chip -------------------------------------------------------------------------
+def f_away(_):
+    t = now()
+    a = jload(os.path.join(TRACK, "away-intent.json"))
+    label, since, key = a.get("label"), a.get("since"), a.get("key")
+    if label and isinstance(since, (int, float)) and 0 <= t - since < 86400:
+        if key == "logout":
+            return span(f"Logged out for today · since {datetime.fromtimestamp(since):%H:%M}", COL["dim"])
+        return span(f"Out for {label}", COL["up"]) + span(f"  {hms(t - since)}", COL["dim"])
+    n = jload(os.path.join(STATE, "now.json")).get("clock") or {}
+    reason, since = n.get("awayReason"), n.get("sinceTs")
+    if n.get("state") not in (None, "in") and reason and isinstance(since, (int, float)) and t >= since:
+        return span(f"Out for {reason}", COL["up"]) + span(f"  {hms(t - since)}", COL["dim"])
+    return ""
+
+
+# ---- top right: host, network, volume, layout -------------------------------------------
+def net_kind():
+    try:
+        best = ""
+        for n in sorted(os.listdir("/sys/class/net")):
+            if n == "lo":
+                continue
+            try:
+                with open(f"/sys/class/net/{n}/operstate") as f:
+                    if f.read().strip() != "up":
+                        continue
+            except Exception:
+                continue
+            if os.path.isdir(f"/sys/class/net/{n}/wireless"):
+                return "wifi"
+            best = best or "wired"
+        return best or "offline"
+    except Exception:
+        return ""
+
+
+def volume():
+    out = run(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"]).split()
+    try:
+        pct = round(float(out[1]) * 100)
+    except Exception:
+        return ""
+    return "muted" if "[MUTED]" in out else f"{pct}%"
+
+
+def layout():
+    try:
+        for kb in json.loads(run(["hyprctl", "-j", "devices"])).get("keyboards", []):
+            if kb.get("main"):
+                return (kb.get("active_keymap") or "")[:2].upper()
+    except Exception:
+        pass
+    return ""
+
+
+def f_status(_):
+    parts = [socket.gethostname().split(".")[0], net_kind(), volume(), layout()]
+    return span("  ·  ".join(p for p in parts if p), COL["dim"])
+
+
+# ---- stats vs 30-day average ----------------------------------------------------------
+def delta(text, sign, good=True):
+    if sign == 0:
+        return span("same", COL["dim"])
+    arrow = "▲" if sign > 0 else "▼"
+    return span(f"{arrow} {text}", COL["up"] if (sign > 0) == good else COL["down"])
+
+
+def stat_block(value, label, d):
+    return "\n".join([span(value, extra='size="x-large" weight="bold"'), span(label, COL["dim"]), d])
+
+
+def activity():
+    a = jload(os.path.join(STATE, "activity.json"))
+    ts = a.get("ts")
+    if not isinstance(ts, (int, float)) or datetime.fromtimestamp(ts).date() != datetime.fromtimestamp(now()).date():
+        return None, None
+    b = a.get("buckets") or {}
+    return b.get("today") or {}, b.get("month") or {}
+
+
+def f_stat1(_):  # worked
+    today, month = activity()
+    if today is None or not isinstance(today.get("workedSec"), (int, float)):
+        return ""
+    w = today["workedSec"]
+    avg = (month or {}).get("workedSec")
+    if not isinstance(avg, (int, float)) or avg <= 0:
+        return stat_block(hm(w), "worked", "")
+    diff = w - avg / 30
+    sign = 0 if abs(diff) < 300 else (1 if diff > 0 else -1)
+    return stat_block(hm(w), "worked", delta(hm(abs(diff)), sign))
+
+
+def f_stat2(_):  # tasks done
+    today, month = activity()
+    if today is None or not isinstance(today.get("tasksDone"), (int, float)):
+        return ""
+    n = int(today["tasksDone"])
+    avg = (month or {}).get("tasksDone")
+    if not isinstance(avg, (int, float)):
+        return stat_block(str(n), "tasks done", "")
+    diff = n - avg / 30
+    sign = 0 if abs(diff) < 0.5 else (1 if diff > 0 else -1)
+    return stat_block(str(n), "tasks done", delta(f"{abs(diff):.0f}", sign))
+
+
+def f_stat3(_):  # salah on time
+    day = datetime.fromtimestamp(now())
+    today = [0, 0]
+    hist = [0, 0]
+    try:
+        with open(os.path.join(ADHD_DATA, "salah.log")) as f:
+            for line in f:
+                p = line.rstrip("\n").split("\t")
+                if len(p) < 3:
+                    continue
+                try:
+                    age = (day.date() - datetime.strptime(p[0], "%Y-%m-%d").date()).days
+                except ValueError:
+                    continue
+                ok = 0 if p[2] in ("missed", "qaza") else 1
+                if age == 0:
+                    today[0] += ok
+                    today[1] += 1
+                if 0 <= age < 30:
+                    hist[0] += ok
+                    hist[1] += 1
+    except Exception:
+        return ""
+    if not today[1]:
+        return ""
+    d = ""
+    if hist[1]:
+        diff = today[0] / today[1] - hist[0] / hist[1]
+        sign = 0 if abs(diff) < 0.05 else (1 if diff > 0 else -1)
+        d = delta(f"{abs(diff) * 100:.0f} pts", sign)
+    return stat_block(f"{today[0]}/{today[1]}", "salah on time", d)
+
+
+# ---- day line --------------------------------------------------------------------------
+def f_day(_):
+    today, _m = activity()
+    if today is None or not isinstance(today.get("workedSec"), (int, float)):
+        return ""
+    w = today["workedSec"]
+    head = span(hm(w), extra='weight="bold"') + span(f" worked of {hm(TARGET_SEC)}", COL["dim"])
+    left = TARGET_SEC - w
+    if left <= 0:
+        return head + "\n" + span("target met", COL["up"])
+    end = datetime.fromtimestamp(now() + left)
+    return head + "\n" + span(f"logout {end:%H:%M}", extra='weight="bold"') + span(f"  in {hm(left)}", COL["dim"])
+
+
+# ---- next prayer -----------------------------------------------------------------------
+def f_prayer(_):
+    rows = []
+    try:
+        with open(os.path.join(ADHD_CONF, "prayer-times.conf")) as f:
+            for line in f:
+                p = line.split("#")[0].split()
+                if len(p) == 2 and ":" in p[1]:
+                    try:
+                        h, m = map(int, p[1].split(":"))
+                    except ValueError:
+                        continue
+                    if 0 <= h < 24 and 0 <= m < 60:
+                        rows.append((p[0], h * 60 + m))
+    except Exception:
+        return ""
+    if not rows:
+        return ""
+    d = datetime.fromtimestamp(now())
+    cur = d.hour * 60 + d.minute
+    nxt = next((r for r in rows if r[1] > cur), None)
+    wait = (nxt[1] - cur) if nxt else (rows[0][1] + 1440 - cur)
+    nxt = nxt or rows[0]
+    return (span("next ", COL["dim"]) + span(f"{nxt[0]} {nxt[1] // 60:02d}:{nxt[1] % 60:02d}", extra='weight="bold"')
+            + span(f"  in {wait // 60}:{wait % 60:02d}", COL["dim"]))
+
+
+# ---- music -----------------------------------------------------------------------------
+def f_music(_):
+    if run(["playerctl", "status"]).strip() != "Playing":
+        return ""
+    t = run(["playerctl", "metadata", "--format", "{{title}}\t{{artist}}"]).rstrip("\n").split("\t")
+    title = t[0].strip() if t else ""
+    if not title:
+        return ""
+    artist = t[1].strip() if len(t) > 1 else ""
+    return span(title[:60], extra='weight="bold"') + ("\n" + span(artist[:60], COL["dim"]) if artist else "")
+
+
+# ---- while you were away ---------------------------------------------------------------
+KINDS = [("tickets", ("erp",)), ("mail", ("mail",)), ("reviews", ("review",)),
+         ("agents", ("blocker",)), ("alerts", ("alert",))]
+
+
+def counts():
+    items = jload(os.path.join(STATE, "attention.json")).get("items") or []
+    out = {}
+    for name, kinds in KINDS:
+        out[name] = sum(1 for i in items if isinstance(i, dict) and i.get("kind") in kinds)
+    return out
+
+
+def lock_key():
+    """pid:starttime of the hyprlock ancestor, or None (tests, no lock running)."""
+    pid = os.getppid()
+    for _ in range(5):
+        try:
+            with open(f"/proc/{pid}/comm") as f:
+                comm = f.read().strip()
+            with open(f"/proc/{pid}/stat") as f:
+                st = f.read().rsplit(")", 1)[1].split()
+            if comm == "hyprlock":
+                return f"{pid}:{st[19]}"
+            pid = int(st[1])
+        except Exception:
+            return None
+    return None
+
+
+def baseline(cur):
+    key = lock_key()
+    if key is None:
+        return {}
+    path = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or "/tmp", f"dots-lock-info-{os.getuid()}.json")
+    b = jload(path)
+    if b.get("key") == key and isinstance(b.get("counts"), dict):
+        return b["counts"]
+    try:
+        tmp = path + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump({"key": key, "counts": cur}, f)
+        os.replace(tmp, path)
+    except Exception:
+        pass
+    return cur
+
+
+def f_away_counts(_):
+    cur = counts()
+    base = baseline(cur)
+    names = {"tickets": "assigned", "mail": "new mail", "reviews": "reviews asked",
+             "agents": "agents need you", "alerts": "alerts"}
+    rows = []
+    for k, _kinds in KINDS:
+        n = cur[k] - base.get(k, 0)
+        if n > 0:
+            rows.append(span(str(n), extra='weight="bold"') + span(f"  {names[k]}", COL["dim"]))
+    return "\n".join(rows)
+
+
+FIELDS = {"date": f_date, "away": f_away, "status": f_status, "stat1": f_stat1, "stat2": f_stat2,
+          "stat3": f_stat3, "day": f_day, "prayer": f_prayer, "music": f_music, "away-counts": f_away_counts}
+
+
+def main(argv):
+    args = argv[1:]
+    for opt in ("up", "down", "dim"):
+        if f"--{opt}" in args:
+            i = args.index(f"--{opt}")
+            if i + 1 < len(args):
+                v = args[i + 1].lstrip("#")
+                if len(v) in (6, 8) and all(c in "0123456789abcdefABCDEF" for c in v):
+                    COL[opt] = "#" + v
+                del args[i:i + 2]
+            else:
+                del args[i:]
+    field = args[0] if args else ""
+    if field == "all":
+        for k, fn in FIELDS.items():
+            try:
+                print(f"{k}: {fn(None)!r}")
+            except Exception:
+                print(f"{k}: ''")
+        return 0
+    fn = FIELDS.get(field)
+    if fn:
+        try:
+            out = fn(None)
+        except Exception:
+            out = ""
+        if out:
+            sys.stdout.write(out + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv))
+    except BaseException:
+        sys.exit(0)

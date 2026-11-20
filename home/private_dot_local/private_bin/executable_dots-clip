@@ -1,0 +1,356 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+"""dots-clip: encrypted clipboard history for the launcher ("c:" mode). Replaces clipse and dots-clip-store.
+
+  store [--image]       wl-paste --watch target: the new clipboard content arrives on stdin
+  list [text]           launcher rows as JSON (decrypts in memory; image previews go to the runtime dir)
+  paste <id>            put an item back on the clipboard (wl-copy)
+  pin <id> | unpin <id> | delete <id>
+  clear                 drop everything that is not pinned (run at logout) and purge image previews
+  purge-previews        remove the decrypted image previews only (run when the launcher closes)
+  clear-live <sha256>   internal: after 30 s clear the live clipboard if it still holds a secret
+
+Autostart (Hyprland):   wl-paste --type text --watch dots-clip store
+                        wl-paste --type image/png --watch dots-clip store --image
+
+At rest: one file, history.enc, a Fernet token (AES-128-CBC + HMAC-SHA256) over a JSON document, mode 0600,
+key in `key` (0600) next to it, both in a 0700 directory: $DOTS_CLIP_STATE or ~/.local/state/dots-clip.
+Never stored: anything whose offered MIME types carry a password-manager or sensitive hint, anything that
+looks like a secret (the same patterns dots-clip-store used), empty text. A secret hit is also cleared
+from the live clipboard after 30 s. Without the `cryptography` module nothing is stored (never plaintext).
+Local only. Argv only. DOTS_CLIP_EXEC_LOG=<file> logs wl-copy/notify argv instead of running them (tests);
+DOTS_CLIP_TYPES="a\\nb" stands in for `wl-paste --list-types`.
+"""
+import base64
+import fcntl
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+
+try:
+    from cryptography.fernet import Fernet, InvalidToken
+except ImportError:  # pragma: no cover - reported at use
+    Fernet = None
+    InvalidToken = Exception
+
+MAX_TEXT = 1 << 20          # 1 MiB
+MAX_IMAGE = 8 << 20         # 8 MiB
+KEEP = 100                  # unpinned items kept
+HINT = "No clipboard history yet. Copy something and it shows up here."
+INFO_BODY = ("Anything marked sensitive by the app is skipped, and the history is encrypted on this PC. "
+             "Clears at logout unless pinned.")
+
+SENSITIVE_TYPE = re.compile(r"passwordmanager|concealed|sensitive|x-secret|1password|keepass|bitwarden", re.I)
+SECRET = re.compile(
+    r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----|AGE-SECRET-KEY-1|\bgh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}"
+    r"|\bglpat-[A-Za-z0-9_-]{20,}|\bAKIA[0-9A-Z]{16}\b|\bASIA[0-9A-Z]{16}\b|\bxox[abposr]-[A-Za-z0-9-]{10,}"
+    r"|\bsk-(ant-|proj-)?[A-Za-z0-9_-]{20,}|\bnpm_[A-Za-z0-9]{30,}|\bhvs\.[A-Za-z0-9_-]{20,}|\bAIza[0-9A-Za-z_-]{35}"
+    r"|\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|[A-Za-z0-9_~.-]{3}8Q~[A-Za-z0-9_~.-]{31,}"
+    r"|AccountKey=|SharedAccessSignature=|(?i:(password|passwd|secret|token|api[_-]?key|client[_-]?secret)\s*[:=]\s*\S{8,})")
+CMDWORDS = {"kubectl", "git", "ssh", "sudo", "docker", "curl", "helm", "cd", "ls", "systemctl", "journalctl", "nix",
+            "npm", "pip", "python", "python3", "make", "cargo", "go", "herdr", "argo", "chezmoi", "rsync", "scp"}
+
+
+# ---- paths and crypto ----------------------------------------------------------------------
+def state_dir():
+    d = os.environ.get("DOTS_CLIP_STATE") or os.path.join(os.path.expanduser("~"), ".local", "state", "dots-clip")
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    os.chmod(d, 0o700)
+    return d
+
+
+def preview_dir():
+    base = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
+    d = os.path.join(base, "dots-clip")
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    os.chmod(d, 0o700)
+    return d
+
+
+def fernet():
+    if Fernet is None:
+        raise RuntimeError("python cryptography module missing: nothing is stored")
+    kp = os.path.join(state_dir(), "key")
+    if not os.path.exists(kp):
+        fd = os.open(kp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "wb") as f:
+            f.write(Fernet.generate_key())
+    os.chmod(kp, 0o600)
+    with open(kp, "rb") as f:
+        return Fernet(f.read().strip())
+
+
+class Store:
+    """Locked read-modify-write of the encrypted history."""
+
+    def __init__(self):
+        self.path = os.path.join(state_dir(), "history.enc")
+        self.items = []
+
+    def __enter__(self):
+        self.lock = open(os.path.join(state_dir(), "lock"), "a")
+        os.chmod(self.lock.name, 0o600)
+        fcntl.flock(self.lock, fcntl.LOCK_EX)
+        self.f = fernet()
+        try:
+            with open(self.path, "rb") as fh:
+                self.items = json.loads(self.f.decrypt(fh.read()).decode("utf-8")).get("items", [])
+        except FileNotFoundError:
+            self.items = []
+        except (InvalidToken, ValueError):
+            self.items = []  # unreadable (key lost): start clean rather than leak or crash
+        return self
+
+    def save(self):
+        blob = self.f.encrypt(json.dumps({"v": 1, "items": self.items}, ensure_ascii=False).encode("utf-8"))
+        fd, tmp = tempfile.mkstemp(dir=state_dir(), prefix=".tmp-")
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(blob)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, self.path)
+
+    def __exit__(self, *_):
+        fcntl.flock(self.lock, fcntl.LOCK_UN)
+        self.lock.close()
+
+
+# ---- helpers -------------------------------------------------------------------------------
+def run_or_log(argv, stdin=None):
+    log = os.environ.get("DOTS_CLIP_EXEC_LOG")
+    if log:
+        with open(log, "a", encoding="utf-8") as f:
+            f.write(json.dumps(argv) + "\n")
+        return 0
+    if not shutil.which(argv[0]):
+        return 127
+    try:
+        return subprocess.run(argv, input=stdin, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10).returncode
+    except (OSError, subprocess.TimeoutExpired):
+        return 1
+
+
+def offered_types():
+    forced = os.environ.get("DOTS_CLIP_TYPES")
+    if forced is not None:
+        return [t for t in forced.split("\n") if t]
+    if not shutil.which("wl-paste"):
+        return []
+    try:
+        p = subprocess.run(["wl-paste", "--list-types"], capture_output=True, text=True, timeout=3)
+        return [t for t in p.stdout.split("\n") if t]
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+
+
+def is_sensitive_types(types):
+    return any(SENSITIVE_TYPE.search(t) for t in types)
+
+
+def item_id(data):
+    return hashlib.sha256(data).hexdigest()[:16]
+
+
+def png_size(b):
+    if b[:8] == b"\x89PNG\r\n\x1a\n" and len(b) >= 24:
+        return int.from_bytes(b[16:20], "big"), int.from_bytes(b[20:24], "big")
+    return 0, 0
+
+
+def ago(ts):
+    d = max(0, time.time() - ts)
+    if d < 60:
+        return "just now"
+    for n, u in ((86400, "d"), (3600, "h"), (60, "m")):
+        if d >= n:
+            return "%d%s ago" % (int(d // n), u)
+    return "just now"
+
+
+# ---- verbs ---------------------------------------------------------------------------------
+def store(image):
+    data = sys.stdin.buffer.read(MAX_IMAGE + 1 if image else MAX_TEXT + 1)
+    if not data or len(data) > (MAX_IMAGE if image else MAX_TEXT):
+        return 0
+    if is_sensitive_types(offered_types()):
+        return 0
+    if image:
+        w, h = png_size(data)
+        item = {"kind": "image", "mime": "image/png", "w": w, "h": h, "data": base64.b64encode(data).decode("ascii")}
+    else:
+        text = data.decode("utf-8", errors="replace")
+        if not text.strip():
+            return 0
+        if SECRET.search(text):
+            sha = hashlib.sha256(text.rstrip("\n").encode("utf-8")).hexdigest()
+            run_or_log(["notify-send", "-a", "clipboard", "-u", "low", "Secret kept out of clipboard history",
+                        "Clears from the clipboard in 30 s."])
+            if not os.environ.get("DOTS_CLIP_EXEC_LOG"):
+                subprocess.Popen([sys.executable, os.path.abspath(__file__), "clear-live", sha], start_new_session=True,
+                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return 0
+        item = {"kind": "text", "text": text}
+    item["id"] = item_id(data)
+    with Store() as s:
+        old = next((i for i in s.items if i["id"] == item["id"]), None)
+        item["pinned"] = bool(old and old.get("pinned"))
+        item["ts"] = int(time.time())
+        s.items = [item] + [i for i in s.items if i["id"] != item["id"]]
+        pinned = [i for i in s.items if i.get("pinned")]
+        loose = [i for i in s.items if not i.get("pinned")][:KEEP]
+        s.items = sorted(pinned + loose, key=lambda i: -i["ts"])
+        s.save()
+    return 0
+
+
+def clear_live(sha):
+    time.sleep(30)
+    try:
+        cur = subprocess.run(["wl-paste", "--no-newline"], capture_output=True, timeout=3).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return 0
+    if hashlib.sha256(cur.rstrip(b"\n")).hexdigest() == sha or hashlib.sha256(cur).hexdigest() == sha:
+        run_or_log(["wl-copy", "--clear"])
+    return 0
+
+
+def kind_label(it):
+    if it["kind"] == "image":
+        return "Image"
+    t = it["text"].strip()
+    return "Link" if re.fullmatch(r"https?://\S+", t) else "Text"
+
+
+def icon_for(it):
+    if it["kind"] == "image":
+        return "image"
+    t = it["text"].strip()
+    if re.fullmatch(r"https?://\S+", t):
+        return "globe"
+    first = t.split(None, 1)[0] if t else ""
+    return "terminal-window" if first in CMDWORDS or first.startswith(("./", "~/")) else "clipboard-text"
+
+
+def write_preview(it):
+    p = os.path.join(preview_dir(), "%s.png" % it["id"])
+    if not os.path.exists(p):
+        fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "wb") as f:
+            f.write(base64.b64decode(it["data"]))
+    return p
+
+
+def row_for(it):
+    img = it["kind"] == "image"
+    if img:
+        title = "Screenshot, %d × %d" % (it.get("w", 0), it.get("h", 0)) if it.get("w") else "Image"
+        prev = {"head": "Image", "body": "%d × %d" % (it.get("w", 0), it.get("h", 0)), "image": write_preview(it)}
+    else:
+        flat = " ".join(it["text"].split())
+        title = flat[:90] + ("…" if len(flat) > 90 else "")
+        prev = {"head": kind_label(it), "body": it["text"][:2000]}
+    sub = "%s, %s" % (kind_label(it), ago(it["ts"]))
+    row = {"key": it["id"], "title": title, "sub": ("Pinned, " if it.get("pinned") else "") + sub, "icon": icon_for(it),
+           "preview": prev, "pinned": bool(it.get("pinned")),
+           "actions": [{"label": "Paste", "primary": True}, {"label": "Unpin" if it.get("pinned") else "Pin"},
+                       {"label": "Delete"}]}
+    if it.get("pinned"):
+        row["chips"] = [{"t": "Pinned", "tone": "accent"}]
+    return row
+
+
+def list_rows(text):
+    q = text.strip().lower()
+    with Store() as s:
+        items = list(s.items)
+    items.sort(key=lambda i: (not i.get("pinned"), -i["ts"]))
+    rows = [row_for(i) for i in items if not q or (i["kind"] == "text" and q in i["text"].lower())][:60]
+    if not q:
+        rows.append({"key": "__info", "title": "Hidden: copied from a password manager", "sub": "Never stored",
+                     "icon": "lock", "preview": {"head": "Not stored", "body": INFO_BODY}, "actions": []})
+    return {"rows": rows, "hint": HINT if not items else "Nothing in the history matches."}
+
+
+def find(items, iid):
+    return next((i for i in items if i["id"] == iid), None)
+
+
+def paste(iid):
+    with Store() as s:
+        it = find(s.items, iid)
+    if not it:
+        return {"rows": [], "error": "That item is gone."}
+    if it["kind"] == "image":
+        rc = run_or_log(["wl-copy", "--type", "image/png"], base64.b64decode(it["data"]))
+    else:
+        rc = run_or_log(["wl-copy", "--type", "text/plain"], it["text"].encode("utf-8"))
+    return {"rows": [], "toast": "Copied. Press Ctrl+V to paste."} if rc == 0 else {"rows": [], "error": "wl-copy failed"}
+
+
+def mutate(verb, iid):
+    with Store() as s:
+        it = find(s.items, iid)
+        if not it:
+            return {"rows": [], "error": "That item is gone."}
+        if verb == "delete":
+            s.items = [i for i in s.items if i["id"] != iid]
+            pv = os.path.join(preview_dir(), "%s.png" % iid)
+            if os.path.exists(pv):
+                os.remove(pv)
+        else:
+            it["pinned"] = verb == "pin"
+        s.save()
+    return {"rows": [], "toast": {"pin": "Pinned", "unpin": "Unpinned", "delete": "Deleted"}[verb]}
+
+
+def purge_previews():
+    d = preview_dir()
+    for f in os.listdir(d):
+        if f.endswith(".png"):
+            os.remove(os.path.join(d, f))
+
+
+def clear():
+    with Store() as s:
+        s.items = [i for i in s.items if i.get("pinned")]
+        s.save()
+    purge_previews()
+    return {"rows": []}
+
+
+def main(argv):
+    verb, rest = (argv[0] if argv else ""), argv[1:]
+    try:
+        if verb == "store":
+            return store("--image" in rest)
+        if verb == "clear-live" and rest:
+            return clear_live(rest[0])
+        if verb == "list":
+            out = list_rows(" ".join(rest))
+        elif verb == "paste" and rest:
+            out = paste(rest[0])
+        elif verb in ("pin", "unpin", "delete") and rest:
+            out = mutate(verb, rest[0])
+        elif verb == "clear":
+            out = clear()
+        elif verb == "purge-previews":
+            purge_previews()
+            out = {"rows": []}
+        else:
+            out = {"rows": [], "error": "usage: dots-clip store|list|paste|pin|unpin|delete|clear|purge-previews"}
+    except RuntimeError as e:
+        if verb == "store":
+            print("dots-clip: %s" % e, file=sys.stderr)
+            return 1
+        out = {"rows": [], "error": str(e)}
+    print(json.dumps(out))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

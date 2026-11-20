@@ -31,12 +31,35 @@ function appOf(cls) {
 
 function numeric(s) { return /^-?\d+$/.test(String(s)) }
 
+// Screen-share mask: titles of windows that carry private content read "Masked title".
+// Mail and chat apps, private browsing, password managers.
+var MASKED = "Masked title"
+function sensitive(cls, title) {
+  var k = appOf(cls).kind
+  return k === "mail" || k === "chat"
+      || /private|incognito|inprivate/i.test(String(title || ""))
+      || /keepass|bitwarden|1password|password/i.test(String(cls || ""))
+}
+
+// A window sitting in Other that belongs to a named profile: the "Dev?" chip offers the move.
+var SUGGEST = { terminal: "Dev", editor: "Dev", browser: "Web", chat: "Comms", mail: "Comms", notes: "Notes" }
+function suggestFor(kind, profile) { return profile === "Other" ? (SUGGEST[kind] || "") : "" }
+
+// "40 min", "2 h", "3 d" between a saved time and now (ms)
+function ago(savedMs, nowMs) {
+  var m = Math.max(0, Math.round((nowMs - savedMs) / 60000))
+  if (m < 1) return "just now"
+  if (m < 60) return m + " min"
+  if (m < 48 * 60) return Math.round(m / 60) + " h"
+  return Math.round(m / 1440) + " d"
+}
+
 function wsLabel(w) {
   return (w.name && !numeric(w.name)) ? String(w.name) : "Workspace " + w.id
 }
 
 // profile cards, board order. Entries mirror Profiles.list plus the live data.
-function profileEntries(inp) {
+function profileEntries(inp, mask) {
   var P = inp.profiles || Profiles.list
   var wss = (inp.workspaces || []).filter(function (w) { return Number(w.id) > 0 })
   var wins = inp.windows || []
@@ -64,10 +87,14 @@ function profileEntries(inp) {
       var rows = (byWs[id] || []).map(function (x) {
         var a = appOf(x.cls)
         var title = String(x.title || "") || a.label
+        var masked = !!mask && sensitive(x.cls, title)
+        var needsYou = !!x.needs || x.agent === "needs"
+        var state = needsYou ? "needs" : x.agent === "working" ? "working" : x.agent === "paused" ? "paused"
+                  : (x.addr === activeAddr ? "active" : "running")
         return {
-          addr: String(x.addr), app: a.kind, icon: a.icon, appLabel: a.label, title: title,
-          wsId: id, wsLabel: wsLabel(w), profile: p.name,
-          state: x.needs ? "needs" : (x.addr === activeAddr ? "active" : "running"),
+          addr: String(x.addr), app: a.kind, icon: a.icon, appLabel: a.label, title: masked ? MASKED : title,
+          wsId: id, wsLabel: wsLabel(w), profile: p.name, state: state,
+          masked: masked, resumed: x.agent === "paused", suggest: suggestFor(a.kind, p.name),
           floating: !!x.floating
         }
       })
@@ -125,7 +152,7 @@ function build(inp) {
   var q = String(st.query || "").toLowerCase()
   var variant = st.variant || "a"
   var mode = variant === "a" ? (st.mode || "pop") : "full"
-  var profiles = profileEntries(inp)
+  var profiles = profileEntries(inp, !!st.mask)
   var active = activeProfile(inp)
   var salah = !!st.salah
   var focus = findProfile(profiles, st.focus) ? st.focus : (active || profiles[0].name)
@@ -150,6 +177,10 @@ function build(inp) {
                                            : (p.total ? p.total + (p.total === 1 ? " window" : " windows") : "Nothing open")
     p.aria = p.name + ", " + p.total + " windows" + (p.needs ? ", " + p.needs + " need you" : "")
   })
+
+  // "Back to last set": the last saved layout's windows that sat in each profile's workspaces
+  var setsKnown = !!inp.layout
+  profiles.forEach(function (p) { p.ret = setFor(inp.layout, p, inp.now) })
 
   var order = profiles.slice().sort(function (a, b) { return (b.needs - a.needs) || (a.key - b.key) })
   if (filtering) order = order.filter(function (p) { return p.hits > 0 })
@@ -190,15 +221,17 @@ function build(inp) {
   var foot
   if (sel) foot = [{ k: "Up Down", l: "window" }, { k: "Left Right", l: "profile" }, { k: "Esc", l: "close" }]
   else if (variant === "a" && mode === "pop") foot = [{ k: "Up Down", l: "move" }, { k: "Enter", l: "focus" }, { k: "Tab", l: "full" }, { k: "Esc", l: "close" }]
-  else foot = [{ k: "Left Right", l: "profile" }, { k: "Up Down", l: "window" }, { k: "Enter", l: "focus" }, { k: "/", l: "filter" }, { k: "Tab", l: "view" }, { k: "Esc", l: "close" }]
+  else foot = [{ k: "Left Right", l: "profile" }, { k: "Up Down", l: "window" }, { k: "Enter", l: "focus" }, { k: "n", l: "new workspace" }, { k: "b", l: "last set" }, { k: "Esc", l: "close" }]
 
   // the selected row's own line: what Enter and the move keys do to it
   var rowHints = [{ k: "Enter", l: "focus" }, { k: "Shift+1-7", l: "move" }, { k: "Shift+Enter", l: "move + follow" }]
 
   var hov = st.hover ? findProfile(profiles, st.hover) : null
+  var launcher = filtering ? { query: String(st.query), text: "Open \u201c" + String(st.query) + "\u201d in launcher", sub: "Enter \u00b7 Super+Space" } : null
 
   return {
     variant: variant, mode: mode, locked: !!st.locked, salah: salah, query: String(st.query || ""),
+    mask: !!st.mask, launcher: launcher, setsKnown: setsKnown, newWs: freeWs(fp, profiles),
     filtering: filtering, groups: groups, resultCount: count,
     resultsText: count + (count === 1 ? " result" : " results"), noResults: filtering && count === 0,
     active: active, focus: focus, fp: fp, wsIdx: wsIdx, profiles: profiles, order: order,
@@ -207,6 +240,26 @@ function build(inp) {
     foot: foot, rowHints: rowHints, toast: st.toast || "", err: !!st.err,
     totalWins: profiles.reduce(function (n, p) { return n + p.total }, 0)
   }
+}
+
+// the saved set of one profile: { has, n, sub, text, sum, ws } from dots-layout's status
+function setFor(layout, p, now) {
+  var none = { has: false, n: 0, sub: "", text: "No saved set", sum: "", ws: [] }
+  if (!layout || !layout.clients) return none
+  var mine = layout.clients.filter(function (c) { return Number(c.workspace) > 0 && Profiles.profileOf(c.workspace) === p.name })
+  if (mine.length === 0) return none
+  var labels = [], counts = {}
+  mine.forEach(function (c) {
+    var a = appOf(c.class)
+    if (!counts[a.label]) { counts[a.label] = 0; labels.push(a.label) }
+    counts[a.label]++
+  })
+  var sum = labels.map(function (l) { return counts[l] > 1 ? counts[l] + " " + l.toLowerCase() + "s" : l }).join(", ")
+  var when = ago(Date.parse(layout.saved_at), Number(now) || Date.now())
+  var wsIds = []
+  mine.forEach(function (c) { if (wsIds.indexOf(Number(c.workspace)) < 0) wsIds.push(Number(c.workspace)) })
+  return { has: true, n: mine.length, sub: mine.length + (mine.length === 1 ? " window, " : " windows, ") + when + " ago",
+           text: mine.length + " win, " + when + " ago", sum: sum, ws: wsIds }
 }
 
 // main + stack: the first window takes 56 % of the width, the rest share the right column
@@ -224,6 +277,9 @@ function tile(n) {
 // Returns a patch for the UI state, or { act: ... } for something to run.
 //   key: left right up down enter shift-enter, or a digit "1".."7" / shift-digit "s1".."s7"
 function nav(m, key) {
+  // nothing matched: Enter hands the text to the launcher (the profile order is empty then)
+  if (key === "enter" && m.filtering && m.groups.length === 0 && m.launcher)
+    return { act: { type: "launcher", query: m.launcher.query } }
   // The popover strip draws m.profiles in fixed order; the rail and grid draw m.order.
   var seq = (m.variant === "a" && m.mode === "pop") ? m.profiles : m.order
   var names = seq.map(function (p) { return p.name })
@@ -248,6 +304,12 @@ function nav(m, key) {
     if (n < 0) return { sel: "" }
     return { sel: wins[Math.min(n, wins.length - 1)].addr }
   }
+  if (key === "n") {
+    return m.newWs > 0 ? { act: { type: "newWs", id: m.newWs, profile: m.focus } } : {}
+  }
+  if (key === "b") {
+    return m.fp.ret && m.fp.ret.has ? { act: { type: "backSet", profile: m.focus, ws: m.fp.ret.ws, n: m.fp.ret.n } } : {}
+  }
   if (key === "enter") {
     if (!m.sel && m.filtering && m.groups.length > 0) return { act: { type: "focusWin", addr: m.groups[0].rows[0].addr } }
     if (m.sel) return { act: { type: "focusWin", addr: m.sel.addr } }
@@ -263,6 +325,16 @@ function nav(m, key) {
     return { focus: p.name, sel: "", wsIdx: 0 }
   }
   return {}
+}
+
+// New workspace: the first of the profile's own workspace numbers that nothing uses yet, else 0.
+// The numbers come from the bar's Profiles.js; a single-workspace profile has none to give.
+function freeWs(fp, profiles) {
+  var own = (Profiles.find(fp.name) || { ws: [] }).ws
+  var used = {}
+  fp.ws.forEach(function (w) { if (w.n > 0) used[w.id] = true })
+  for (var i = 0; i < own.length; i++) if (!used[own[i]]) return own[i]
+  return 0
 }
 
 // Enter on a profile: stay on the workspace you are on if it is in the profile, else its first

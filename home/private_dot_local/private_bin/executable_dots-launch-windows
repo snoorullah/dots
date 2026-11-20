@@ -1,0 +1,382 @@
+#!/usr/bin/env python3
+"""dots-launch-windows: Hyprland windows for the launcher (prefix `w:`).
+
+  dots-launch-windows query [--mask] [--focus <profile>] <text>
+      text: free words fuzzy-match title, app, task, pane, profile; `p:name` profile; `@N` workspace;
+            `!agent` windows with an agent waiting; `!audio` windows playing sound
+  dots-launch-windows act <verb> <address> [arg]
+      focus | focus-set (task) | move-here | close
+
+Windows: `hyprctl clients -j`. Panes and agent state: `herdr pane list` (windows whose title says herdr).
+Profiles follow modules/bar/js/Profiles.js; override in ~/.config/dots-launcher/windows.json:
+  {"profiles": {"Dev": [3]}, "deny": ["thunderbird"], "terminals": ["foot"]}  (deny = titles always masked)
+Env: DOTS_HYPR_CLIENTS (json file, tests), DOTS_HERDR_PANES (json file), DOTS_WINDOWS_CONF,
+     DOTS_AUDIO_ADDRS (space-separated addresses playing audio, tests), DOTS_LAUNCH_EXEC_LOG.
+"""
+import json, os, re, subprocess, sys, time
+
+PROFILES = [("Agents", [1]), ("Dev", [3]), ("Web", [2]), ("Comms", [4, 5]), ("Review", [6]), ("Notes", [7]), ("Other", [8, 9, 10])]
+APP = {"foot": "Terminal", "footclient": "Terminal", "ghostty": "Terminal", "com.mitchellh.ghostty": "Terminal", "alacritty": "Terminal",
+       "code": "Code", "code-oss": "Code", "zen": "Browser", "zen-beta": "Browser", "firefox": "Browser", "chromium": "Browser",
+       "google-chrome": "Browser", "slack": "Slack", "thunderbird": "Mail", "org.gnome.nautilus": "Files"}
+ICON = {"Terminal": "terminal-window", "Code": "code", "Browser": "globe", "Slack": "chat-circle", "Mail": "envelope-simple",
+        "Notes": "note", "Player": "speaker-high"}
+TERMINALS = ["foot", "footclient", "ghostty", "com.mitchellh.ghostty", "alacritty"]
+DENY = ["thunderbird", "org.mozilla.thunderbird", "geary", "evolution"]
+ADDR = re.compile(r"^0x[0-9a-fA-F]+$")
+
+
+def out(o):
+    sys.stdout.write(json.dumps(o, ensure_ascii=False) + "\n")
+
+
+def conf():
+    p = os.environ.get("DOTS_WINDOWS_CONF") or os.path.expanduser("~/.config/dots-launcher/windows.json")
+    try:
+        return json.load(open(p))
+    except (OSError, ValueError):
+        return {}
+
+
+def clients():
+    p = os.environ.get("DOTS_HYPR_CLIENTS")
+    try:
+        if p:
+            return json.load(open(p)), None
+        r = subprocess.run(["hyprctl", "clients", "-j"], capture_output=True, text=True, timeout=4)
+        if r.returncode != 0:
+            return None, "Hyprland did not answer"
+        return json.loads(r.stdout), None
+    except FileNotFoundError:
+        return None, "hyprctl is not installed"
+    except (ValueError, subprocess.SubprocessError):
+        return None, "Hyprland did not answer"
+
+
+def herdr_panes():
+    p = os.environ.get("DOTS_HERDR_PANES")
+    try:
+        if p:
+            return json.load(open(p)).get("panes", [])
+        r = subprocess.run(["herdr", "pane", "list"], capture_output=True, text=True, timeout=3)
+        return json.loads(r.stdout).get("result", {}).get("panes", [])
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return []
+
+
+def profile_of(ws_id, profs):
+    for name, ids in profs:
+        if ws_id in ids:
+            return name
+    return "Other"
+
+
+def ws_label(ws):
+    n = ws.get("name", "")
+    if n.startswith("special:"):
+        return "Scratchpad"
+    return n or str(ws.get("id", ""))
+
+
+def app_of(cls):
+    low = (cls or "").lower()
+    return APP.get(low) or (cls.split(".")[-1].replace("-", " ").title() if cls else "Window")
+
+
+def fz(q, text):
+    a = re.sub(r"\s+", "", q.lower())
+    if not a:
+        return None
+    s = text.lower()
+    idx, p = [], 0
+    for ch in a:
+        k = s.find(ch, p)
+        if k < 0:
+            return None
+        idx.append(k)
+        p = k + 1
+    span = idx[-1] - idx[0] + 1
+    if len(a) >= 3 and span > len(a) * 2 + 2:
+        return None
+    sc = len(a) * 10 - (span - len(a)) * 2
+    if idx[0] == 0:
+        sc += 6
+    elif re.match(r"[\s\-_./:]", s[idx[0] - 1]):
+        sc += 4
+    return idx, sc
+
+
+def pane_rows(addr, plist, cfg):
+    res = []
+    for p in plist:
+        agent = p.get("agent")
+        st = {"working": "running", "idle": "waiting", "done": "waiting", "blocked": "waiting"}.get(p.get("agent_status"), "") if agent else ""
+        title = p.get("terminal_title_stripped") or p.get("display_agent") or os.path.basename(p.get("cwd", "")) or p.get("pane_id", "")
+        res.append({"t": ("agent: " if agent else "shell: ") + title, "st": st, "pane": p.get("pane_id", ""), "tab": p.get("tab_id", "")})
+    return res[:8]
+
+
+def task_of(plist):
+    for p in plist:
+        t = (p.get("tokens") or {}).get("ticket", "")
+        if re.match(r"^(TASK-\d{4}-\d+|HD \d+)$", t):
+            return t
+    return ""
+
+
+def build(masked, focus):
+    data, err = clients()
+    if err:
+        return None, err
+    cfg = conf()
+    profs = [(k, v) for k, v in cfg.get("profiles", {}).items()] if cfg.get("profiles") else PROFILES
+    deny = [d.lower() for d in cfg.get("deny", DENY)]
+    terms = [t.lower() for t in cfg.get("terminals", TERMINALS)]
+    audio = set(os.environ.get("DOTS_AUDIO_ADDRS", "").split())
+    plist = None
+    wins = []
+    for c in data:
+        if not c.get("mapped", True) or c.get("hidden"):
+            continue
+        ws = c.get("workspace", {})
+        cls = c.get("class") or c.get("initialClass") or ""
+        app = app_of(cls)
+        w = {"addr": c.get("address", ""), "cls": cls, "app": app, "icon": ICON.get(app, "stack"), "title": c.get("title", ""),
+             "ws": ws.get("id", 0), "wsn": ws_label(ws), "prof": profile_of(ws.get("id", 0), profs), "fh": c.get("focusHistoryID", 99),
+             "deny": cls.lower() in deny, "audio": c.get("address", "") in audio, "panes": [], "task": "", "agent": ""}
+        if cls.lower() in terms and re.search(r"herdr", w["title"], re.I):
+            if plist is None:
+                plist = herdr_panes()
+            w["panes"] = pane_rows(w["addr"], plist, cfg)
+            w["task"] = task_of(plist)
+            if any(p["st"] == "waiting" for p in w["panes"]):
+                w["agent"] = "waiting"
+        wins.append(w)
+    wins.sort(key=lambda w: w["fh"])
+    return (wins, profs), None
+
+
+def parse_q(q):
+    prof = wsn = None
+    flags, free = [], []
+    for t in q.split():
+        if re.match(r"(?i)^p:", t):
+            prof = t[2:].lower()
+        elif re.match(r"^@\d+$", t):
+            wsn = int(t[1:])
+        elif t in ("!agent", "!audio"):
+            flags.append(t)
+        else:
+            free.append(t)
+    return prof, wsn, flags, "".join(free)
+
+
+def shown(w, masked):
+    return w["app"] if (masked or w["deny"]) else w["title"]
+
+
+def win_row(w, masked, hlidx, via, expanded, dim, chip_task, group, cur_prev):
+    n = len(w["panes"])
+    sub = "%s / %s" % (w["prof"], w["wsn"])
+    chips = []
+    if w["agent"]:
+        chips.append({"t": "agent waiting", "tone": "warn"})
+    if w["audio"]:
+        chips.append({"t": "audio", "tone": "accent"})
+    if n:
+        chips.append({"t": "%d panes" % n, "tone": "muted"})
+    if chip_task:
+        chips.append({"t": "task: " + w["task"], "tone": "accent"})
+    body = ["%s, %s" % (w["app"], w["prof"]), "Workspace: " + w["wsn"]]
+    if w["task"] and not masked:
+        body.append("Task: " + w["task"])
+    acts = [{"label": "Focus", "primary": True, "verb": "focus", "arg": w["addr"]},
+            {"label": "Move here", "verb": "move-here", "arg": w["addr"]},
+            {"label": "Close window", "verb": "close", "arg": w["addr"], "danger": True}]
+    r = {"key": w["addr"], "title": shown(w, masked), "sub": (via + " · " if via else "") + sub, "icon": w["icon"], "app": w["app"],
+         "hl": hlidx or [], "chips": chips, "dim": dim, "ws": w["wsn"], "profile": w["prof"], "score": 0.5, "expanded": expanded,
+         "preview": {"head": shown(w, masked), "body": "\n".join(body), "task": w["task"] if not masked else "",
+                     "panes": [{"t": p["t"], "st": p["st"]} for p in w["panes"]]}, "actions": acts}
+    if group:
+        r["group"] = group
+    return r
+
+
+def query(q, masked, focus):
+    built, err = build(masked, focus)
+    if err:
+        return {"rows": [], "error": err}
+    wins, profs = built
+    prof, wsn, flags, free = parse_q(q)
+    cand = wins[1:] if len(wins) > 1 else []
+    only = len(wins) == 1
+    results = []
+    for w in cand:
+        if prof and not w["prof"].lower().startswith(prof):
+            continue
+        if wsn and w["ws"] != wsn:
+            continue
+        if "!agent" in flags and w["agent"] != "waiting":
+            continue
+        if "!audio" in flags and not w["audio"]:
+            continue
+        item = {"w": w, "hl": None, "via": "", "pane": -1, "task": False, "sc": w["fh"] * -0.1}
+        if free:
+            best = -1
+            cands = [(shown(w, masked), 12, "", False, -1), (w["app"], 4, "app: " + w["app"], False, -1)]
+            if w["task"] and not masked:
+                cands.append((w["task"], 6, "task: " + w["task"], True, -1))
+            if not masked and not w["deny"]:
+                cands += [(p["t"], 8, "pane: " + p["t"], False, i) for i, p in enumerate(w["panes"])]
+            cands.append((w["prof"], 0, "profile: " + w["prof"], False, -1))
+            for txt, bonus, via, is_task, pi in cands:
+                m = fz(free, txt)
+                if m and m[1] + bonus > best:
+                    best = m[1] + bonus
+                    item["via"], item["hl"], item["pane"] = via, (m[0] if via == "" else None), pi
+                    item["task"] = is_task
+            if best < 0:
+                continue
+            item["sc"] += best
+        results.append(item)
+    results.sort(key=lambda r: -r["sc"])
+    rows, banner, hint = [], None, ""
+    if masked:
+        banner = {"tone": "warn", "title": "Titles masked", "detail": "Screen share is on. App names only."}
+    elif focus:
+        banner = {"tone": "accent", "title": "Focus mode: %s profile" % focus, "detail": "Other profiles are dimmed, still reachable."}
+    if only:
+        banner = {"tone": "accent", "title": "This is the only window", "detail": "Nothing else to jump to. Open an app from All."}
+        results = [{"w": wins[0], "hl": None, "via": "", "pane": -1, "task": False, "sc": 0}]
+    tk = [r for r in results if r["task"]]
+    set_task = free and len(tk) >= 2
+    if set_task:
+        banner = {"tone": "accent", "title": "%d windows for %s" % (len(tk), tk[0]["w"]["task"]), "detail": "Enter restores the whole set",
+                  "verb": "focus-set", "arg": tk[0]["w"]["task"]}
+    if not free and not prof and not wsn and not flags and not only:
+        order = [n for n, _ in profs] + ["Other"]
+        results.sort(key=lambda r: (order.index(r["w"]["prof"]) if r["w"]["prof"] in order else 99, r["w"]["fh"]))
+    last = None
+    for r in results:
+        w = r["w"]
+        grp = None
+        if not free and not prof and not wsn and not flags and w["prof"] != last:
+            grp = w["prof"].upper()
+        last = w["prof"]
+        dim = bool(focus and w["prof"] != focus)
+        exp = bool(w["panes"]) and r["pane"] >= 0
+        rows.append(win_row(w, masked, r["hl"], r["via"], exp, dim, set_task and r["task"], grp, None))
+        if exp:
+            for i, p in enumerate(w["panes"]):
+                rows.append({"key": "%s#%d" % (w["addr"], i), "title": p["t"], "sub": "pane" + (" · " + p["st"] if p["st"] else ""), "icon": "terminal-window",
+                             "indent": 1, "preselect": i == r["pane"], "score": 0.5, "dim": dim,
+                             "preview": {"head": p["t"], "body": "Pane in " + shown(w, masked)},
+                             "actions": [{"label": "Focus pane", "primary": True, "verb": "focus-pane", "arg": w["addr"] + " " + p["tab"]}]})
+    if not rows:
+        hint = ('No window matches "%s". Enter opens apps for this text' % q.strip()) if q.strip() else "No other window is open"
+    elif not q.strip() and not only:
+        hint = "Enter = back to " + shown(results[0]["w"], masked)
+    o = {"rows": rows, "hint": hint}
+    if banner:
+        o["banner"] = banner
+    return o
+
+
+def hypr(argv_payload):
+    log = os.environ.get("DOTS_LAUNCH_EXEC_LOG")
+    argv = ["hyprctl", "dispatch", argv_payload]
+    if log:
+        open(log, "a").write(json.dumps(argv) + "\n")
+        return True
+    try:
+        r = subprocess.run(argv, capture_output=True, text=True, timeout=4)
+        return r.stdout.strip().lower().endswith("ok")
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def focus_payload(addr):
+    return 'hl.dsp.focus({ window = "address:%s" })' % addr
+
+
+def stale_banner():
+    return {"tone": "danger", "title": "Could not focus that window", "detail": "It closed a moment ago. The list was refreshed."}
+
+
+def act(verb, arg, extra):
+    if verb == "focus-set":
+        data, err = clients()
+        if err:
+            return {"error": err}
+        task_wins = [w for w in (build(False, "")[0] or ([], []))[0] if w["task"] == arg]
+        if not task_wins:
+            return {"banner": stale_banner(), "refresh": True}
+        for w in reversed(task_wins):
+            hypr(focus_payload(w["addr"]))
+        return {"toast": "", "close": True}
+    parts = arg.split()
+    addr = parts[0] if parts else ""
+    if not ADDR.match(addr):
+        return {"error": "bad window address"}
+    data, err = clients()
+    if err:
+        return {"error": err}
+    if not any(c.get("address") == addr for c in data):
+        return {"banner": stale_banner(), "refresh": True}
+    if verb == "focus":
+        ok = hypr(focus_payload(addr))
+        return {"toast": "", "close": True} if ok else {"banner": stale_banner(), "refresh": True}
+    if verb == "focus-pane":
+        if len(parts) > 1 and re.match(r"^[A-Za-z0-9:_-]+$", parts[1]):
+            log = os.environ.get("DOTS_LAUNCH_EXEC_LOG")
+            if log:
+                open(log, "a").write(json.dumps(["herdr", "tab", "focus", parts[1]]) + "\n")
+            else:
+                try:
+                    subprocess.run(["herdr", "tab", "focus", parts[1]], capture_output=True, timeout=3)
+                except (OSError, subprocess.SubprocessError):
+                    pass
+        return {"toast": "", "close": True} if hypr(focus_payload(addr)) else {"banner": stale_banner(), "refresh": True}
+    if verb == "move-here":
+        wsid = cur_ws()
+        if not wsid:
+            return {"error": "could not read the current workspace"}
+        ok = hypr('hl.dsp.window.move({ workspace = "%s", window = "address:%s" })' % (wsid, addr))
+        return {"toast": "Moved window here", "close": True} if ok else {"error": "Hyprland refused the move"}
+    if verb == "close":
+        ok = hypr('hl.dsp.window.close({ window = "address:%s" })' % addr)
+        return {"toast": "Closed", "close": False, "refresh": True} if ok else {"error": "Hyprland refused the close"}
+    return {"error": "unknown verb " + verb}
+
+
+def cur_ws():
+    p = os.environ.get("DOTS_HYPR_CLIENTS")
+    if p:
+        return os.environ.get("DOTS_CUR_WS", "3")
+    try:
+        r = subprocess.run(["hyprctl", "activeworkspace", "-j"], capture_output=True, text=True, timeout=3)
+        return str(json.loads(r.stdout).get("id", ""))
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return ""
+
+
+def main(argv):
+    a = argv[1:]
+    if a[:1] == ["query"]:
+        a = a[1:]
+        masked, focus = False, ""
+        while a and a[0] in ("--mask", "--focus"):
+            if a[0] == "--mask":
+                masked, a = True, a[1:]
+            else:
+                focus, a = (a[1] if len(a) > 1 else ""), a[2:]
+        out(query(" ".join(a), masked, focus))
+    elif a[:1] == ["act"] and len(a) >= 3:
+        out(act(a[1], a[2], a[3:]))
+    else:
+        out({"rows": [], "error": "usage: dots-launch-windows query [--mask] [--focus P] <text> | act <verb> <addr>"})
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

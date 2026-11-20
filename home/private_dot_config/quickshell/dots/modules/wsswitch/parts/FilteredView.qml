@@ -6,10 +6,27 @@ import "../../barpop"
 
 // Filter results grouped by profile: window row with the match highlighted, its workspace,
 // its state. Nothing matched says so.
-Flickable {
+Item {
   id: root
   property var m: ({})
   signal picked(string addr)
+  signal launcher(string query)
+
+  // pinned under the list so it never scrolls out of reach
+  LauncherRow {
+    id: lrow
+    anchors.bottom: parent.bottom
+    anchors.bottomMargin: Theme.space.xl
+    x: Theme.space.xl
+    width: parent.width - 2 * Theme.space.xl
+    launcher: root.m.launcher
+    onOpened: q => root.launcher(q)
+  }
+
+Flickable {
+  id: fl
+  width: parent.width
+  height: parent.height - (lrow.visible ? lrow.height + 2 * Theme.space.xl : 0)
   contentHeight: col.implicitHeight + 12
   contentWidth: width
   clip: true
@@ -18,7 +35,7 @@ Flickable {
   Column {
     id: col
     x: Theme.space.xl
-    width: parent.width - 2 * Theme.space.xl
+    width: fl.width - 2 * Theme.space.xl
     spacing: Theme.space.xl
     topPadding: Theme.space.m
 
@@ -82,10 +99,11 @@ Flickable {
         anchors.centerIn: parent
         spacing: Theme.space.m
         DText { anchors.horizontalCenter: parent.horizontalCenter; text: "No window matches."; role: "body" }
-        Cap { anchors.horizontalCenter: parent.horizontalCenter; text: "Esc clears the filter." }
+        Cap { anchors.horizontalCenter: parent.horizontalCenter; text: "Enter opens it in the launcher." }
       }
     }
   }
+}
 
   function esc(s) { return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") }
 }

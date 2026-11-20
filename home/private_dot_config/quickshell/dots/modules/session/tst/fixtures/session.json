@@ -1,0 +1,34 @@
+{
+  "near": [
+    { "key": "salah", "label": "Salah · Asr", "lead": true },
+    { "key": "washroom", "label": "Washroom / pantry", "lead": false },
+    { "key": "walk", "label": "Walk / short break", "lead": false },
+    { "key": "meal", "label": "Lunch / long break", "lead": false },
+    { "key": "meeting", "label": "Meeting", "lead": false },
+    { "key": "logout", "label": "Log out for today", "lead": false }
+  ],
+  "far": [
+    { "key": "washroom", "label": "Washroom / pantry", "lead": true },
+    { "key": "walk", "label": "Walk / short break", "lead": false },
+    { "key": "meal", "label": "Lunch / long break", "lead": false },
+    { "key": "meeting", "label": "Meeting", "lead": false },
+    { "key": "logout", "label": "Log out for today", "lead": false },
+    { "key": "salah", "label": "Salah", "lead": false }
+  ],
+  "env": { "sessionId": "1", "user": "u", "early": "3:18" },
+  "blocker": { "blocked": true, "cmd": "terraform apply", "pane": "2" },
+  "polkit": {
+    "idle": { "message": "Restart a system service", "actionId": "org.freedesktop.systemd1.manage-units",
+              "inputPrompt": "Password: ", "responseRequired": true },
+    "error": { "message": "Restart a system service", "actionId": "org.freedesktop.systemd1.manage-units",
+               "inputPrompt": "Password: ", "responseRequired": true,
+               "supplementaryMessage": "Sorry, that password did not work. Try again.", "supplementaryIsError": true },
+    "agent": { "message": "Restart a system service", "actionId": "org.freedesktop.systemd1.manage-units",
+               "inputPrompt": "Password: ", "responseRequired": true, "agentHint": "An agent is working in pane 2" }
+  },
+  "now": 100000,
+  "declared": { "key": "meal", "label": "Lunch / long break", "since": 97300 },
+  "idleSince": 99460,
+  "agent": { "text": "Draft patch ready, not applied", "note": "needs your click" },
+  "mail": { "text": "2 new, read-only, nothing sent", "note": "inbox" }
+}
