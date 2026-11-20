@@ -26,6 +26,17 @@ TestCase {
     compare(M.todaysOnly(items, 10000, 10000 - 3600)[0].ageSec, 600)
     compare(M.todaysOnly(items, 10000, 0).length, 2)
   }
+  function test_wait_kinds_and_filter() {
+    var r = M.waitSymbols([
+      { id: "a", kind: "blocker", waiting: true, ageSec: 60 },
+      { id: "b", kind: "dm", waiting: true, ageSec: 120 },
+      { id: "c", kind: "erp", waiting: false, ageSec: 50000 },
+      { id: "d", kind: "alert", waiting: false, ageSec: 30 }], 5)
+    compare(r.shown.length, 3)
+    compare(r.shown[0].icon, "chat-circle")
+    compare(r.shown[1].icon, "sparkle")
+    compare(r.shown[2].icon, "warning")
+  }
   function test_age() {
     compare(M.age(0), "now")
     compare(M.age(45), "now")
