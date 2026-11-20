@@ -1,0 +1,6 @@
+module qs.modules.sidebar.parts
+SideButton 1.0 SideButton.qml
+SideFooter 1.0 SideFooter.qml
+SideHeader 1.0 SideHeader.qml
+SideRow 1.0 SideRow.qml
+SideTabs 1.0 SideTabs.qml

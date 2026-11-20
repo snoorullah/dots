@@ -1,0 +1,3 @@
+module qs.modules.cc
+CcView 1.0 CcView.qml
+ControlCentre 1.0 ControlCentre.qml

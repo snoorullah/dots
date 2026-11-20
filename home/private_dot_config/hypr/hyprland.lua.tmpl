@@ -331,7 +331,7 @@ hl.bind(mod .. " + SHIFT + P", hl.dsp.exec_cmd("~/.local/bin/adhd-break.sh"))  -
 hl.bind(mod .. " + SHIFT + U",      hl.dsp.exec_cmd("~/.local/bin/timetrack-hotkey"))  -- manual work interval (timetrack D4)
 hl.bind(mod .. " + SHIFT + semicolon", hl.dsp.exec_cmd("ghostty --class=dots.salahpick --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e ~/.local/bin/adhd-salah-pick.sh"))  -- one-key salah logger
 hl.bind(mod .. " + D",              hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e otter-launcher"))  -- otter-launcher (floating panel)
-hl.bind(mod .. " + SHIFT + N", hl.dsp.exec_cmd("swaync-client -t -sw"))  -- SwayNC control center (notification history + do-not-disturb switch)
+hl.bind(mod .. " + SHIFT + N", hl.dsp.exec_cmd("qs -c dots ipc call dots.cc toggle inbox"))  -- control centre, inbox tab (was SwayNC, which is not running)
 hl.bind(mod .. " + SHIFT + F12", hl.dsp.exec_cmd("~/.local/bin/dots-ops perf-mode"))  -- performance mode toggle (performance power profile + do-not-disturb)
 -- (the eleven dots.* popup rules that used to sit here -- four to six lines each, repeating
 --  float/center/dim_around/opaque/rounding per popup and drifting apart as each was added --
@@ -394,11 +394,16 @@ hl.bind(mod .. " + I",         hl.dsp.exec_cmd("pkill -USR1 waybar"))  -- toggle
 -- Quickshell shell: overview, lamp test, jump, and the shell switch. Super+I stays the zen
 -- bar toggle above (the build spec listed it as free; it is not), so the overview toggle
 -- is Super+Alt+I. Every conditional bar surface has a twin here or in `qs -c dots ipc call dots.*`.
-hl.bind(mod .. " + ALT + I",       hl.dsp.exec_cmd("qs -c dots ipc call dots.overview toggle"))
-hl.bind(mod .. " + SHIFT + I",     hl.dsp.exec_cmd("qs -c dots ipc call dots.overview panel today"))
+hl.bind(mod .. " + ALT + I",       hl.dsp.exec_cmd("qs -c dots ipc call dots.cc toggle queue"))  -- control centre, queue tab
+hl.bind(mod .. " + SHIFT + I",     hl.dsp.exec_cmd("qs -c dots ipc call dots.cc toggle time"))   -- control centre, time tab
+hl.bind(mod .. " + ALT + O",       hl.dsp.exec_cmd("qs -c dots ipc call dots.overview toggle"))  -- overview (was Super+Alt+I)
 hl.bind(mod .. " + ALT + F",       hl.dsp.exec_cmd("qs -c dots ipc call dots.overview focus start"))
 hl.bind(mod .. " + SHIFT + T",     hl.dsp.exec_cmd("qs -c dots ipc call dots.bar lamp"))  -- lamp test: every conditional surface lit for 5 s
-hl.bind(mod .. " + ALT + J",       hl.dsp.exec_cmd("~/.local/bin/dots-jump --last"))
+hl.bind(mod .. " + ALT + J",       hl.dsp.exec_cmd("qs -c dots ipc call dots.sidebar toggle"))
+hl.bind(mod .. " + ALT + K",       hl.dsp.exec_cmd("~/.local/bin/dots-jump --last"))  -- jump back to the last pane (was Super+Alt+J)
+hl.bind(mod .. " + ALT + S",       hl.dsp.exec_cmd("qs -c dots ipc call dots.system toggle"))  -- system panel (the quick panel's replacement)
+hl.bind(mod .. " + ALT + N",       hl.dsp.exec_cmd("qs -c dots ipc call dots.capture toggle"))  -- quick capture card (Super+Shift+Space is taken: float)
+hl.bind(mod .. " + ALT + B",       hl.dsp.exec_cmd("qs -c dots ipc call dots.ret back"))  -- back to the task after a detour (Super+B is taken: preselect)
 hl.bind(mod .. " + ALT + Q",       hl.dsp.exec_cmd("~/.local/bin/dots-shell toggle"))  -- quickshell <-> waybar
 hl.bind(mod .. " + ALT + D",       hl.dsp.exec_cmd("~/.nix-profile/bin/timetrack health dose"))  -- dose taken: schedules the check-ins
 hl.bind(mod .. " + ALT + M",       hl.dsp.exec_cmd("ghostty --class=dots.mail --gtk-single-instance=false -e aerc"))  -- work mail (aerc over notmuch)

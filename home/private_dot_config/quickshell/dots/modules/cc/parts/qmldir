@@ -1,0 +1,12 @@
+module qs.modules.cc.parts
+singleton CcState 1.0 CcState.qml
+Btn 1.0 Btn.qml
+Card 1.0 Card.qml
+Chip 1.0 Chip.qml
+Head 1.0 Head.qml
+Meter 1.0 Meter.qml
+Seg 1.0 Seg.qml
+Stat 1.0 Stat.qml
+TimeRow 1.0 TimeRow.qml
+Cap 1.0 Cap.qml
+singleton CcIcons 1.0 CcIcons.qml

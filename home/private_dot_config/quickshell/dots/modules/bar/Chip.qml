@@ -1,93 +1,49 @@
 import QtQuick
 import "../theme"
-import "../common"
-import "../../services"
 
-// One module in a slab. Nominal means `shown: false`: zero width, not dim, and the Row
-// that holds it forgets the gap too. A hidden module has no click target, which is why
-// every conditional surface also has a keybind twin (docs/quickshell-shell.md).
+// One clickable spot inside a pill: content in a Row, a neutral hover wash, a press wash.
+// Never recolours for status; the content carries the colour and the shape.
 Item {
   id: chip
 
-  property bool shown: true
-  property bool divider: false          // set by the Slab: a visible chip sits before this one
-  property color tint: Theme.color.fgDim   // never a status colour by default
-  property bool wash: false             // the ONE use of colour: a wash behind the text
+  default property alias content: row.data
+  property int padX: Theme.space.m
+  property int chipHeight: Theme.space.xxxl + Theme.space.xxl   // the full 40 pill, so a Row centres it
+  property int washHeight: Theme.space.xxxl + Theme.space.s   // 28: the hover wash inside it
   property bool hoverable: true
-  property int pad: Theme.space.s
-  default property alias content: holder.data
+  property bool clickable: true
+  property int spacing: Theme.space.s + 2
   readonly property bool hovered: mouse.containsMouse
 
-  property string screenName: ""
-
   signal clicked(var button)
-  signal scrolled(int dy)
 
-  // open a popout that points its notch at the middle of this chip
-  function popout(name) {
-    Ui.toggle(name, screenName, mapToItem(null, width / 2, 0).x);
-  }
-
-  implicitHeight: Theme.bar.height
-  implicitWidth: shown ? holder.childrenRect.width + 2 * pad : 0
+  implicitWidth: row.implicitWidth + 2 * padX
+  implicitHeight: chipHeight
   width: implicitWidth
   height: implicitHeight
-  visible: shown || implicitWidth > 0
-  clip: true
-
-  // enters over motion.base, leaves over motion.fast; never recolours, never pulses
-  Behavior on implicitWidth {
-    Anim {
-      duration: chip.shown ? Theme.motion.base : Theme.motion.fast
-      easing.type: chip.shown ? Theme.motion.easeIn : Theme.motion.easeOut
-    }
-  }
 
   Rectangle {
     anchors.fill: parent
-    anchors.topMargin: Theme.space.s
-    anchors.bottomMargin: Theme.space.s
-    radius: Theme.radius.chip
-    color: Qt.alpha(chip.tint, Theme.alpha.wash)
-    visible: chip.wash
+    anchors.topMargin: (chip.height - chip.washHeight) / 2
+    anchors.bottomMargin: anchors.topMargin
+    radius: Theme.radius.pill
+    color: Qt.alpha(Theme.color.fg, mouse.pressed ? Theme.alpha.pressed : Theme.alpha.hover)
+    visible: chip.hoverable && chip.clickable && (chip.hovered || mouse.pressed)
   }
 
-  Rectangle {
-    anchors.fill: parent
-    anchors.topMargin: Theme.space.s
-    anchors.bottomMargin: Theme.space.s
-    radius: Theme.radius.chip
-    color: Qt.alpha(Theme.color.fg, Theme.alpha.hover)
-    visible: chip.hoverable && chip.hovered
-  }
-
-  Rectangle {
-    anchors.fill: parent
-    anchors.topMargin: Theme.space.s
-    anchors.bottomMargin: Theme.space.s
-    radius: Theme.radius.chip
-    color: Qt.alpha(Theme.color.fg, Theme.alpha.pressed)
-    visible: chip.hoverable && mouse.pressed
-  }
-
-  Divider {
-    visible: chip.divider
-    y: (parent.height - height) / 2
-  }
-
-  Item {
-    id: holder
-    x: chip.pad
-    width: childrenRect.width
+  Row {
+    id: row
+    x: chip.padX
     height: parent.height
+    spacing: chip.spacing
   }
 
   MouseArea {
     id: mouse
     anchors.fill: parent
+    enabled: chip.clickable
     hoverEnabled: true
     acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-    onClicked: mouse => chip.clicked(mouse.button)
-    onWheel: wheel => chip.scrolled(wheel.angleDelta.y)
+    onClicked: m => chip.clicked(m.button)
   }
 }

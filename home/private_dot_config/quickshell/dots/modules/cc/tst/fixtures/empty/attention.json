@@ -1,0 +1,108 @@
+{
+ "counts": {
+  "failed": 0,
+  "total": 0,
+  "waiting": 0
+ },
+ "items": [
+  {
+   "actor": "You",
+   "ageSec": 600,
+   "canBreakdown": true,
+   "id": "t1",
+   "jump": null,
+   "kind": "task",
+   "ref": "HD 4398",
+   "src": "erp",
+   "startedAt": null,
+   "title": "Add vCPUs to db-02",
+   "urgency": "time",
+   "url": "https://example.invalid/t1",
+   "waiting": false
+  },
+  {
+   "actor": "You",
+   "ageSec": 600,
+   "canBreakdown": true,
+   "id": "t2",
+   "jump": null,
+   "kind": "task",
+   "ref": "HD 4390",
+   "src": "erp",
+   "startedAt": null,
+   "title": "Back up the repo metadata",
+   "urgency": "critical",
+   "url": "https://example.invalid/t2",
+   "waiting": false
+  },
+  {
+   "actor": "You",
+   "ageSec": 600,
+   "canBreakdown": false,
+   "id": "t3",
+   "jump": null,
+   "kind": "task",
+   "ref": "gh:acme/charts#2291",
+   "src": "gh",
+   "startedAt": null,
+   "title": "Review tenant-app chart",
+   "urgency": "active",
+   "url": "https://example.invalid/t3",
+   "waiting": false
+  },
+  {
+   "actor": "You",
+   "ageSec": 600,
+   "canBreakdown": false,
+   "id": "t4",
+   "jump": null,
+   "kind": "task",
+   "ref": "",
+   "src": "gh",
+   "startedAt": null,
+   "title": "CVE advisory for ingress",
+   "urgency": "passive",
+   "url": "https://example.invalid/t4",
+   "waiting": false
+  }
+ ],
+ "sources": {
+  "erp": {
+   "detail": "",
+   "state": "off",
+   "ts": 1761599990
+  },
+  "gh": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "herdr": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "mail": {
+   "detail": "no local store",
+   "state": "unavailable",
+   "ts": 1761599990
+  },
+  "notif": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "ops": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "task": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  }
+ },
+ "ts": 1761599990,
+ "v": 1
+}

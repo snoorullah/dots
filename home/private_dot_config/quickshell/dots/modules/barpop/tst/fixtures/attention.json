@@ -1,0 +1,18 @@
+{
+ "v": 1,
+ "ts": 1761599990,
+ "counts": { "failed": 1, "total": 9, "waiting": 8 },
+ "items": [
+  { "id": "r1", "kind": "review", "title": "Review the parser change", "ref": "gh:acme/widgets#12", "src": "gh", "url": "https://example.invalid/r1", "urgency": "active", "waiting": true, "ageSec": 7200, "actor": "ada", "jump": { "pane": "p1", "sess": "s1", "workspace": "w1" }, "canBreakdown": true, "startedAt": null },
+  { "id": "b1", "kind": "blocker", "title": "Release is blocked on your sign-off", "ref": "HD-88", "src": "gh", "url": "https://example.invalid/b1", "urgency": "time", "waiting": true, "ageSec": 6000, "actor": "grace", "jump": { "pane": "p1", "sess": "s1", "workspace": "w1" }, "canBreakdown": false, "startedAt": null },
+  { "id": "d1", "kind": "dm", "title": "Can you review the checklist?", "ref": "chat:d1", "src": "notif", "url": "https://example.invalid/d1", "urgency": "time", "waiting": true, "ageSec": 2700, "actor": "Sam R.", "jump": null, "canBreakdown": false, "startedAt": null },
+  { "id": "m1", "kind": "mail", "title": "Re: Quarterly report draft", "ref": "mail:m1", "src": "mail", "url": "", "urgency": "time", "waiting": true, "ageSec": 7200, "actor": "A. Sender", "jump": null, "canBreakdown": false, "startedAt": null },
+  { "id": "m2", "kind": "mail", "title": "Onboarding doc question", "ref": "mail:m2", "src": "mail", "url": "", "urgency": "active", "waiting": true, "ageSec": 4800, "actor": "B. Example", "jump": null, "canBreakdown": false, "startedAt": null },
+  { "id": "e1", "kind": "erp", "title": "Ticket HD 4412 assigned", "ref": "HD-4412", "src": "erp", "url": "https://example.invalid/e1", "urgency": "passive", "waiting": true, "ageSec": 10800, "actor": "ERP", "jump": null, "canBreakdown": false, "startedAt": null },
+  { "id": "h1", "kind": "blocker", "title": "Run tests in sample-api", "ref": "pane:1", "src": "herdr", "url": "", "urgency": "active", "waiting": true, "ageSec": 120, "actor": "sample-agent", "jump": { "pane": "p2", "sess": "s1", "workspace": "w1" }, "canBreakdown": false, "startedAt": null },
+  { "id": "h2", "kind": "blocker", "title": "Apply fix in sample-api", "ref": "pane:2", "src": "herdr", "url": "", "urgency": "active", "waiting": true, "ageSec": 360, "actor": "draft-agent", "jump": { "pane": "p3", "sess": "s1", "workspace": "w1" }, "canBreakdown": false, "startedAt": null },
+  { "id": "a1", "kind": "alert", "title": "Local backup failed twice", "ref": "ops:backup", "src": "ops", "url": "", "urgency": "critical", "waiting": false, "ageSec": 840, "actor": "backup-job", "jump": null, "canBreakdown": false, "startedAt": null },
+  { "id": "t1", "kind": "task", "title": "Tidy the backlog", "ref": "HD-12", "src": "gh", "url": "", "urgency": "passive", "waiting": false, "ageSec": 600, "actor": "ada", "jump": null, "canBreakdown": true, "startedAt": null }
+ ],
+ "sources": {}
+}

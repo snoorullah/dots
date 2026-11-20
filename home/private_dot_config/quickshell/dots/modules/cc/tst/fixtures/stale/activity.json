@@ -1,0 +1,159 @@
+{
+ "buckets": {
+  "month": {
+   "byAgent": [],
+   "byApp": [],
+   "byProject": [
+    {
+     "project": "Infra",
+     "sec": 300000
+    }
+   ],
+   "byRef": [],
+   "tasksDone": 38,
+   "workedSec": 425000
+  },
+  "quarter": {
+   "byAgent": [],
+   "byApp": [],
+   "byProject": [
+    {
+     "project": "Infra",
+     "sec": 900000
+    }
+   ],
+   "byRef": [],
+   "tasksDone": 120,
+   "workedSec": 1447000
+  },
+  "today": {
+   "byAgent": [
+    {
+     "agent": "tenant-chart",
+     "sec": 1440
+    },
+    {
+     "agent": "ingress-upgrade",
+     "sec": 840
+    },
+    {
+     "agent": "docs-sync",
+     "sec": 480
+    }
+   ],
+   "byApp": [
+    {
+     "app": "VS Code",
+     "sec": 7440
+    },
+    {
+     "app": "Terminal",
+     "sec": 5880
+    },
+    {
+     "app": "Browser",
+     "sec": 3120
+    },
+    {
+     "app": "Slack",
+     "sec": 1860
+    }
+   ],
+   "byProject": [
+    {
+     "project": "Infra",
+     "sec": 10320
+    },
+    {
+     "project": "Review",
+     "sec": 2880
+    },
+    {
+     "project": "Comms",
+     "sec": 1320
+    },
+    {
+     "project": "Billing",
+     "sec": 1080
+    }
+   ],
+   "byRef": [
+    {
+     "ref": "HD 4412",
+     "sec": 6120,
+     "title": "Rotate deploy keys"
+    },
+    {
+     "ref": "",
+     "sec": 4200,
+     "title": "No ticket: observability"
+    },
+    {
+     "ref": "PR #2291",
+     "sec": 2880,
+     "title": "PR reviews"
+    },
+    {
+     "ref": "HD 4405",
+     "sec": 2760,
+     "title": "With agents"
+    },
+    {
+     "ref": "",
+     "sec": 1320,
+     "title": "Slack and mail"
+    }
+   ],
+   "tasksDone": 4,
+   "workedSec": 17280
+  },
+  "week": {
+   "byAgent": [],
+   "byApp": [
+    {
+     "app": "VS Code",
+     "sec": 90000
+    }
+   ],
+   "byProject": [
+    {
+     "project": "Infra",
+     "sec": 51600
+    },
+    {
+     "project": "Billing",
+     "sec": 24300
+    },
+    {
+     "project": "Review",
+     "sec": 15000
+    },
+    {
+     "project": "Comms",
+     "sec": 9300
+    }
+   ],
+   "byRef": [
+    {
+     "ref": "HD 4412",
+     "sec": 27600,
+     "title": "Rotate deploy keys"
+    },
+    {
+     "ref": "PR #2291",
+     "sec": 14700,
+     "title": "chart split"
+    },
+    {
+     "ref": "HD 4390",
+     "sec": 12600,
+     "title": "Metadata backup"
+    }
+   ],
+   "tasksDone": 11,
+   "workedSec": 112800
+  }
+ },
+ "ts": 1761599400,
+ "v": 1
+}

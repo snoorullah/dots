@@ -47,7 +47,7 @@ def used_names():
             if not f.endswith(".qml"):
                 continue
             src = open(os.path.join(dp, f), encoding="utf-8").read()
-            for m in re.finditer(r"\b(?:Icon|Glyph)\s*\{", src):
+            for m in re.finditer(r"\b(?:Icon|Glyph|Gly)\s*\{", src):
                 i, d = m.end(), 1
                 while i < len(src) and d:
                     d += (src[i] == "{") - (src[i] == "}")

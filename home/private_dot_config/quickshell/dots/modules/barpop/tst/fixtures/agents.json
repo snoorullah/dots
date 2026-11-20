@@ -1,0 +1,11 @@
+{
+ "v": 1,
+ "ts": 1761599990,
+ "running": [
+  { "name": "sample-agent", "task": "Refactor parser, step 3 of 5", "elapsedSec": 720, "progress": 0.6 },
+  { "name": "triage-agent", "task": "Sorting 14 new notes", "elapsedSec": 240, "progress": null }
+ ],
+ "paused": [ { "name": "docs-agent", "why": "you paused it" } ],
+ "done": [ "tests passed, 2 files changed", "inbox sorted, 9 notes filed" ],
+ "budget": { "used": 0.38, "cap": 1 }
+}

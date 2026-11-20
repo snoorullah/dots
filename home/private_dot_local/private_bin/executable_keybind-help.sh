@@ -41,7 +41,7 @@ read -r -d '' ROWS <<'EOF'
   Super + G               Git profile switcher
   Super + T               tmux sessions
   Super + Shift + O       Bookmarks
-  Super + Shift + N       Notification center (SwayNC)
+  Super + Shift + N       Control centre — inbox tab
   Super + N               Obsidian search
   Super + ,               Zen browser tabs
   Super + M               Media / playerctl
@@ -62,10 +62,15 @@ read -r -d '' ROWS <<'EOF'
   Super + Alt + M         Work mail (aerc)
   Super + Shift + U       Log untracked work (whiteboard, call) — one key, no prompt
 ━━━━━━━  CONTROL CENTRE  (Quickshell)  ━━━━━━━
-  Super + Alt + I         Overview — open / close
-  Super + Shift + I       Overview — Today (time worked)
+  Super + Alt + I         Control centre — queue tab
+  Super + Shift + I       Control centre — time tab
+  Super + Alt + O         Overview — open / close
   Super + Alt + F         Start a focus block
-  Super + Alt + J         Jump back to the last pane
+  Super + Alt + J         Sidebar — open / close
+  Super + Alt + K         Jump back to the last pane
+  Super + Alt + S         System panel (wifi, sound, power)
+  Super + Alt + N         Quick capture card
+  Super + Alt + B         Back to the task after a detour
   Super + Shift + T       Lamp test — light every bar indicator for 5 s
   Super + Alt + Q         Switch shell: Quickshell ↔ Waybar
 ━━━━━━━  MEDIA  /  HARDWARE  ━━━━━━━
