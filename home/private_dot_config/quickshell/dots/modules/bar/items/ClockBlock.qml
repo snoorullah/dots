@@ -37,13 +37,11 @@ Row {
       height: 3
       radius: 1.5
       color: Theme.color.waiting
-      visible: root.date !== ""
     }
     DText {
       anchors.verticalCenter: parent.verticalCenter
       role: "bodyS"
       text: root.date
-      visible: root.date !== ""
     }
     onClicked: b => root.activated("calendar", when.mapToItem(null, when.width / 2, 0).x)
   }

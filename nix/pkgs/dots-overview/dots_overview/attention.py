@@ -26,11 +26,14 @@ def _jump(t):
     return None
 
 
-def from_tasks(tasks, now):
+def from_tasks(tasks, now, cfg=None):
+    cfg = cfg or config.Work()
     items = []
     for t in tasks:
         tags = t.get("tags") or []
         if "attn" not in tags and not t.get("start_ts"):
+            continue
+        if cfg.attn_ignored(t.get("ref")):     # owner rule: these repos never wait on me
             continue
         age = max(0, now - (t.get("entry_ts") or now))
         if t.get("src") == "claude":

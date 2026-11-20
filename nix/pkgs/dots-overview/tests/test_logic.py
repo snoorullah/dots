@@ -690,3 +690,23 @@ class ErpGone(unittest.TestCase):
     def test_partial_list_closes_nothing(self):
         n, done = self._run(["A", "B", "C", "D"], ["A"])
         self.assertEqual((n, done), (None, []))
+
+
+class AttnIgnoreRepos(unittest.TestCase):
+    """ATTN_IGNORE_REPOS (work.conf): those repos' review requests and PRs never reach attention."""
+
+    def test_listed_repos_are_dropped_by_bare_name_or_owner_repo(self):
+        from dots_overview import attention, config
+        cfg = config.Work({"ATTN_IGNORE_REPOS": "app-v2, acme/app-v3"})
+        mk = lambda ref: {"uuid": "u" * 8 + ref, "tags": ["attn"], "src": "gh", "srcstate": "review:open",
+                          "ref": ref, "desc": ref, "entry_ts": 100}  # noqa: E731
+        tasks = [mk("gh:acme/app-v2#1"), mk("gh:acme/app-v3#2"), mk("gh:acme/charts#3")]
+        refs = [i["ref"] for i in attention.from_tasks(tasks, 200, cfg)]
+        self.assertEqual(refs, ["gh:acme/charts#3"])
+
+    def test_no_list_keeps_everything(self):
+        from dots_overview import attention, config
+        cfg = config.Work({})
+        t = {"uuid": "abcdefgh", "tags": ["attn"], "src": "gh", "srcstate": "review:open",
+             "ref": "gh:acme/app-v2#1", "desc": "x", "entry_ts": 100}
+        self.assertEqual(len(attention.from_tasks([t], 200, cfg)), 1)

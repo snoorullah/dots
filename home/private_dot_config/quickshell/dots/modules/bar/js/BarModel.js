@@ -116,15 +116,27 @@ function logoutLeft(workedSec, targetSec) {
   return (over ? "+" : "") + (h < 10 ? "0" : "") + h + ":" + (mm < 10 ? "0" : "") + mm
 }
 
-// a running focus block -> "24m" left (minutes, rounded up; the bar never ticks seconds).
+// a running focus block -> "24:27" left (mm:ss, a countdown stopwatch; h:mm:ss past an hour).
 // "" when no block runs or its time is up.
 function focusLeft(focus, nowSec) {
   if (!focus || focus.state !== "running") return ""
   var target = num(focus.targetSec), start = num(focus.startedAt)
   if (target <= 0 || start <= 0) return ""
-  var left = target - (num(nowSec) - start)
+  var left = Math.ceil(target - (num(nowSec) - start))
   if (left <= 0) return ""
-  return Math.ceil(left / 60) + "m"
+  var h = Math.floor(left / 3600), m = Math.floor(left % 3600 / 60), sec = left % 60
+  function p2(x) { return (x < 10 ? "0" : "") + x }
+  return (h > 0 ? h + ":" + p2(m) : p2(m)) + ":" + p2(sec)
+}
+
+// Owner rule: the bar's waiting symbols carry only today's GitHub items (reviews, PRs). "Today"
+// is the session: anything older than this login stays in the control centre, off the bar.
+function todaysOnly(items, nowSec, loginTs) {
+  var since = num(loginTs) > 0 ? num(nowSec) - num(loginTs) : 24 * 3600
+  return (items || []).filter(function (i) {
+    if (!i || i.src !== "gh") return true
+    return num(i.ageSec) <= since
+  })
 }
 
 function taskText(task) {

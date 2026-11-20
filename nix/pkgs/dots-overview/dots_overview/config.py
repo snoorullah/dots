@@ -68,6 +68,9 @@ class Work:
         self.work_projects = _split(raw.get("WORK_PROJECTS", ""))
         self.notify_body_apps = _split(raw.get("NOTIFY_BODY_APPS", ""))
         self.redact_words = _split(raw.get("REDACT_WORDS", ""))
+        # repos whose GitHub items never reach attention (bare "repo" or "owner/repo"):
+        # review requests and PRs there are someone else's work, not mine
+        self.attn_ignore_repos = [r.lower() for r in _split(raw.get("ATTN_IGNORE_REPOS", ""))]
         try:
             self.untracked_min = max(1, int(raw.get("UNTRACKED_MIN_MINUTES") or 30))
         except ValueError:
@@ -88,6 +91,13 @@ class Work:
         if self.gh_repos:
             return name_with_owner in self.gh_repos
         return bool(self.gh_org) and name_with_owner.split("/", 1)[0].lower() == self.gh_org.lower()
+
+    def attn_ignored(self, ref):
+        """True when a gh:owner/repo#N ref belongs to a repo listed in ATTN_IGNORE_REPOS."""
+        if not ref or not ref.startswith("gh:") or not self.attn_ignore_repos:
+            return False
+        nwo = ref[3:].split("#", 1)[0].lower()
+        return nwo in self.attn_ignore_repos or nwo.rsplit("/", 1)[-1] in self.attn_ignore_repos
 
     def is_work_task(self, t):
         """A Taskwarrior task (export dict) counted as company work, for the brief."""

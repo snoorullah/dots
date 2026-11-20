@@ -15,9 +15,16 @@ TestCase {
   function test_focus_left() {
     compare(M.focusLeft(null, 100), "")
     compare(M.focusLeft({ state: "idle", startedAt: 0, targetSec: 1500 }, 100), "")
-    compare(M.focusLeft({ state: "running", startedAt: 1000, targetSec: 1500 }, 1000), "25m")
-    compare(M.focusLeft({ state: "running", startedAt: 1000, targetSec: 1500 }, 1061), "24m")
+    compare(M.focusLeft({ state: "running", startedAt: 1000, targetSec: 1500 }, 1000), "25:00")
+    compare(M.focusLeft({ state: "running", startedAt: 1000, targetSec: 1500 }, 1061), "23:59")
+    compare(M.focusLeft({ state: "running", startedAt: 1000, targetSec: 5400 }, 1000), "1:30:00")
     compare(M.focusLeft({ state: "running", startedAt: 1000, targetSec: 1500 }, 2600), "")
+  }
+  function test_todays_only() {
+    var items = [{ src: "gh", ageSec: 600 }, { src: "gh", ageSec: 23 * 86400 }, { src: "herdr", ageSec: 99999 }]
+    compare(M.todaysOnly(items, 10000, 10000 - 3600).length, 2)
+    compare(M.todaysOnly(items, 10000, 10000 - 3600)[0].ageSec, 600)
+    compare(M.todaysOnly(items, 10000, 0).length, 2)
   }
   function test_age() {
     compare(M.age(0), "now")

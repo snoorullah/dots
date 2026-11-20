@@ -74,6 +74,14 @@ TestCase {
         compare(Q.age(90000), "1d")
     }
 
+    function test_logout_left() {
+        compare(Q.logoutLeft(undefined, 100, 100), "")
+        compare(Q.logoutLeft(0, 0, 100), "")
+        compare(Q.logoutLeft(0, 1000, 1000), "8:00:00")
+        compare(Q.logoutLeft(14116, 1000, 1000), "4:04:44")
+        compare(Q.logoutLeft(14116, 1000, 1001), "4:04:43")
+        compare(Q.logoutLeft(8 * 3600, 1000, 1725), "+0:12:05")
+    }
     function test_clock() {
         var t = new Date(2026, 10, 20, 17, 4, 17).getTime() / 1000
         compare(Q.clock(t), "17:04")

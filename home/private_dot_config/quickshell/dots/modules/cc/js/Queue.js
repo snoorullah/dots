@@ -39,6 +39,21 @@ function hm(sec) {
     return Math.floor(m / 60) + ":" + (mm < 10 ? "0" : "") + mm
 }
 
+// Estimated logout as a countdown stopwatch: the moment today's worked time reaches the target
+// (8h), read from the last activity.json (workedSec at docTs) and counted down each second.
+// A break moves it later on the next refresh. Past the target it counts up: "+0:12:05".
+// "" when there is no figure.
+var DAY_TARGET_SEC = 8 * 3600
+function logoutLeft(workedSec, docTs, nowSec, targetSec) {
+    if (workedSec === undefined || workedSec === null || !(Number(docTs) > 0)) return ""
+    var t = Number(targetSec) > 0 ? Number(targetSec) : DAY_TARGET_SEC
+    var d = Math.round(t - Number(workedSec) - (Number(nowSec) - Number(docTs)))
+    var over = d < 0, a = Math.abs(d)
+    var h = Math.floor(a / 3600), m = Math.floor(a % 3600 / 60), sec = a % 60
+    function p2(x) { return (x < 10 ? "0" : "") + x }
+    return (over ? "+" : "") + h + ":" + p2(m) + ":" + p2(sec)
+}
+
 // epoch seconds -> local "17:04" (the login time under "Day so far")
 function clock(ts) {
     var d = new Date((Number(ts) || 0) * 1000)

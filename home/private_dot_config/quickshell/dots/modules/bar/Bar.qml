@@ -32,6 +32,16 @@ PanelWindow {
     enabled: Caffeine.on
   }
 
+  // The focus chip is a stopwatch counting down: it ticks each second, and only while a block runs.
+  property real focusNow: Date.now() / 1000
+  Timer {
+    interval: 1000
+    repeat: true
+    triggeredOnStart: true
+    running: !!Feed.focus && Feed.focus.state === "running"
+    onTriggered: bar.focusNow = Date.now() / 1000
+  }
+
   SystemClock {
     id: clock
     precision: SystemClock.Minutes
@@ -98,10 +108,10 @@ PanelWindow {
       task: Model.taskText(Feed.task),
       detour: MomentState.detour.text,    // now.json away clock (modules/moments)
       clock: Qt.formatDateTime(clock.date, "HH:mm"),
-      // a running focus block takes the date's room in the centre pill (the calendar keeps it)
-      date: Model.focusLeft(Feed.focus, clock.date.getTime() / 1000) !== "" ? "" : Qt.formatDateTime(clock.date, "ddd d MMM"),
+      date: Qt.formatDateTime(clock.date, "ddd d MMM"),
       salah: Model.salahLabel(salahSrc.failed ? "" : salahSrc.text, clock.date),
-      waits: Model.waitSymbols(lamp ? bar.lampWaits : Feed.attentionItems, 3),
+      waits: Model.waitSymbols(lamp ? bar.lampWaits
+                               : Model.todaysOnly(Feed.attentionItems, Feed.nowTs, Feed.nowDoc && Feed.nowDoc.clock ? Feed.nowDoc.clock.loginTs : 0), 3),
       fault: lamp ? { kind: "failed", text: "lamp test" }
                   : Model.fault({ level: OpsState.level, text: OpsState.text, stale: OpsState.stale }, Feed.degraded),
       music: {
@@ -112,8 +122,8 @@ PanelWindow {
         art: player ? player.trackArtUrl : ""
       },
       metrics: Model.metrics({ tasks: today ? today.tasksDone : undefined, workedSec: today ? today.workedSec : undefined }),
-      logout: Model.logoutLeft(today ? today.workedSec : undefined),
-      focus: Model.focusLeft(Feed.focus, clock.date.getTime() / 1000),
+      logout: "",                         // owner: logout stays off the bar (the control centre counts it down)
+      focus: Model.focusLeft(Feed.focus, bar.focusNow),
       bell: {
         dot: lamp || (bar.notifs ? (bar.notifs.count > 0 || bar.notifs.held) : false),
         quiet: bar.notifs ? bar.notifs.quiet : false
