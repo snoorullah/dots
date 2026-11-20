@@ -80,6 +80,9 @@ hl.config({
     follow_mouse = 1,
     accel_profile = "flat",
   },
+  -- grouped windows: the Quickshell tab strip (modules/windows TabsOverlay) draws the tabs, so
+  -- Hyprland's own group bar stays off (both showed at once, 2026-11-21)
+  group = { groupbar = { enabled = false } },
   misc = {
     disable_hyprland_logo = true,
     disable_splash_rendering = true,
