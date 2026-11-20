@@ -1,0 +1,3 @@
+module qs.modules.sidebar
+Sidebar 1.0 Sidebar.qml
+SidebarBody 1.0 SidebarBody.qml

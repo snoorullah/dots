@@ -1,53 +1,40 @@
 import QtQuick
-import ".."
 import "../../theme"
-import "../../common"
-import "../../../services"
+import ".."
 
-// Notifications. Nothing held and nothing waiting -> zero width. Do-not-disturb is a
-// state I hold open, so it takes the accent (filled bell + accent tint); so does a running
-// focus block, which quiets toasts. Amber is reserved for "someone waits on me".
-// If another daemon owns the notification bus
-// the shell does not claim it and this shows a hollow "?" instead.
-// Twins: `qs ipc call dots.notif toggle` / `dnd`.
+// Notifications and the system panel behind one bell. A dot says something is new (no
+// count). Do-not-disturb swaps in the slashed bell. Click opens the centre.
 Chip {
-  id: chip
+  id: root
 
-  property var notifs: null
-  readonly property bool dnd: notifs ? notifs.quiet : false     // do-not-disturb, or a focus block
-  readonly property int count: notifs ? notifs.count : 0
-  readonly property bool held: notifs ? notifs.held : false
+  property bool dot: false
+  property bool quiet: false
+  signal activated(string popout, real x)
 
-  shown: Lamp.on || dnd || count > 0 || held
-  wash: dnd || Lamp.on
-  tint: Theme.color.accent
+  objectName: "bell"
+  padX: Theme.space.m
 
-  Row {
+  Glyph {
     anchors.verticalCenter: parent.verticalCenter
-    spacing: Theme.space.s
-
-    Icon {
-      anchors.verticalCenter: parent.verticalCenter
-      visible: !chip.held
-      name: chip.dnd ? "bell-slash" : "bell"
-      active: chip.dnd || Lamp.on
-      size: Theme.font.size.title
-      color: chip.dnd || Lamp.on ? Theme.color.accent : Theme.color.fg
-    }
-    DText {
-      anchors.verticalCenter: parent.verticalCenter
-      mono: true
-      visible: !chip.held && chip.count > 0
-      text: String(chip.count)
-    }
-    Stale {
-      anchors.verticalCenter: parent.verticalCenter
-      on: chip.held
-    }
+    name: root.quiet ? "bell-slash" : "bell"
+    active: root.quiet
+    box: 16
+    color: Qt.alpha(Theme.color.fg, 0.85)
   }
 
-  onClicked: button => {
-    if (button === Qt.RightButton) { if (notifs) notifs.dnd = !notifs.dnd; }
-    else chip.popout("center");
+  // the ring is the pill ground, so the dot reads as cut out of the bell
+  Rectangle {
+    objectName: "bellDot"
+    visible: root.dot
+    x: root.padX + 16 - 3
+    y: (root.height - root.washHeight) / 2 + Theme.space.s - 1
+    width: 6
+    height: 6
+    radius: 3
+    color: Theme.color.accent
+    border.width: 1.5
+    border.color: Theme.color.bg
   }
+
+  onClicked: b => root.activated("center", root.mapToItem(null, root.width / 2, 0).x)
 }

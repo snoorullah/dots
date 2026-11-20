@@ -17,4 +17,17 @@ Singleton {
     root.open = name;
   }
   function close() { root.open = ""; }
+
+  // Popout names (one at a time, via toggle): calendar | salah | waiting | agent | tray | media | system | center
+  // Full-screen control centre and the edge sidebar are separate from popouts.
+  property bool cc: false
+  property string ccTab: "queue"   // queue | inbox | agents | work | time
+  property bool sidebar: false
+  function toggleCc(tab) {
+    if (root.cc && (!tab || tab === root.ccTab)) { root.cc = false; return; }
+    if (tab) root.ccTab = tab;
+    root.open = ""; root.sidebar = false; root.cc = true;
+  }
+  function toggleSidebar() { root.sidebar = !root.sidebar; if (root.sidebar) { root.cc = false; root.open = ""; } }
+  function closeAll() { root.open = ""; root.cc = false; root.sidebar = false; }
 }

@@ -1,9 +1,15 @@
 import QtQuick
 import "../theme"
 
-// 1 px hairline, outline at alpha.divider, the full slab height minus 8.
-Rectangle {
+// Hairline between groups inside a pill: 1 px, 16 high. Rows centre it with their height.
+Item {
   width: 1
-  height: Theme.bar.height - Theme.space.l
-  color: Qt.alpha(Theme.color.outline, Theme.alpha.divider)
+  height: parent ? parent.height : Theme.space.xxl
+
+  Rectangle {
+    width: 1
+    height: Theme.space.xxl
+    anchors.verticalCenter: parent.verticalCenter
+    color: Qt.alpha(Theme.color.fg, Theme.alpha.divider)
+  }
 }

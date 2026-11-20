@@ -3,6 +3,8 @@ import Quickshell.Hyprland
 import Quickshell.Io
 import QtQuick
 import "../services"
+import "../modules/moments/js/Moments.js" as Moments
+import "../modules/moments"
 
 // `qs ipc call dots.<surface> <fn> [arg]`. These are also the keybind twins of every
 // conditional surface: a zero-width chip has no click target, so each one has a call here.
@@ -12,6 +14,7 @@ Scope {
 
   property var notifs: null
   property var toasts: null
+  property var capture: null
 
   function screenFor() {
     var name = Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : "";
@@ -45,7 +48,51 @@ Scope {
   IpcHandler {
     target: "dots.quick"
 
-    function toggle(): void { root.openPopout("quick", 0.93); }
+    function toggle(): void { root.openPopout("system", 0.93); }
+  }
+
+  IpcHandler {
+    target: "dots.system"
+
+    function toggle(): void { root.openPopout("system", 0.93); }
+  }
+
+  IpcHandler {
+    target: "dots.cc"
+
+    // tab: queue | inbox | agents | work | time (empty: the last tab)
+    function toggle(tab: string): void {
+      var s = root.screenFor();
+      if (s) Ui.screenName = s.name;
+      Ui.toggleCc(tab);
+    }
+  }
+
+  IpcHandler {
+    target: "dots.sidebar"
+
+    function toggle(): void {
+      var s = root.screenFor();
+      if (s) Ui.screenName = s.name;
+      Ui.toggleSidebar();
+    }
+  }
+
+  IpcHandler {
+    target: "dots.capture"
+
+    function toggle(): void { if (root.capture) root.capture.toggle(); }
+  }
+
+  IpcHandler {
+    target: "dots.ret"
+
+    // back to the task: only while a detour is active (dots-jump <ref>, local)
+    function back(): void {
+      if (!MomentState.detour.active) return;
+      var argv = Moments.jumpArgv(MomentState.task);
+      if (argv) Quickshell.execDetached(argv);
+    }
   }
 
   IpcHandler {

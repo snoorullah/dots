@@ -57,9 +57,14 @@ export -f run_one
 # These render through chezmoi and collide when run side by side (each passes alone): run them one
 # at a time, alongside the parallel pool.
 serial=" lint orgmanaged placement in-home theme fonts extra-tools-dryrun taskgate track "
-par=(); ser=()
-for n in "${suites[@]}"; do if [[ "$serial" == *" $n "* ]]; then ser+=("$n"); else par+=("$n"); fi; done
+# Offscreen scene tests (*-ui) and term (a live daemon on a fake socket) run against wall-clock timeouts and flake under CPU contention:
+# they get a second lane of their own, also one at a time.
+par=(); ser=(); ui=()
+for n in "${suites[@]}"; do
+  if [[ "$serial" == *" $n "* ]]; then ser+=("$n"); elif [[ "$n" == *-ui || " term " == *" $n "* ]]; then ui+=("$n"); else par+=("$n"); fi
+done
 ( for n in "${ser[@]}"; do run_one "$n" "$log"; done ) &
+( for n in "${ui[@]}"; do run_one "$n" "$log"; done ) &
 [ ${#par[@]} -gt 0 ] && printf '%s\n' "${par[@]}" | xargs -P "$jobs" -I{} bash -c 'run_one "$@"' _ {} "$log"
 wait
 

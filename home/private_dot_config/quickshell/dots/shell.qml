@@ -11,6 +11,11 @@ import "modules/osd"
 import "modules/media"
 import "modules/quick"
 import "modules/calendar"
+import "modules/barpop"
+import "modules/cc"
+import "modules/sidebar"
+import "modules/system"
+import "modules/moments"
 import "ipc"
 import "services"
 
@@ -32,14 +37,24 @@ ShellRoot {
     notifs: notifServer
   }
   NotifCenter { notifs: notifServer }
+  // Replaced by SystemPanel (Ui.open "system"); only an explicit "quick" opens it.
   QuickPanel { notifs: notifServer }
+  SystemPanel { notifs: notifServer }
   MediaPopout {}
   CalendarPopout {}
+  SalahPopout {}
+  WaitingPopout {}
+  AgentPopout {}
+  TrayPopout {}
+  ControlCentre {}
+  Sidebar {}
+  QuickCapture { id: quickCapture }
   Osd {}
 
   Ipc {
     notifs: notifServer
     toasts: toasts
+    capture: quickCapture
   }
 
   // The overview host, once its file exists (the shell runs green without it).

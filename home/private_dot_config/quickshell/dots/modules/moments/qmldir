@@ -1,0 +1,14 @@
+singleton MomentIcons 1.0 MomentIcons.qml
+singleton MomentState 1.0 MomentState.qml
+MomentPanel 1.0 MomentPanel.qml
+NoteBox 1.0 NoteBox.qml
+MButton 1.0 MButton.qml
+CaptureCard 1.0 CaptureCard.qml
+QuickCapture 1.0 QuickCapture.qml
+NudgeCard 1.0 NudgeCard.qml
+NudgeNote 1.0 NudgeNote.qml
+RenudgePanel 1.0 RenudgePanel.qml
+ReturnChip 1.0 ReturnChip.qml
+ReturnNote 1.0 ReturnNote.qml
+ReturnPanel 1.0 ReturnPanel.qml
+HandedCard 1.0 HandedCard.qml

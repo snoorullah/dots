@@ -1,0 +1,22 @@
+{
+ "apps": [
+  { "id": "chat", "title": "Team chat", "status": "NeedsAttention", "hasMenu": true, "glyph": "chat-circle" },
+  { "id": "vpn", "title": "Mesh VPN", "status": "Active", "hasMenu": true, "glyph": "lock" },
+  { "id": "sync", "title": "Cloud sync", "status": "Active", "hasMenu": true, "glyph": "cloud-arrow-up" },
+  { "id": "backup", "title": "Backup agent", "status": "Passive", "hasMenu": false, "glyph": "shield-check" },
+  { "id": "clip", "title": "Clipboard history", "status": "Passive", "hasMenu": true, "glyph": "squares-four" }
+ ],
+ "drill": {
+  "name": "Mesh VPN",
+  "status": "",
+  "items": [
+   { "label": "Connected, 42 ms", "sep": false, "enabled": false, "sub": false },
+   { "label": "", "sep": true, "enabled": true, "sub": false },
+   { "label": "Disconnect", "sep": false, "enabled": true, "sub": false },
+   { "label": "Switch exit node", "sep": false, "enabled": true, "sub": true },
+   { "label": "Open admin page", "sep": false, "enabled": true, "sub": false },
+   { "label": "", "sep": true, "enabled": true, "sub": false },
+   { "label": "Quit", "sep": false, "enabled": true, "sub": false }
+  ]
+ }
+}

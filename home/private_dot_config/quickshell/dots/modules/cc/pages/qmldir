@@ -1,0 +1,7 @@
+module qs.modules.cc.pages
+AgentsPage 1.0 AgentsPage.qml
+Detail 1.0 Detail.qml
+QueuePage 1.0 QueuePage.qml
+QueueRow 1.0 QueueRow.qml
+TimePage 1.0 TimePage.qml
+WorkPage 1.0 WorkPage.qml

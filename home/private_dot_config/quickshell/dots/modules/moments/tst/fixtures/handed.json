@@ -1,0 +1,6 @@
+{"ask":"Priya asked about db-02. You pressed g and said \"get it done, then answer\".",
+ "steps":[{"at":"22:04","text":"Checked db-02: capacity is there, ballooning is on."},
+          {"at":"22:06","text":"Asked you to approve the change. You allowed it once."},
+          {"at":"22:11","text":"Added two vCPUs, turned ballooning off, verified."},
+          {"at":"22:12","text":"Replied to Priya with both answers. Ticket HD 4398 noted."}],
+ "permission":"Permission used: one message, to Priya, in this thread. It has now ended."}

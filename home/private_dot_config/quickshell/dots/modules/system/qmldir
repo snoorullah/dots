@@ -1,0 +1,17 @@
+module system
+singleton SysIcons 1.0 SysIcons.qml
+SText 1.0 SText.qml
+SIcon 1.0 SIcon.qml
+Tip 1.0 Tip.qml
+SysButton 1.0 SysButton.qml
+SysTile 1.0 SysTile.qml
+SysMeter 1.0 SysMeter.qml
+SysMediaRow 1.0 SysMediaRow.qml
+SysMenuCard 1.0 SysMenuCard.qml
+SysSession 1.0 SysSession.qml
+QuickView 1.0 QuickView.qml
+SystemView 1.0 SystemView.qml
+ContextMenu 1.0 ContextMenu.qml
+MediaCard 1.0 MediaCard.qml
+SysState 1.0 SysState.qml
+SystemPanel 1.0 SystemPanel.qml

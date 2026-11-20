@@ -1,46 +1,29 @@
 import QtQuick
 import "../theme"
 
-// One translucent slab holding a row of chips with hairline dividers between the
-// VISIBLE ones. A slab with nothing visible has zero width.
+// One pill of the bar: ground at alpha.panel, a hairline, fully round. Children go in a
+// Row; the pill is as wide as they are plus its padding.
 Rectangle {
   id: slab
 
-  default property alias chips: row.data
-  property var tracked: []
+  default property alias items: row.data
+  property int padLeft: Theme.space.xl
+  property int padRight: Theme.space.xl
+  property int gap: Theme.space.m
+  readonly property int pillHeight: Theme.space.xxxl + Theme.space.xxl   // 40
 
-  implicitHeight: Theme.bar.height
-  // edge to text is 12: Theme.space.l (8) here plus Chip.pad (Theme.space.s, 4)
-  implicitWidth: row.implicitWidth > 0 ? row.implicitWidth + 2 * Theme.space.l : 0
-  visible: implicitWidth > 0
-  color: Qt.alpha(Theme.color.surface, Theme.alpha.slab)
-  radius: Theme.radius.chip
-
-  function relayout() {
-    var first = true;
-    for (var i = 0; i < tracked.length; i++) {
-      var c = tracked[i];
-      c.divider = !first && c.shown;
-      if (c.shown) first = false;
-    }
-  }
+  implicitHeight: pillHeight
+  implicitWidth: row.implicitWidth + padLeft + padRight
+  height: implicitHeight
+  radius: Theme.radius.pill
+  color: Qt.alpha(Theme.color.bg, Theme.alpha.panel)
+  border.width: 1
+  border.color: Qt.alpha(Theme.color.fg, Theme.alpha.hover + 0.04)
 
   Row {
     id: row
-    x: Theme.space.l
+    x: slab.padLeft
     height: parent.height
-    spacing: Theme.bar.chipGapPx
-  }
-
-  Component.onCompleted: {
-    var list = [];
-    for (var i = 0; i < row.children.length; i++) {
-      var c = row.children[i];
-      if (c.shown === undefined) continue;
-      list.push(c);
-      c.shownChanged.connect(slab.relayout);
-    }
-    tracked = list;
-    relayout();
+    spacing: slab.gap
   }
 }

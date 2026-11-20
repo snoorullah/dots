@@ -1,0 +1,14 @@
+{
+ "v": 1,
+ "ts": 0,
+ "events": [
+  { "id": "e1", "date": "2026-11-03", "start": "08:20", "end": "09:00", "title": "Inbox triage", "link": false, "worked": true, "held": false },
+  { "id": "e2", "date": "2026-11-03", "start": "09:30", "end": "10:00", "title": "Standup", "link": true, "worked": true, "held": false },
+  { "id": "e3", "date": "2026-11-03", "start": "10:45", "end": "12:00", "title": "", "link": false, "worked": false, "held": true },
+  { "id": "e4", "date": "2026-11-03", "start": "13:00", "end": "14:00", "title": "Design review", "link": true, "worked": true, "held": false },
+  { "id": "e5", "date": "2026-11-03", "start": "15:30", "end": "16:00", "title": "Design sync", "link": true, "worked": true, "held": false },
+  { "id": "e6", "date": "2026-11-04", "start": "10:00", "end": "11:00", "title": "Planning", "link": true, "worked": true, "held": false },
+  { "id": "e7", "date": "2026-11-05", "start": "14:00", "end": "14:30", "title": "1:1", "link": true, "worked": true, "held": false },
+  { "id": "e8", "date": "2026-11-05", "start": "16:00", "end": "17:00", "title": "Review", "link": false, "worked": false, "held": false }
+ ]
+}
