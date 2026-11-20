@@ -1,6 +1,8 @@
 # shared bats setup: isolated state dir + recording notify-send
 setup_ops() {
   export OPS_STATE="$BATS_TEST_TMPDIR/state" OPS_ROOT_STATE="$BATS_TEST_TMPDIR/root"
+  # hermetic: never read the machine's own dots-ops config (an orgManaged host sets [root] enabled = false)
+  export OPS_CONFIG="$BATS_TEST_TMPDIR/config.toml"; unset OPS_ROOT_ENABLED
   export OPS_NOTIFY="$BATS_TEST_TMPDIR/notify" NOTIFY_LOG="$BATS_TEST_TMPDIR/notify.log"
   printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "%s"\n' "$NOTIFY_LOG" > "$OPS_NOTIFY"; chmod +x "$OPS_NOTIFY"
   : > "$NOTIFY_LOG"

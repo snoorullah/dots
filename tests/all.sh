@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Every suite, on this machine. GitHub Actions is not used for this repo, so this script IS the CI:
-# lefthook runs it before every push (lefthook.yml), and it is what "tests pass" means in a PR.
+# lefthook runs it before every push (lefthook.yml); it is what "tests pass" means in a PR.
 #
 #   tests/all.sh            all suites, 6 at a time; logs in $ALL_LOG_DIR (default: a temp dir)
 #   tests/all.sh icons lint only the named suites
@@ -12,6 +12,8 @@
 #   overlap.sh       a built activation package   -> run it by hand after a switch
 set -uo pipefail
 root="$(git rev-parse --show-toplevel)"; cd "$root"
+# run as a git hook, git exports GIT_DIR & co.; they would leak into the suites' scratch repos
+unset $(git rev-parse --local-env-vars)
 log="${ALL_LOG_DIR:-$(mktemp -d -t dots-tests.XXXXXX)}"; mkdir -p "$log"
 jobs="${ALL_JOBS:-6}"
 

@@ -1,0 +1,8 @@
+# Local CI: GitHub Actions is not used for this repo, so every push runs the full suite here first.
+# Install once per clone: `lefthook install` (writes .git/hooks/pre-push; every worktree shares it).
+# Bypass only deliberately: `LEFTHOOK=0 git push` or `git push --no-verify`.
+pre-push:
+  commands:
+    all-tests:
+      # branches older than tests/all.sh have nothing to run
+      run: test -f tests/all.sh || exit 0; bash tests/all.sh
