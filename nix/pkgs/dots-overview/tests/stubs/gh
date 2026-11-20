@@ -10,7 +10,7 @@ case "$1 $2" in
   "search prs")
     case "$*" in
       *--author*) cat "$fix/prs.json" ;;
-      *--user-review-requested*) cat "$fix/user-review.json" 2>/dev/null || echo '[]' ;;
+      *user-review-requested:*) cat "$fix/user-review.json" 2>/dev/null || echo '[]' ;;
       *--mentions*) cat "$fix/mentions.json" 2>/dev/null || echo '[]' ;;
       *--review-requested*) cat "$fix/review.json" ;;
       *) exit 2 ;;

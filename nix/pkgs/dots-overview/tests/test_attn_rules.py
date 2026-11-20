@@ -108,7 +108,7 @@ class GhFetch(helpers.Scratch):
 
     def test_individual_request_is_recorded_team_request_is_not(self):
         items, calls = self._fetch("", {"--review-requested": [row(1), row(2)],
-                                        "--user-review-requested": [row(1)]})
+                                        "user-review-requested:": [row(1)]})
         by = {i["ref"]: i for i in items if i["kind"] == "review"}
         self.assertTrue(by["gh:acme/app-v2#1"]["individual"])
         self.assertFalse(by["gh:acme/app-v2#2"]["individual"])

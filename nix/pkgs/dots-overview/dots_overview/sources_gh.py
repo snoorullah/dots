@@ -142,7 +142,7 @@ def fetch(cfg, sleep=time.sleep, now=None):
         ("issue", ["search", "issues", "--assignee=@me", "--state=open", "--limit", "50", "--json", FIELDS]),
         ("pr", ["search", "prs", "--author=@me", "--state=open", "--limit", "50", "--json", FIELDS]),
         ("review", ["search", "prs", "--review-requested=@me", "--state=open", "--limit", "50", "--json", FIELDS]),
-        ("review", ["search", "prs", "--user-review-requested=@me", "--state=open", "--limit", "50", "--json", FIELDS]),
+        ("review", ["search", "prs", "user-review-requested:@me", "--state=open", "--limit", "50", "--json", FIELDS]),
         ("mention", ["search", "prs", "--mentions=@me", "--state=open", "--limit", "50", "--json", FIELDS]),
     ]
     assert len(queries) <= MAX_SEARCH
@@ -150,7 +150,7 @@ def fetch(cfg, sleep=time.sleep, now=None):
     for i, (kind, args) in enumerate(queries):
         if i:
             sleep(SLEEP)
-        individual = any(a.startswith("--user-review-requested") for a in args)
+        individual = any(a.startswith("user-review-requested:") for a in args)   # a query term: gh has no flag for it
         for r in _json(args):
             it = _item(r, kind, cfg)
             if not it:
