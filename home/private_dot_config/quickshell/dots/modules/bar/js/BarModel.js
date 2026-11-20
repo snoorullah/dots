@@ -21,7 +21,11 @@ var kinds = {
   review:  { icon: "git-pull-request", tone: "waiting", name: "Review requested", popout: "waiting" },
   mail:    { icon: "envelope", tone: "waiting", name: "VIP mail", popout: "waiting" },
   ticket:  { icon: "ticket", tone: "waiting", name: "Ticket due today", popout: "waiting" },
-  blocker: { icon: "ticket", tone: "waiting", name: "Blocked on you", popout: "waiting" }
+  blocker: { icon: "sparkle", tone: "waiting", name: "Agent needs you", popout: "agent" },
+  dm:      { icon: "chat-circle", tone: "waiting", name: "Message for you", popout: "waiting" },
+  msg:     { icon: "chat-circle", tone: "waiting", name: "Message for you", popout: "waiting" },
+  erp:     { icon: "ticket", tone: "waiting", name: "Ticket waits on you", popout: "waiting" },
+  mention: { icon: "chat-circle", tone: "waiting", name: "You were mentioned", popout: "waiting" }
 }
 
 // Oldest first, at most `max` shown, the rest as `more`.
@@ -31,6 +35,8 @@ function waitSymbols(items, max) {
   for (var i = 0; i < src.length; i++) {
     var it = src[i]
     if (!it) continue
+    // the bar carries only what waits on me, plus alerts (failed); the rest lives in the control centre
+    if (it.waiting === false && it.kind !== "alert") continue
     var k = kinds[it.kind] || { icon: "circle", tone: "waiting", name: it.title || "Waiting on you", popout: "waiting" }
     list.push({ id: String(it.id), kind: it.kind || "", icon: k.icon, tone: k.tone, name: k.name,
                 popout: k.popout, ageSec: num(it.ageSec), age: age(it.ageSec), order: i })
