@@ -1,0 +1,12 @@
+#!/bin/sh
+# wl-paste with the Wayland display found when the caller has none. Processes that start before the
+# compositor (herdr's agent panes start at login, ~20 s before Hyprland) never get WAYLAND_DISPLAY,
+# so clipboard reads in them (Claude Code's image paste) failed. Set it from the live socket.
+if [ -z "${WAYLAND_DISPLAY:-}" ]; then
+  rt="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+  for s in "$rt"/wayland-[0-9]*; do
+    case "$s" in *.lock) continue ;; esac
+    [ -S "$s" ] && { WAYLAND_DISPLAY="${s##*/}"; export WAYLAND_DISPLAY; break; }
+  done
+fi
+exec "$HOME/.nix-profile/bin/wl-paste" "$@"

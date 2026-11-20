@@ -36,7 +36,7 @@ Flickable {
       Layout.fillWidth: true
       spacing: 0
       Repeater {
-        model: [["STATE", 190], ["FOR", 70], ["AGENT", 160], ["WORKING ON", 0], ["LAST", 220], ["", 90]]
+        model: [["STATE", 150], ["FOR", 170], ["AGENT", 140], ["WORKING ON", 0], ["LAST", 150], ["", 90]]
         Cap { required property var modelData; Layout.preferredWidth: modelData[1] > 0 ? modelData[1] : -1; Layout.fillWidth: modelData[1] === 0; Layout.leftMargin: 8; text: modelData[0] }
       }
     }
@@ -54,16 +54,16 @@ Flickable {
           anchors.topMargin: 1
           spacing: 0
           Row {
-            Layout.preferredWidth: 190
+            Layout.preferredWidth: 150
             Layout.leftMargin: 8
             spacing: 8
             StatusMark { visible: ar.modelData.tone === "wait"; level: "waiting"; size: 14; anchors.verticalCenter: parent.verticalCenter }
             DText { text: ar.modelData.state; role: "bodyS"; font.weight: ar.modelData.tone === "wait" ? Font.DemiBold : Font.Normal; color: ar.modelData.tone === "wait" ? Theme.color.waiting : Theme.color.fgDim; anchors.verticalCenter: parent.verticalCenter }
           }
-          DText { Layout.preferredWidth: 70; Layout.leftMargin: 8; text: ar.modelData.age; role: "bodyS" }
-          DText { Layout.preferredWidth: 160; Layout.leftMargin: 8; text: ar.modelData.name; role: "body"; font.weight: Font.Medium; elide: Text.ElideRight }
-          DText { Layout.fillWidth: true; Layout.leftMargin: 8; text: ar.modelData.task; role: "bodyS"; elide: Text.ElideRight }
-          DText { Layout.preferredWidth: 220; Layout.leftMargin: 8; text: ar.modelData.last; role: "bodyS"; dim: true; elide: Text.ElideRight }
+          DText { objectName: "agentFor"; Layout.preferredWidth: 170; Layout.leftMargin: 8; text: ar.modelData.forRef; role: "bodyS"; elide: Text.ElideRight }
+          DText { Layout.preferredWidth: 140; Layout.leftMargin: 8; text: ar.modelData.name; role: "body"; font.weight: Font.Medium; elide: Text.ElideRight }
+          DText { objectName: "agentWork"; Layout.fillWidth: true; Layout.leftMargin: 8; text: ar.modelData.task; role: "bodyS"; elide: Text.ElideRight }
+          DText { Layout.preferredWidth: 150; Layout.leftMargin: 8; text: ar.modelData.last; role: "bodyS"; dim: true; elide: Text.ElideRight }
           Item {
             Layout.preferredWidth: 90
             Layout.fillHeight: true
@@ -73,8 +73,9 @@ Flickable {
               anchors.right: parent.right
               small: true
               text: ar.modelData.action
+              objectName: "agentJump"
               blocked: !ar.modelData.item || (!ar.modelData.item.jump && !ar.modelData.item.url)
-              onClicked: Actions.jump(ar.modelData.item.raw)
+              onClicked: CcState.jumpRow(ar.modelData)
             }
           }
         }

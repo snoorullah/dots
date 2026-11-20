@@ -25,6 +25,7 @@ Item {
   signal ccRequested(string tab)
   signal logoClicked()
   signal workspaceRequested(int id)
+  signal profileRequested(string name)
 
   readonly property var m: model || ({})
   readonly property var waits: m.waits || ({ shown: [], more: 0 })
@@ -58,6 +59,9 @@ Item {
       objectName: "profiles"
       profiles: view.m.profiles || []
       active: view.m.activeProfile || ""
+      pinOpen: !!view.m.profilesOpen
+      onProfileRequested: name => view.profileRequested(name)
+      onSwitcherRequested: x => view.toggleRequested("workspaces", x)
     }
     Divider {}
     Workspaces {
@@ -71,7 +75,7 @@ Item {
     TaskText {
       id: taskText
       objectName: "task"
-      maxText: Math.max(0, Math.min(170, view.leftRoom - (view.m.detour ? 80 : 0)))
+      maxText: Math.max(0, Math.min(170, view.leftRoom - taskText.detourWidth))
       task: view.m.task || ""
       detour: view.m.detour || ""
     }

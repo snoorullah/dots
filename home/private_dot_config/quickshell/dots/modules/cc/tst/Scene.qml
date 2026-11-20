@@ -78,6 +78,10 @@ ShellRoot {
         m.hand = find("handBtn").filter(vis).map(function (b) { return { stub: b.stub, live: b.live } })
         m.empty = find("emptyList").filter(vis).length
         m.agentRows = find("agentRow").filter(vis).length
+        m.agentFor = find("agentFor").filter(vis).map(function (t) { return t.text })
+        m.agentWork = find("agentWork").filter(vis).map(function (t) { return t.text })
+        m.agentJump = find("agentJump").filter(vis).map(function (b) { return { blocked: b.blocked } })
+        m.ccOpen = Ui.cc
         m.agentsEmpty = find("agentsEmpty").filter(vis).length
         m.todayRows = find("todayRow").filter(vis).length
         m.now = find("nowCard").filter(vis).map(box)[0] || null
@@ -87,7 +91,11 @@ ShellRoot {
         m.timeTabs = find("timeTab").filter(vis).map(function (b) { return { t: b.text, on: b.on } })
         m.time = { today: find("timeToday").filter(vis).length, week: find("timeWeek").filter(vis).length, heat: find("timeHeat").filter(vis).length,
                    report: find("timeReport").filter(vis).length, noData: find("timeNoData").filter(vis).length,
-                   whereRows: find("whereTime").filter(vis).length, bar: find("todayBar").filter(vis).map(box)[0] || null }
+                   whereRows: find("whereTime").filter(vis).length, bar: find("todayBar").filter(vis).map(box)[0] || null,
+                   card: find("todayCard").filter(vis).map(box)[0] || null, doneCard: find("doneCard").filter(vis).map(box)[0] || null,
+                   page: find("timePage").map(function (x) { return { flick: x.contentHeight !== undefined } })[0] || null,
+                   flicks: find("timeToday").length ? (function () { var n = []; walk(find("timeToday")[0], function (x) { if (x.contentHeight !== undefined && x.flickableDirection !== undefined) n.push(x.objectName) }); return n })() : [],
+                   barSegs: (function () { var b = find("todayBar").filter(vis)[0]; if (!b) return null; var r = []; walk(b, function (x) { if (x.radius === 4 && x !== b) r.push({ x: Math.round(x.x), w: Math.round(x.width) }) }); return r })() }
         m.stats = find("statValue").filter(vis).map(function (t) { return t.text })
         m.heatCells = find("cell").filter(vis).length
         m.staleMark = find("staleMark").filter(vis).length
@@ -109,6 +117,7 @@ ShellRoot {
         else if (op === "undo") CcState.undo()
         else if (op === "mode") CcState.mode = arg
         else if (op === "snooze") CcState.snooze(arg)
+        else if (op === "jumprow") { var jr = find("agentJump").filter(vis)[Number(arg)]; if (jr) jr.clicked(); else console.log("NOJUMP " + arg) }
         else if (op === "back") find("backBtn")[0].clicked()
         else if (op === "click") { var b = find(arg)[0]; if (b) b.clicked(); else console.log("NOBUTTON " + arg) }
         else console.log("BADSTEP " + s)

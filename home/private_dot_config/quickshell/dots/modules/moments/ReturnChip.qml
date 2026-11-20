@@ -4,9 +4,10 @@ import "../theme"
 import "../common"
 import "js/Moments.js" as M
 
-// The return chip: "Detour 4m · back to HD 4412  Super+B". Place it in the bar or the shell;
+// The return chip: "Detour 4m · back to HD 4412  Super+Alt+B". Place it in the bar or the shell;
 // it is zero width and invisible while there is no detour, so it never leaves a gap.
-// Click (or the shell's Super+B bind calling back()) runs `dots-jump <ref>`: local only.
+// Click (or the shell's Super+Alt+B bind, dots.ret back) returns to the terminal's workspace and runs
+// `dots-jump <ref>`: local only.
 // `detour` and `task` default to the live now.json; tests and callers may override them.
 Item {
   id: chip
@@ -19,9 +20,12 @@ Item {
 
   function back() {
     if (!chip.active) return false;
-    var argv = M.jumpArgv(chip.task);
-    if (!argv) return false;
-    Quickshell.execDetached(argv);
+    var list = M.backArgvs(chip.task, MomentState.focusState.homeWs);
+    if (list.length === 0) return false;
+    for (var i = 0; i < list.length; i++) {
+      var argv = list[i];
+      Quickshell.execDetached(argv);
+    }
     chip.returned();
     return true;
   }
@@ -63,7 +67,7 @@ Item {
         font.pixelSize: Theme.font.size.caption
         color: Theme.color.waiting
         opacity: 0.8
-        text: "Super+B"
+        text: MomentState.backKey
       }
     }
 

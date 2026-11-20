@@ -113,7 +113,7 @@ spec_lines="$(wc -l < "$root/docs/shell/specs/cc.md")"
 
 # ---- 4. scenes -----------------------------------------------------------------------------
 mkdir -p "$work/bin" "$work/home"
-for c in dots-overview dots-jump xdg-open; do
+for c in dots-overview dots-jump xdg-open hyprctl; do
   printf '#!/bin/sh\n{ printf "%%s" "%s"; for a in "$@"; do printf "\\t%%s" "$a"; done; printf "\\n"; } >> "$STUB_LOG"\n' "$c" > "$work/bin/$c"
   chmod +x "$work/bin/$c"
 done
@@ -144,6 +144,11 @@ scene inbox board TAB=inbox
 scene queue-empty empty
 scene queue-stale stale
 scene agents board TAB=agents
+scene filter-mail extra SRC=Mail
+scene filter-slack extra SRC=Slack
+scene filter-alert extra SRC=Alert
+scene queue-extra extra
+scene agents-extra extra TAB=agents
 scene work board TAB=work
 scene work-board board TAB=work TASKVIEW=Board
 scene work-all board TAB=work TASKVIEW=All
@@ -152,11 +157,13 @@ scene time-week board TAB=time TIMETAB=Week
 scene time-heat board TAB=time TIMETAB=Heatmap
 scene time-agent board TAB=time TIMEBY=Agent
 scene time-days board TAB=time TIMETAB=Days
-check queue; check groups; check inbox; check compose; check empty; check stale; check agents; check work; check time
+check extra; check queue; check groups; check inbox; check compose; check empty; check stale; check agents; check work; check time
 
 # ---- 5. actions: argv only, stubs do nothing -----------------------------------------------
 scene act-local board STEPS=pick:a1,act:"Open pane",pick:b1,"act:Open review","act:Break down & start"
 check argv-local
+scene act-agent-jump extra TAB=agents STEPS=jumprow:2
+check agent-jump
 scene act-stub board STEPS=pick:a1,"act:Allow once",act:Deny,pick:a2,act:Reply,click:sendBtn,pick:d1,"act:Make a task"
 check argv-stub
 scene act-hide board STEPS=pick:b1,key:q,step:0

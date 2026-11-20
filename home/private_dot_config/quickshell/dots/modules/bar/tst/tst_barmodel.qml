@@ -144,6 +144,35 @@ TestCase {
     compare(M.taskText(null), "")
   }
 
+  // the bar shows the human ticket and a description with no internal id in it
+  function test_taskText_humanTicket() {
+    // the ticket now.json carries wins; the internal TASK id and local id never show
+    compare(M.taskText({ ticket: "HD 8580", ref: "TASK-2026-00896", desc: "TASK-2026-00896 CI sizing (HD 8580)" }), "HD 8580 CI sizing")
+    compare(M.taskText({ ticket: "HD 8143", ref: "local:c99479", desc: "TASK-2026-00846 Sophos source of Entra sign-ins (HD 8143)" }),
+            "HD 8143 Sophos source of Entra sign-ins")
+    compare(M.taskText({ ticket: "HD 8279", ref: "8279", desc: "HD 8279: Cancel subscription" }), "HD 8279 Cancel subscription")
+    // no ticket: short description only
+    compare(M.taskText({ ticket: null, ref: "TASK-2026-00906", desc: "TASK-2026-00781 part b: verify SSH host keys" }), "part b: verify SSH host keys")
+    compare(M.taskText({ ref: "local:6f2d51", desc: "Fix the thing" }), "Fix the thing")
+    // a ref that is a ticket already, with no ticket field (an older now.json)
+    compare(M.taskText({ ref: "gh:acme/infra#212", desc: "Arc host access" }), "infra#212 Arc host access")
+    compare(M.taskText({ ref: "8635", desc: "Rotate keys" }), "HD 8635 Rotate keys")
+    compare(M.taskText({ ref: "TASK-2026-00001", desc: "x (HD 2222)" }), "HD 2222 x")
+    // only an internal id and nothing else: nothing to show beats an id
+    compare(M.taskText({ ticket: "HD 8334", ref: "local:9e96f7", desc: "pg-tenant base backups: quota sized (TASK-2026-00883, HD 8334)" }),
+            "HD 8334 pg-tenant base backups: quota sized")
+    compare(M.taskText({ ticket: "HD 8580" }), "HD 8580")
+    compare(M.taskText({ ref: "TASK-2026-00001", desc: "" }), "")
+    compare(M.taskText({ ref: "local:abc123", desc: "" }), "")
+  }
+
+  function test_ticketOf() {
+    compare(M.ticketOf({ ticket: "HD 1234" }), "HD 1234")
+    compare(M.ticketOf({ ref: "HD-4412" }), "HD 4412")
+    compare(M.ticketOf({ ref: "TASK-2026-00001" }), "")
+    compare(M.ticketOf(null), "")
+  }
+
   function test_profileActive() {
     var p = ["Agents", "Dev", "Web"]
     compare(M.activeProfile(p, "dev"), "Dev")

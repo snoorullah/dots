@@ -10,6 +10,7 @@ import "../overview"
 import "../moments"
 import "../../services"
 import "js/BarModel.js" as Model
+import "js/Profiles.js" as Profiles
 
 // The bar window. Wiring only: it reads the services, builds one plain model with
 // js/BarModel.js and hands it to BarView, then turns BarView's click signals into Ui calls.
@@ -54,16 +55,8 @@ PanelWindow {
     interval: 60000
   }
 
-  // STUB: profiles have no data source yet, so this list is fixed and nothing selects one
-  readonly property var profiles: [
-    { name: "Agents", icon: "sparkle" },
-    { name: "Dev", icon: "terminal-window" },
-    { name: "Web", icon: "globe" },
-    { name: "Comms", icon: "chat-circle" },
-    { name: "Review", icon: "git-pull-request" },
-    { name: "Notes", icon: "notebook" },
-    { name: "Other", icon: "stack" }
-  ]
+  // the profile list and which profile owns a workspace live in js/Profiles.js
+  readonly property var profiles: Profiles.barList()
 
   // an app's logo: its desktop entry's icon, else an icon named like its window class
   function appIcon(cls) {
@@ -90,20 +83,20 @@ PanelWindow {
     { id: "l3", kind: "alert", ageSec: 120 }
   ]
 
-  readonly property var wsModel: Model.workspaces(Hypr.workspaces, bar.toplevels, Hypr.activeId, 3)
+  // special workspaces (the task popup) have no profile: keep the last real one on screen
+  property string lastProfile: ""
+  readonly property string activeProfile: Profiles.stickyProfile(Hypr.activeId, bar.lastProfile)
+  onActiveProfileChanged: if (activeProfile !== "") lastProfile = activeProfile
+  // only the active profile's workspaces are drawn; the others are one profile click away
+  readonly property var wsModel: Profiles.workspacesOf(Model.workspaces(Hypr.workspaces, bar.toplevels, Hypr.activeId, 3), bar.activeProfile)
 
   readonly property var viewModel: {
     var player = Mpris.active;
     var today = Feed.today;
     var lamp = Lamp.on;
-    var active = "";
-    for (var i = 0; i < bar.wsModel.length; i++)
-      if (bar.wsModel[i].active) active = bar.wsModel[i].name;
-    var names = [];
-    for (var j = 0; j < bar.profiles.length; j++) names.push(bar.profiles[j].name);
     return {
       profiles: bar.profiles,
-      activeProfile: Model.activeProfile(names, active),
+      activeProfile: bar.activeProfile,
       workspaces: bar.wsModel,
       task: Model.taskText(Feed.task),
       detour: MomentState.detour.text,    // now.json away clock (modules/moments)
@@ -140,5 +133,6 @@ PanelWindow {
     onCcRequested: tab => Ui.toggleCc(tab)
     onLogoClicked: Ui.toggleCc()
     onWorkspaceRequested: id => Hypr.focus(id)
+    onProfileRequested: name => Hypr.focus(Profiles.primary(name))
   }
 }

@@ -90,7 +90,7 @@ class Contracts(helpers.Scratch):
             {"job": "net-watch", "status": "warn", "summary": "slow", "changed": int(time.time())}))
         doc = attention.build([], [], int(time.time()))
         self.check("attention", doc)
-        self.assertEqual(doc["counts"], {"waiting": 0, "failed": 1, "total": 1})
+        self.assertEqual(doc["counts"], {"waiting": 0, "previous": 0, "failed": 1, "total": 1})
 
     def test_now_has_focus_block_and_rolls_over(self):
         t0 = 1_000_000

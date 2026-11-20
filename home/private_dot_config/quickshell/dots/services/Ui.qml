@@ -18,7 +18,7 @@ Singleton {
   }
   function close() { root.open = ""; }
 
-  // Popout names (one at a time, via toggle): calendar | salah | waiting | agent | tray | media | system | center
+  // Popout names (one at a time, via toggle): calendar | salah | waiting | agent | tray | media | system | center | workspaces
   // Full-screen control centre and the edge sidebar are separate from popouts.
   property bool cc: false
   property string ccTab: "queue"   // queue | inbox | agents | work | time

@@ -183,7 +183,7 @@ class Sources(helpers.Scratch):
         self.assertEqual(len(sleeps), len(searches) - 1)
         self.assertTrue(all(s == sources_gh.SLEEP for s in sleeps))
         self.assertTrue(all(i["ref"] == "gh:acme/r#7" and i["work"] for i in items))
-        self.assertEqual({i["kind"] for i in items}, {"issue", "pr", "review"})
+        self.assertEqual({i["kind"] for i in items}, {"issue", "pr", "review", "mention"})
 
     def test_gh_quota_low_aborts_before_any_search(self):
         calls = []

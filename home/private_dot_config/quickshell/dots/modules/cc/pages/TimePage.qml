@@ -11,13 +11,11 @@ import "../js/Queue.js" as Q
 // Time: sub-tabs over activity.json, heatmap.json and mirror.json. Sub-tabs whose data
 // the overview files do not carry (Days, Focus zones, Progress, Screen and health, Reminders)
 // show one card saying so.
-Flickable {
+Item {
   id: pg
+  objectName: "timePage"
   property bool dim: false
   clip: true
-  contentWidth: width
-  contentHeight: col.height + 48
-  boundsBehavior: Flickable.StopAtBounds
 
   readonly property var tabs: ["Today", "Week", "Days", "Heatmap", "Focus zones", "Progress", "Report", "Screen and health", "Reminders"]
   readonly property var today: Feed.today
@@ -36,14 +34,17 @@ Flickable {
     }
     return out
   }
+  // "HD 8580 Fix the thing": the ticket and a short description, never a TASK- or local: id
+  function nextLabel(t) { return Q.label(t.ticket, t.ref, t.title) || "Untitled" }
   readonly property bool implemented: CcState.timeTab === "Today" || CcState.timeTab === "Week" || CcState.timeTab === "Heatmap" || CcState.timeTab === "Report"
   readonly property real dayElapsed: CcState.loginTs > 0 ? Math.max(0, Feed.nowTs - CcState.loginTs) : -1
 
+  // Header and sub-tabs are fixed. The page itself never scrolls: on Today only the right-hand
+  // list scrolls; the other sub-tabs fit their card and are clipped.
   ColumnLayout {
     id: col
-    x: 24
-    y: 24
-    width: pg.width - 48
+    anchors.fill: parent
+    anchors.margins: 24
     spacing: 16
 
     Row {
@@ -55,113 +56,168 @@ Flickable {
     }
 
     // ---- Today ----
-    GridLayout {
+    ColumnLayout {
       objectName: "timeToday"
       visible: CcState.timeTab === "Today"
       Layout.fillWidth: true
-      columns: 3
-      columnSpacing: 16
-      rowSpacing: 16
+      Layout.fillHeight: true
+      spacing: 16
 
-      Stat { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop; label: "Day so far"; icon: "sign-out"; value: pg.dayElapsed >= 0 ? Q.hm(pg.dayElapsed) : "--:--"; note: pg.dayElapsed >= 0 ? "since you logged in at " + Q.clock(CcState.loginTs) : "no session open"; dim: pg.dayElapsed < 0 }
-      Stat { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop; label: "This week"; icon: "calendar-blank"; value: Q.hm(pg.buckets ? pg.buckets.week.workedSec : 0); note: (pg.buckets ? pg.buckets.week.tasksDone : 0) + " tasks done" }
-      Stat { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop; label: "This month"; icon: "calendar-dots"; value: Q.hm(pg.buckets ? pg.buckets.month.workedSec : 0); note: (pg.buckets ? pg.buckets.month.tasksDone : 0) + " tasks done" }
-
-      Card {
-        Layout.columnSpan: 2
+      RowLayout {
         Layout.fillWidth: true
-        Layout.preferredWidth: 2
-        Layout.alignment: Qt.AlignTop
-        Column {
-          width: parent.width
-          spacing: 12
-          Head { text: "Today"; icon: "clock" }
-          Row {
-            objectName: "todayBar"
-            width: parent.width
-            height: 28
-            spacing: 2
-            Repeater {
-              model: pg.today ? pg.today.byProject : []
-              Rectangle {
-                required property var modelData
-                required property int index
-                width: Math.max(2, (parent.width - 2 * Math.max(0, pg.today.byProject.length - 1)) * modelData.sec / Math.max(1, pg.today.workedSec))
+        spacing: 16
+        Stat { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop; label: "Day so far"; icon: "sign-out"; value: pg.dayElapsed >= 0 ? Q.hm(pg.dayElapsed) : "--:--"; note: pg.dayElapsed >= 0 ? "since you logged in at " + Q.clock(CcState.loginTs) : "no session open"; dim: pg.dayElapsed < 0 }
+        Stat { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop; label: "This week"; icon: "calendar-blank"; value: Q.hm(pg.buckets ? pg.buckets.week.workedSec : 0); note: (pg.buckets ? pg.buckets.week.tasksDone : 0) + " tasks done" }
+        Stat { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop; label: "This month"; icon: "calendar-dots"; value: Q.hm(pg.buckets ? pg.buckets.month.workedSec : 0); note: (pg.buckets ? pg.buckets.month.tasksDone : 0) + " tasks done" }
+      }
+
+      RowLayout {
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        spacing: 16
+
+        // left two thirds: fixed
+        ColumnLayout {
+          Layout.fillWidth: true
+          Layout.preferredWidth: 2
+          Layout.fillHeight: true
+          spacing: 16
+
+          Card {
+            objectName: "todayCard"
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignTop
+            Column {
+              width: parent.width
+              spacing: 12
+              Head { text: "Today"; icon: "clock" }
+              Item {
+                id: barBox
+                objectName: "todayBar"
+                width: parent.width
                 height: 28
-                radius: 4
-                color: Qt.alpha(Theme.color.accent, 1 - Math.min(0.6, index * 0.25))
+                clip: true
+                readonly property var segs: pg.today ? pg.today.byProject : []
+                readonly property var widths: Q.barWidths(segs.map(function (p) { return p.sec }), width, 2)
+                Repeater {
+                  model: barBox.segs
+                  Rectangle {
+                    required property var modelData
+                    required property int index
+                    x: {
+                      var sum = 0
+                      for (var i = 0; i < index; i++) sum += barBox.widths[i] + 2
+                      return sum
+                    }
+                    width: barBox.widths[index] || 0
+                    height: 28
+                    radius: 4
+                    color: Qt.alpha(Theme.color.accent, 1 - Math.min(0.6, index * 0.25))
+                  }
+                }
+              }
+              DText { text: pg.today ? Q.hm(pg.today.workedSec) + " worked across " + pg.today.byProject.length + " projects." : "No activity yet today."; role: "bodyS"; dim: true }
+            }
+          }
+
+          RowLayout {
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignTop
+            spacing: 16
+            Card {
+              Layout.fillWidth: true
+              Layout.preferredWidth: 1
+              Layout.alignment: Qt.AlignTop
+              pad: 16
+              Column {
+                width: parent.width
+                spacing: 10
+                Cap { text: "NEXT" }
+                DText { text: CcState.nextTasks.length ? pg.nextLabel(CcState.nextTasks[0]) : "Nothing picked"; role: "headline"; font.weight: Font.Normal; width: parent.width; wrapMode: Text.Wrap }
+                DText { text: CcState.nextTasks.length > 1 ? "Then: " + CcState.nextTasks.slice(1, 3).map(pg.nextLabel).join(", ") : ""; role: "bodyS"; dim: true; width: parent.width; wrapMode: Text.Wrap }
+              }
+            }
+            Card {
+              objectName: "whereTime"
+              Layout.fillWidth: true
+              Layout.preferredWidth: 1
+              Layout.alignment: Qt.AlignTop
+              pad: 16
+              Column {
+                width: parent.width
+                spacing: 10
+                Cap { text: "WHERE TIME WENT" }
+                Row {
+                  spacing: 2
+                  Repeater {
+                    model: ["Project", "Item", "Agent", "App"]
+                    Seg { required property string modelData; objectName: "timeBy"; text: modelData; h: 24; pad: 10; on: CcState.timeBy === modelData; onColor: Theme.color.outlineVariant; onClicked: CcState.timeBy = modelData }
+                  }
+                }
+                Repeater {
+                  model: pg.rows
+                  TimeRow { required property var modelData; width: parent.width; n: modelData.n; v: modelData.v; w: modelData.w }
+                }
+                DText { visible: pg.rows.length === 0; text: "Nothing recorded yet."; role: "bodyS"; dim: true }
               }
             }
           }
-          DText { text: pg.today ? Q.hm(pg.today.workedSec) + " worked across " + pg.today.byProject.length + " projects." : "No activity yet today."; role: "bodyS"; dim: true }
+          Item { Layout.fillHeight: true }
         }
-      }
-      Card {
-        Layout.fillWidth: true
-        Layout.preferredWidth: 1
-        Layout.alignment: Qt.AlignTop
-        Column {
-          width: parent.width
-          spacing: 8
-          Head { text: "Focus"; icon: "crosshair" }
-          DText { text: Feed.focusRunning ? ("Running, " + Q.hm(Feed.focusElapsed) + " of " + Q.hm(Feed.focusTarget)) : (Feed.focus && Feed.focus.state === "break" ? "On a break." : "Not running."); role: "bodyS"; dim: true; width: parent.width; wrapMode: Text.Wrap }
-          Row {
-            spacing: 8
-            Btn { objectName: "focusStart"; visible: !Feed.focusRunning; text: "Start"; icon: "timer"; onClicked: Actions.focus("start") }
-            Btn { objectName: "focusStop"; visible: Feed.focusRunning; text: "Stop"; onClicked: Actions.focus("stop") }
-            Btn { objectName: "focusBreak"; text: "Break"; onClicked: Actions.focus("break") }
-          }
-        }
-      }
 
-      Card {
-        Layout.fillWidth: true
-        Layout.preferredWidth: 1
-        Layout.alignment: Qt.AlignTop
-        pad: 16
-        Column {
-          width: parent.width
-          spacing: 10
-          Cap { text: "NEXT" }
-          DText { text: CcState.nextTasks.length ? CcState.nextTasks[0].title : "Nothing picked"; role: "headline"; font.weight: Font.Normal; width: parent.width; wrapMode: Text.Wrap }
-          DText { text: CcState.nextTasks.length > 1 ? "Then: " + CcState.nextTasks.slice(1, 3).map(function (t) { return t.title }).join(", ") : ""; role: "bodyS"; dim: true; width: parent.width; wrapMode: Text.Wrap }
-        }
-      }
-      Card {
-        objectName: "whereTime"
-        Layout.fillWidth: true
-        Layout.preferredWidth: 1
-        Layout.alignment: Qt.AlignTop
-        pad: 16
-        Column {
-          width: parent.width
-          spacing: 10
-          Cap { text: "WHERE TIME WENT" }
-          Row {
-            spacing: 2
-            Repeater {
-              model: ["Project", "Item", "Agent", "App"]
-              Seg { required property string modelData; objectName: "timeBy"; text: modelData; h: 24; pad: 10; on: CcState.timeBy === modelData; onColor: Theme.color.outlineVariant; onClicked: CcState.timeBy = modelData }
+        // right third: Focus fixed, "Done today" scrolls on its own
+        ColumnLayout {
+          Layout.fillWidth: true
+          Layout.preferredWidth: 1
+          Layout.fillHeight: true
+          spacing: 16
+
+          Card {
+            Layout.fillWidth: true
+            Column {
+              width: parent.width
+              spacing: 8
+              Head { text: "Focus"; icon: "crosshair" }
+              DText { text: Feed.focusRunning ? ("Running, " + Q.hm(Feed.focusElapsed) + " of " + Q.hm(Feed.focusTarget)) : (Feed.focus && Feed.focus.state === "break" ? "On a break." : "Not running."); role: "bodyS"; dim: true; width: parent.width; wrapMode: Text.Wrap }
+              Row {
+                spacing: 8
+                Btn { objectName: "focusStart"; visible: !Feed.focusRunning; text: "Start"; icon: "timer"; onClicked: Actions.focus("start") }
+                Btn { objectName: "focusStop"; visible: Feed.focusRunning; text: "Stop"; onClicked: Actions.focus("stop") }
+                Btn { objectName: "focusBreak"; text: "Break"; onClicked: Actions.focus("break") }
+              }
             }
           }
-          Repeater {
-            model: pg.rows
-            TimeRow { required property var modelData; width: parent.width; n: modelData.n; v: modelData.v; w: modelData.w }
+
+          Card {
+            objectName: "doneCard"
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.minimumHeight: 0
+            implicitHeight: 0
+            pad: 16
+            clip: true
+            Cap { id: doneCap; text: "DONE TODAY" }
+            Flickable {
+              id: doneScroll
+              objectName: "doneScroll"
+              anchors.top: doneCap.bottom
+              anchors.topMargin: 10
+              anchors.left: parent.left
+              anchors.right: parent.right
+              height: Math.max(0, parent.height - doneCap.height - 10)
+              clip: true
+              contentWidth: width
+              contentHeight: doneCol.height
+              boundsBehavior: Flickable.StopAtBounds
+              Column {
+                id: doneCol
+                width: doneScroll.width
+                spacing: 6
+                Repeater { model: pg.done; DText { required property string modelData; width: doneCol.width; text: modelData; role: "bodyS"; elide: Text.ElideRight } }
+                DText { visible: pg.done.length === 0; text: "Nothing closed or reviewed yet."; role: "bodyS"; dim: true }
+              }
+            }
           }
-          DText { visible: pg.rows.length === 0; text: "Nothing recorded yet."; role: "bodyS"; dim: true }
-        }
-      }
-      Card {
-        Layout.fillWidth: true
-        Layout.preferredWidth: 1
-        Layout.alignment: Qt.AlignTop
-        pad: 16
-        Column {
-          width: parent.width
-          spacing: 6
-          Cap { text: "DONE TODAY" }
-          Repeater { model: pg.done; DText { required property string modelData; width: parent.width; text: modelData; role: "bodyS"; elide: Text.ElideRight } }
-          DText { visible: pg.done.length === 0; text: "Nothing closed or reviewed yet."; role: "bodyS"; dim: true }
         }
       }
     }
