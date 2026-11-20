@@ -30,5 +30,9 @@ quickshell/dots/vendor/ii/ with a GPL-3.0 header, the upstream copyright, a
 GPL-3.0. That needs an explicit decision; tests/shell.sh fails if vendor/
 appears without those headers.
 
-No fonts are bundled. JetBrains Mono Nerd Font and Material Symbols come from
-nixpkgs.
+No fonts are bundled. They are fetched and installed by nix:
+  JetBrains Mono Nerd Font   from nixpkgs.
+  Bricolage Grotesque        OFL-1.1. Static Regular, Medium and SemiBold TTFs
+                             from github ateliertriay/bricolage at rev
+                             84745e5b96261ae5f8c6c856e262fe78d1d6efdd,
+                             built by nix/pkgs/bricolage-grotesque.

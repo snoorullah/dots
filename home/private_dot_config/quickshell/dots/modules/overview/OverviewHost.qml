@@ -87,7 +87,7 @@ Item {
             anchors { top: true; left: true }
 
             readonly property real screenW: screen ? screen.width : 1920
-            readonly property real leftMargin: Math.max(8, Math.min(host.anchorX - Look.cardWidth / 2, screenW - Look.cardWidth - 8))
+            readonly property real leftMargin: Math.max(Look.sL, Math.min(host.anchorX - Look.cardWidth / 2, screenW - Look.cardWidth - Look.sL))
 
             margins { top: Math.round(host.anchorBottom); left: Math.round(cw.leftMargin) }
             implicitWidth: Look.cardWidth

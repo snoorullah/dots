@@ -49,6 +49,8 @@ echo "$res" | grep -q ' 0 failed' && ok "1 qmltestrunner: Fmt, Ledger, Model" ||
 shellroot="$work/root"; mkdir -p "$shellroot/modules"
 ln -s "$tst/stub/modules/theme" "$shellroot/modules/theme"
 ln -s "$ov" "$shellroot/modules/overview"
+# Glyph delegates to common/Icon + PhosphorIcons (one icon renderer for the whole shell)
+ln -s "$ov/../common" "$shellroot/modules/common"
 cp "$tst/Scene.qml" "$shellroot/shell.qml"
 
 # ---- 2. qmllint --------------------------------------------------------------------------
@@ -59,8 +61,8 @@ if [ -n "${QML_LINT:-}" ] && [ -x "$QML_LINT" ]; then
   done
   cp -r "$ov/js" "$lint/qs/modules/overview/js"
   cp "$tst/stub/modules/theme/Theme.qml" "$lint/qs/modules/theme/"
-  # the one shared component the overview borrows (screenshot-proof dismiss)
-  mkdir -p "$lint/qs/modules/common"; cp "$ov/../common/DismissGrab.qml" "$lint/qs/modules/common/"
+  # the shared components the overview borrows (screenshot-proof dismiss, Phosphor icons, status mark)
+  mkdir -p "$lint/qs/modules/common"; cp "$ov/../common/DismissGrab.qml" "$ov/../common/Icon.qml" "$ov/../common/PhosphorIcons.qml" "$ov/../common/StatusMark.qml" "$lint/qs/modules/common/"
   mkqmldir() { # dir module
     ( cd "$1" && { echo "module $2"; for f in *.qml; do n="${f%.qml}"
         if grep -q '^pragma Singleton' "$f"; then echo "singleton $n 1.0 $f"; else echo "$n 1.0 $f"; fi; done; } > qmldir )

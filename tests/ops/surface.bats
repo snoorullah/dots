@@ -11,25 +11,25 @@ wb() { bash "$CLI" waybar; }
 
 @test "waybar with no states is ok" {
   run wb; [ "$status" -eq 0 ]
-  echo "$output" | jq -e '.text=="✓" and .class=="ok"'
+  echo "$output" | jq -e '.text=="\u200b" and .class=="ok"'
 }
 @test "one warn shows '! 1' class warn" {
   ops_state a warn "disk 85%"
-  run wb; echo "$output" | jq -e '.text=="! 1" and .class=="warn"'
+  run wb; echo "$output" | jq -e '.text=="\u200b1" and .class=="warn"'
   [[ $(echo "$output" | jq -r .tooltip) == *"a: disk 85%"* ]]
 }
 @test "fail plus warn shows '✗ 2' class fail (counts fail jobs)" {
   ops_state a fail "x"; ops_state b fail "y"; ops_state c warn "z"
-  run wb; echo "$output" | jq -e '.text=="✗ 2" and .class=="fail"'
+  run wb; echo "$output" | jq -e '.text=="\u200b2" and .class=="fail"'
 }
 @test "live pending appends ask count and raises class to warn" {
   ops_ask j "Apply updates?" "user:true"
-  run wb; echo "$output" | jq -e '.text=="✓ · 1 ask" and .class=="warn"'
+  run wb; echo "$output" | jq -e '.text=="\u200b · 1 ask" and .class=="warn"'
   [[ $(echo "$output" | jq -r .tooltip) == *"Apply updates?"* ]]
 }
 @test "pending on top of fail keeps class fail" {
   ops_state a fail "x"; ops_ask j "q" "user:true"
-  run wb; echo "$output" | jq -e '.text=="✗ 1 · 1 ask" and .class=="fail"'
+  run wb; echo "$output" | jq -e '.text=="\u200b1 · 1 ask" and .class=="fail"'
 }
 @test "summaries with quotes still give valid JSON" {
   ops_state a warn 'he said "hi" \ and
@@ -56,7 +56,7 @@ newline'
   printf '#!/bin/sh\nprintf "%%s\\n" "$@" > "%s/fzf.args"; cat >/dev/null\n' "$BATS_TEST_TMPDIR" > "$BIN/fzf"; chmod +x "$BIN/fzf"
   ops_state a warn w
   run bash "$CLI" status; [ "$status" -eq 0 ]
-  grep -q 'enter: log · ctrl-a: approve · ctrl-s: snooze · ctrl-k: skip · ctrl-r: run now' "$BATS_TEST_TMPDIR/fzf.args"
+  grep -q 'enter log · ctrl-a approve · ctrl-s snooze · ctrl-k skip · ctrl-r run now' "$BATS_TEST_TMPDIR/fzf.args"
   grep -q 'ctrl-r:execute' "$BATS_TEST_TMPDIR/fzf.args"; grep -q 'reload' "$BATS_TEST_TMPDIR/fzf.args"
   # R54: the answer keys pass the hidden token field of the row shown; only fields 1-4 are displayed
   grep -qx -- '--with-nth=1..4' "$BATS_TEST_TMPDIR/fzf.args"
@@ -65,13 +65,13 @@ newline'
 }
 @test "garbage state file next to a fail file: class fail, counted, tooltip names it" {
   ops_state a fail "x"; echo '{not json' > "$OPS_STATE/state/junk.json"
-  run wb; echo "$output" | jq -e '.text=="✗ 1" and .class=="fail"'
+  run wb; echo "$output" | jq -e '.text=="\u200b1" and .class=="fail"'
   [[ $(echo "$output" | jq -r .tooltip) == *"junk: unreadable state"* ]]
   [[ $(echo "$output" | jq -r .tooltip) == *"a: x"* ]]
 }
 @test "garbage state file alone: class warn, never ok" {
   echo '{not json' > "$OPS_STATE/state/junk.json"
-  run wb; echo "$output" | jq -e '.text=="! 1" and .class=="warn"'
+  run wb; echo "$output" | jq -e '.text=="\u200b1" and .class=="warn"'
 }
 @test "ops_status_lines survives a garbage state file and lists it" {
   ops_state a fail "x"; echo '{not json' > "$OPS_STATE/state/junk.json"
@@ -82,7 +82,7 @@ newline'
 @test "snoozed ask is hidden: waybar stays ok with no ask text, no status row (R25)" {
   ops_ask j q "user:true"; ops_answer j snooze
   [ -f "$OPS_STATE/pending/j.json" ]
-  run wb; echo "$output" | jq -e '.text=="✓" and .class=="ok"'
+  run wb; echo "$output" | jq -e '.text=="\u200b" and .class=="ok"'
   [[ $output != *ask* ]]
   run ops_status_lines; [[ $output != *"j ⟂"* ]]
 }

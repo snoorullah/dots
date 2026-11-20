@@ -28,28 +28,28 @@ Popout {
       spacing: Theme.space.l
 
       QuickToggle {
-        icon: Net.wifi ? "wifi" : "wifi_off"
+        icon: Net.wifi ? "wifi-high" : "wifi-slash"
         label: "Wi-Fi"
         on: Net.wifi
         available: Net.available
         onClicked: Net.setWifi(!Net.wifi)
       }
       QuickToggle {
-        icon: Bt.powered ? "bluetooth" : "bluetooth_disabled"
+        icon: Bt.powered ? "bluetooth" : "bluetooth-slash"
         label: "Bluetooth"
         on: Bt.powered
         available: Bt.available
         onClicked: Bt.setPowered(!Bt.powered)
       }
       QuickToggle {
-        icon: "notifications_off"
+        icon: "bell-slash"
         label: "Do not disturb"
         on: win.notifs ? win.notifs.dnd : false
         held: true
         onClicked: if (win.notifs) win.notifs.dnd = !win.notifs.dnd
       }
       QuickToggle {
-        icon: "nightlight"
+        icon: "moon"
         label: "Night light"
         on: NightLight.on
         held: true
@@ -60,14 +60,14 @@ Popout {
 
     QuickSlider {
       width: parent.width
-      icon: Audio.muted ? "volume_off" : "volume_up"
+      icon: Audio.muted ? "speaker-slash" : "speaker-high"
       value: Audio.volume
       available: Audio.ready
       onMoved: fraction => { Audio.setVolume(fraction); Hud.show("volume", fraction, Audio.muted); }
     }
     QuickSlider {
       width: parent.width
-      icon: "brightness_6"
+      icon: "sun-dim"
       value: Brightness.value
       available: Brightness.available
       onMoved: fraction => { Brightness.set(fraction); Hud.show("brightness", fraction, false); }

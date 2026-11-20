@@ -1,5 +1,5 @@
 /* ~/.config/waybar/style.css — rendered from style.css.tmpl.
-   A template, not a plain file, so the eleven Dracula hexes live in ONE place
+   A template, not a plain file, so the palette hexes live in ONE place
    (.chezmoidata/palette.yaml) instead of being retyped here and in swaync's sheet. The
    waybar colours were the last hand-copied set; drifting from the palette was only a
    matter of time.
@@ -12,8 +12,8 @@
       hairline dividers and are rounded only at the cluster's ends, so the eye parses the
       bar as three objects (workspaces · clock+salah · status) rather than ten. Gaps are
       CSS margins only — config.jsonc sets "spacing": 0 for exactly this reason.
-   2. 8px for bar-scale chips. 12px for panel-scale surfaces (swaync, popups), which is
-      also hyprland decoration.rounding, so a popup and a panel share one corner.
+   2. 6px for bar-scale chips. 14px for panel-scale surfaces (swaync, popups), the same
+      panel radius the Quickshell shell uses. Spacing sits on the 4px grid.
    3. ICONS SAY WHAT, NEVER HOW URGENT. The theme bakes #fcfcfc into the scalable SVGs
       (phosphor-icon-theme/build.sh), so an icon loaded through -gtk-icontheme() CANNOT be
       tinted from here — and that is the right constraint rather than a limitation. State
@@ -33,23 +33,23 @@
       text keeps whatever colour its state gave it, so feedback never overwrites meaning.
 
    The bar is translucent on purpose: hyprland.lua layer_rule's `blur = true` on the waybar
-   namespace was doing nothing at all against an opaque #282a36. */
+   namespace was doing nothing at all against an opaque ground (#0e1316 by default). */
 
-@define-color bg      {{ .palette.bg }};
-@define-color fg      {{ .palette.fg }};
-@define-color sel     {{ .palette.sel }};
-@define-color dim     {{ .palette.comment }};
-@define-color cyan    {{ .palette.cyan }};
-@define-color green   {{ .palette.green }};
-@define-color orange  {{ .palette.orange }};
-@define-color pink    {{ .palette.pink }};
-@define-color purple  {{ .palette.purple }};
-@define-color red     {{ .palette.red }};
+@define-color bg      {{ .palette.ground }};
+@define-color fg      {{ .palette.text }};
+@define-color sel     {{ .palette.raised }};
+@define-color dim     {{ .palette.text_dim }};
+@define-color accent  {{ .palette.accent }};
+@define-color waiting {{ .palette.waiting }};
+@define-color failed  {{ .palette.failed }};
+@define-color ctx_work     {{ .palette.ctx.work }};
+@define-color ctx_lab      {{ .palette.ctx.lab }};
+@define-color ctx_agents   {{ .palette.ctx.agents }};
+@define-color ctx_personal {{ .palette.ctx.personal }};
 
 * {
-  /* The Nerd Font build is what is installed (nix/home.nix: nerd-fonts.jetbrains-mono).
-     Its private-use GLYPHS are banned, not the font itself — the family name has to stay. */
-  font-family: "JetBrainsMono Nerd Font", monospace;
+  /* Plain JetBrains Mono; the shell uses no Nerd Font glyphs. */
+  font-family: "JetBrains Mono", monospace;
   font-size: 13px;
   min-height: 0;
   /* Nothing in the bar is keyboard-driven, so GTK's focus ring is pure noise. */
@@ -73,25 +73,25 @@ window#waybar {
 /* ── workspaces ────────────────────────────────────────────────────────────
    Deliberately outside the slab treatment: the workspace row is navigation, not status,
    and giving it a chip made it compete with the clock. Active is marked by an underline
-   plus plain white text rather than purple text alone — a 2px rule is readable at a
+   plus plain text rather than accent-coloured text alone — a 2px rule is readable at a
    glance from the corner of the eye, a hue change is not. The transparent border on every
    other state reserves that 2px so nothing shifts when focus moves. */
 #workspaces {
   background: transparent;
-  margin: 0 2px;
+  margin: 0 4px;
 }
 #workspaces button {
   color: @dim;
   background: transparent;
-  padding: 0 9px;
+  padding: 0 8px;
   margin: 0;
   border-bottom: 2px solid transparent;
 }
-#workspaces button.active   { color: @fg; border-bottom-color: @purple; }
+#workspaces button.active   { color: @fg; border-bottom-color: @accent; }
 #workspaces button.visible  { color: @fg; }
 /* urgent is the one workspace state allowed to shout; ext/workspaces may never emit it on
    this compositor, in which case the rule simply never matches. */
-#workspaces button.urgent   { color: @red; border-bottom-color: @red; }
+#workspaces button.urgent   { color: @failed; border-bottom-color: @failed; }
 #workspaces button:hover    { color: @fg; background-color: alpha(@sel, 0.55); }
 
 /* ── the slab ──────────────────────────────────────────────────────────────
@@ -110,7 +110,7 @@ window#waybar {
 #wireplumber {
   background-color: alpha(@sel, 0.55);
   color: @fg;
-  padding: 0 10px;
+  padding: 0 8px;
   margin: 4px 0;
   border-right: 1px solid alpha(@bg, 0.5);
 }
@@ -118,19 +118,20 @@ window#waybar {
 /* Cluster ends, named explicitly rather than by :first-child/:last-child: custom/project
    disappears whenever the focused window is not a project (waybar hides an empty label
    outright), so position-based rounding would migrate between modules as you move around. */
-#clock              { border-radius: 8px 0 0 8px; font-weight: bold; }
-#custom-salah       { border-radius: 0 8px 8px 0; border-right: none; }
-#custom-tracking    { border-radius: 8px 0 0 8px; }
+#clock              { border-radius: 6px 0 0 6px; font-weight: 500; }
+#custom-salah       { border-radius: 0 6px 6px 0; border-right: none; }
+#custom-tracking    { border-radius: 6px 0 0 6px; }
 
 /* ── identity (rule 4b) ────────────────────────────────────────────────────
    custom/ctx is the only module that spends colour on identity. The hue IS the answer to
    "which context", so it is on the text rather than a wash — a wash would read as a
-   warning. ctx-none is an absence, so it goes dim instead of picking up a sixth hue. */
+   warning. ctx-none is an absence, so it goes dim instead of picking up a fifth hue. The four hues live in palette.ctx,
+   waybar only, never in tokens.json and never used for status. */
 #custom-ctx.ctx-none     { color: @dim; }
-#custom-ctx.ctx-work     { color: @cyan; }
-#custom-ctx.ctx-lab      { color: @green; }
-#custom-ctx.ctx-agents   { color: @purple; }
-#custom-ctx.ctx-personal { color: @orange; }
+#custom-ctx.ctx-work     { color: @ctx_work; }
+#custom-ctx.ctx-lab      { color: @ctx_lab; }
+#custom-ctx.ctx-agents   { color: @ctx_agents; }
+#custom-ctx.ctx-personal { color: @ctx_personal; }
 
 /* ── absence (rule 4, last line) ───────────────────────────────────────────
    Nothing to report: the value recedes. The ICON stays white and switches to its outline
@@ -143,34 +144,34 @@ window#waybar {
 /* ── a claim on your attention (rule 4a) ───────────────────────────────────
    A wash behind matching text. Two distinct reasons live here and they share one look on
    purpose, because both mean "this segment is not resting":
-     amber/red  something needs you
-     green      a state you are holding open */
-#custom-ops.warn               { background-color: alpha(@orange, 0.20); color: @orange; }
-#custom-ops.fail               { background-color: alpha(@red,    0.22); color: @red; }
-#custom-kube.kube-down         { background-color: alpha(@red,    0.22); color: @red; }
-#custom-tracking.tracking-on   { background-color: alpha(@green,  0.18); color: @green; }
-#idle_inhibitor.activated      { background-color: alpha(@orange, 0.18); }
+     waiting/failed  something needs you (amber circle / coral diamond)
+     accent          a state you are holding open (fine shows nothing, never green) */
+#custom-ops.warn               { background-color: alpha(@waiting, 0.20); color: @waiting; }
+#custom-ops.fail               { background-color: alpha(@failed,    0.22); color: @failed; }
+#custom-kube.kube-down         { background-color: alpha(@failed,    0.22); color: @failed; }
+#custom-tracking.tracking-on   { background-color: alpha(@accent,   0.18); color: @accent; }
+#idle_inhibitor.activated      { background-color: alpha(@waiting, 0.18); }
 
 /* The unread badge. Bold, because a count is the one number in the bar you are meant to
    read rather than monitor. `inhibited` is swaync's "an app asked for silence" flavour of
    the same two states, so it gets the same pair. */
 #custom-notification.notification,
 #custom-notification.inhibited-notification {
-  background-color: alpha(@orange, 0.20);
-  color: @orange;
+  background-color: alpha(@waiting, 0.20);
+  color: @waiting;
   font-weight: bold;
 }
 
 /* Do-not-disturb is a state YOU are holding, not a fault — the old sheet painted it red,
-   which made a deliberate choice look like a broken daemon. Purple is the accent the whole
+   which made a deliberate choice look like a broken daemon. The accent (#8ccff1) is what the whole
    desktop uses for "engaged by you". It washes the chip whether or not anything is waiting;
    the bell-slash's fill weight is what says something IS waiting (see mapping.tsv). */
 #custom-notification.dnd-none,
 #custom-notification.dnd-notification,
 #custom-notification.dnd-inhibited-none,
 #custom-notification.dnd-inhibited-notification {
-  background-color: alpha(@purple, 0.20);
-  color: @purple;
+  background-color: alpha(@accent, 0.20);
+  color: @accent;
 }
 
 /* ── hover (rule 5) ────────────────────────────────────────────────────────
@@ -206,7 +207,7 @@ window#waybar {
 .modules-right > widget > #tray {
   background-color: alpha(@sel, 0.55);
   margin: 4px 0;
-  border-radius: 0 8px 8px 0;
+  border-radius: 0 6px 6px 0;
 }
 #custom-tray-toggle,
 #tray #tray {
@@ -214,11 +215,11 @@ window#waybar {
   margin: 0;
 }
 #custom-tray-toggle { min-width: 30px; padding: 0; }
-#custom-tray-toggle:hover { background-color: alpha(@sel, 0.95); border-radius: 0 8px 8px 0; }
+#custom-tray-toggle:hover { background-color: alpha(@sel, 0.95); border-radius: 0 6px 6px 0; }
 /* A tray item is an app's OWN icon, so the drawer is the one place in the bar that is not
    monochrome. Nothing here tries to tame that; the items just sit on the group's material,
    and the menu they open is pulled onto the palette so it is not a stock Breeze popup. */
-#tray #tray { padding: 0 6px; }
+#tray #tray { padding: 0 8px; }
 #tray menu { background: @bg; color: @fg; }
 
 /* ── tooltips ──────────────────────────────────────────────────────────────
@@ -228,11 +229,11 @@ window#waybar {
 tooltip {
   background-color: alpha(@bg, 0.96);
   border: 1px solid alpha(@sel, 0.9);
-  border-radius: 12px;
+  border-radius: 14px;
 }
 tooltip label {
   color: @fg;
-  padding: 2px 4px;
+  padding: 4px;
 }
 
 /* ── module icons ──────────────────────────────────────────────────────────
@@ -255,7 +256,7 @@ tooltip label {
 #custom-salah,
 #custom-project {
   background-repeat: no-repeat;
-  background-position: 10px center;
+  background-position: 12px center;
   background-size: 14px 14px;
   padding-left: 30px;
 }
@@ -274,14 +275,14 @@ tooltip label {
 #custom-notification.inhibited-none,
 #custom-notification.dnd-inhibited-none {
   background-position: center;
-  padding-left: 10px;
-  padding-right: 10px;
+  padding-left: 12px;
+  padding-right: 12px;
   min-width: 14px;
 }
 
 #custom-ops.warn,
 #custom-ops.fail {
-  background-position: 10px center;
+  background-position: 12px center;
   padding-left: 30px;
 }
 

@@ -11,7 +11,7 @@ Item {
 
   property bool shown: true
   property bool divider: false          // set by the Slab: a visible chip sits before this one
-  property color tint: Theme.color.amber
+  property color tint: Theme.color.fgDim   // never a status colour by default
   property bool wash: false             // the ONE use of colour: a wash behind the text
   property bool hoverable: true
   property int pad: Theme.space.s

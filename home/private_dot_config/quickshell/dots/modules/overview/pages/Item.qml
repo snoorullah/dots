@@ -35,7 +35,7 @@ FocusScope {
                 objectName: "itemJump"
                 visible: !!pg.it && (!!pg.it.jump || !!pg.it.url)
                 text: "Jump"
-                icon: "open_in_new"
+                icon: "arrow-square-out"
                 dim: pg.dim
                 onClicked: Actions.jump(pg.it)
             }
@@ -43,7 +43,7 @@ FocusScope {
                 objectName: "itemBreakdown"
                 visible: !!pg.it && !!pg.it.canBreakdown
                 text: "Break down & start"
-                icon: "play_arrow"
+                icon: "play"
                 dim: pg.dim
                 onClicked: Actions.breakdown(pg.it)
             }

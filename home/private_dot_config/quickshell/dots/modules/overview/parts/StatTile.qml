@@ -23,7 +23,7 @@ Rectangle {
         width: parent.width - Look.sXl * 2
         spacing: Look.sXs
         Txt { text: t.label; role: "caption"; faint: true; dim: t.dim; width: parent.width }
-        Txt { text: t.value; role: "headline"; font.family: Look.mono; dim: t.dim; elide: Text.ElideNone }
+        Txt { text: t.value; role: "headline"; mono: true; dim: t.dim; elide: Text.ElideNone }
         Txt { text: t.note; role: "caption"; faint: true; dim: t.dim; width: parent.width }
     }
 }

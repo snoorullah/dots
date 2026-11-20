@@ -33,14 +33,14 @@ FocusScope {
 
                 Row {
                     spacing: Look.sL
-                    Txt { text: Fmt.hm(pg.b ? pg.b.workedSec : 0); role: "display"; font.family: Look.mono; dim: pg.dim; elide: Text.ElideNone }
+                    Txt { text: Fmt.hm(pg.b ? pg.b.workedSec : 0); role: "display"; mono: true; dim: pg.dim; elide: Text.ElideNone }
                     StaleMark { visible: pg.dim; anchors.verticalCenter: parent.verticalCenter }
                 }
                 StatRow { width: parent.width; label: "Tasks done"; value: String(pg.b ? pg.b.tasksDone : 0); dim: pg.dim }
                 Txt { text: "By project"; role: "caption"; faint: true; dim: pg.dim }
                 Bars { width: parent.width; rows: pg.asBars(pg.b ? pg.b.byProject : [], "project"); dim: pg.dim }
                 Empty { visible: !pg.b || !pg.b.byProject || pg.b.byProject.length === 0 }
-                Button { text: "Write brief"; icon: "description"; dim: pg.dim; onClicked: Actions.report() }
+                Button { text: "Write brief"; icon: "file-text"; dim: pg.dim; onClicked: Actions.report() }
             }
             Column {
                 width: (parent.width - Look.sXl) / 2

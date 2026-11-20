@@ -27,7 +27,7 @@ PanelWindow {
     id: card
     anchors.fill: parent
     opacity: Hud.shown ? 1 : 0
-    Behavior on opacity { Anim { duration: Hud.shown ? Theme.motion.base : Theme.motion.fast } }
+    Behavior on opacity { Anim { duration: Theme.motion.fade } }
 
     Row {
       anchors.fill: parent
@@ -37,7 +37,7 @@ PanelWindow {
 
       Icon {
         anchors.verticalCenter: parent.verticalCenter
-        text: Hud.kind === "brightness" ? "brightness_6" : (Hud.muted || Hud.value === 0 ? "volume_off" : "volume_up")
+        name: Hud.kind === "brightness" ? "sun-dim" : (Hud.muted || Hud.value === 0 ? "speaker-slash" : "speaker-high")
         size: Theme.font.size.headline
       }
       OsdBar {

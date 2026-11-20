@@ -1,10 +1,11 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import qs.modules.overview
+import qs.modules.common
 import "../js/Fmt.js" as Fmt
 
-// One attention item. Amber wash on the status chip when someone waits on me, red
-// when it failed and nobody waits; everything else is neutral. The row is a button
+// One attention item. Waiting wash (and circle) on the status chip when someone waits on me,
+// failed wash (and diamond) when it failed and nobody waits; everything else is neutral. The row is a button
 // that opens the Item page; "Break down & start" only appears when T1 says it can.
 Item {
     id: r
@@ -14,10 +15,10 @@ Item {
     signal openRequested(var item)
 
     readonly property bool failed: item.kind === "alert" && !item.waiting
-    readonly property color tone: item.waiting ? Look.amber : (failed ? Look.red : Look.fgDim)
+    readonly property color tone: item.waiting ? Look.waiting : (failed ? Look.failed : Look.fgDim)
     readonly property bool flagged: !!item.waiting || failed
-    readonly property var icons: ({ blocker: "block", review: "rate_review", alert: "error",
-                                    dm: "chat", task: "task_alt", erp: "receipt_long", untracked: "timer" })
+    readonly property var icons: ({ blocker: "prohibit", review: "git-pull-request", alert: "warning-diamond",
+                                    dm: "chat-circle", task: "check-circle", erp: "receipt", untracked: "timer" })
     readonly property string metaText: [item.ref, item.actor, Fmt.age(item.ageSec)]
         .filter(function (s) { return s !== undefined && s !== null && String(s) !== "" }).join("  ")
     readonly property bool hasButton: showBreakdown && !!item.canBreakdown
@@ -70,16 +71,26 @@ Item {
             Rectangle {
                 visible: r.flagged
                 height: chipTxt.implicitHeight + 2
-                width: chipTxt.implicitWidth + Look.sL * 2
+                width: chipTxt.implicitWidth + (r.dim ? 0 : Look.fCaption + Look.sS) + Look.sL * 2
                 radius: Look.rChip
                 color: r.dim ? "transparent" : Look.wash(r.tone)
-                Txt {
-                    id: chipTxt
+                Row {
                     anchors.centerIn: parent
-                    text: r.item.waiting ? "waiting" : "failed"
-                    role: "caption"
-                    color: r.dim ? Look.fgFaint : Look.legible(r.tone)
-                    elide: Text.ElideNone
+                    spacing: Look.sS
+                    StatusMark {
+                        visible: !r.dim
+                        level: r.item.waiting ? "waiting" : "failed"
+                        size: Look.fCaption
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Txt {
+                        id: chipTxt
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: r.item.waiting ? "waiting" : "failed"
+                        role: "caption"
+                        color: r.dim ? Look.fgFaint : Look.fg
+                        elide: Text.ElideNone
+                    }
                 }
             }
             Txt {
@@ -96,7 +107,7 @@ Item {
             Button {
                 objectName: "untrackedPromote"
                 text: "Make ticket"
-                icon: "add_task"
+                icon: "list-plus"
                 dim: r.dim
                 onClicked: Actions.untracked("promote", r.item)
             }
@@ -111,7 +122,7 @@ Item {
             visible: r.hasButton
             objectName: "breakdownButton"
             text: "Break down & start"
-            icon: "play_arrow"
+            icon: "play"
             dim: r.dim
             onClicked: Actions.breakdown(r.item)
         }

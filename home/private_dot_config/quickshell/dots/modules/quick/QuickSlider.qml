@@ -18,7 +18,7 @@ Item {
   Icon {
     id: glyph
     anchors.verticalCenter: parent.verticalCenter
-    text: root.icon
+    name: root.icon
     size: Theme.font.size.title
   }
   Item {
@@ -32,14 +32,14 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       width: parent.width
       height: 4
-      radius: 2
+      radius: 2   // documented small-part exception: a 4px track cannot take the 6px chip radius
       color: Qt.alpha(Theme.color.fg, Theme.alpha.hover)
     }
     Rectangle {
       anchors.verticalCenter: parent.verticalCenter
       width: parent.width * Math.max(0, Math.min(1, root.value))
       height: 4
-      radius: 2
+      radius: 2   // documented small-part exception: a 4px track cannot take the 6px chip radius
       color: Theme.color.fg
     }
     MouseArea {

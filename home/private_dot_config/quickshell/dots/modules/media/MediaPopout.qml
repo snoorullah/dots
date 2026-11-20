@@ -45,9 +45,9 @@ Popout {
 
         Repeater {
           model: [
-            { icon: "skip_previous", act: "previous" },
-            { icon: win.player && win.player.isPlaying ? "pause" : "play_arrow", act: "toggle" },
-            { icon: "skip_next", act: "next" }
+            { icon: "skip-back", act: "previous" },
+            { icon: win.player && win.player.isPlaying ? "pause" : "play", act: "toggle" },
+            { icon: "skip-forward", act: "next" }
           ]
 
           MouseArea {
@@ -68,7 +68,8 @@ Popout {
             }
             Icon {
               anchors.centerIn: parent
-              text: btn.modelData.icon
+              name: btn.modelData.icon
+              active: true
               size: Theme.font.size.headline
             }
             hoverEnabled: true

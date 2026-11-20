@@ -475,7 +475,7 @@ render_pkgs() {   # render_pkgs <osRelease id> [idLike]: DOTS_PKG_LIST output of
   local out="$BATS_TEST_TMPDIR/root-system.sh"
   local real; real=$(PATH="$ORIG_PATH"; unset -f chezmoi; for d in ${ORIG_PATH//:/ }; do [ "$d" = "$BATS_TEST_DIRNAME/stubs" ] || { [ -x "$d/chezmoi" ] && { echo "$d/chezmoi"; break; }; }; done)
   [ -n "$real" ] || skip "no chezmoi"   # the stub chezmoi shadows the real one on PATH
-  "$real" execute-template --override-data "{\"gpu\":\"mesa\",\"multiplexer\":\"tmux\",\"chezmoi\":{\"homeDir\":\"/h\",\"workingTree\":\"/w\",\"osRelease\":{\"id\":\"$1\",\"idLike\":\"${2:-}\"}}}" \
+  "$real" execute-template --override-data "{\"orgManaged\":false,\"gpu\":\"mesa\",\"multiplexer\":\"tmux\",\"chezmoi\":{\"homeDir\":\"/h\",\"workingTree\":\"/w\",\"osRelease\":{\"id\":\"$1\",\"idLike\":\"${2:-}\"}}}" \
     < "$R/home/.chezmoiscripts/run_once_before_00-system.sh.tmpl" > "$out" 2> "$BATS_TEST_TMPDIR/err" || { cat "$BATS_TEST_TMPDIR/err" >&2; return 1; }
   bash -n "$out"
   DOTS_PKG_LIST=1 bash "$out"

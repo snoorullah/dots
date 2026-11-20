@@ -3,7 +3,7 @@ import "../theme"
 import "../common"
 
 // A labelled switch. On is a neutral lift; `held` marks a state I keep open on purpose
-// (do-not-disturb, night light), which is the one case that spends colour: an amber wash.
+// (do-not-disturb, night light), which takes the accent: accent wash, filled icon in accent.
 MouseArea {
   id: root
 
@@ -21,7 +21,7 @@ MouseArea {
   Rectangle {
     anchors.fill: parent
     radius: Theme.radius.chip
-    color: root.on && root.held ? Qt.alpha(Theme.color.amber, Theme.alpha.wash)
+    color: root.on && root.held ? Qt.alpha(Theme.color.accent, Theme.alpha.wash)
          : Qt.alpha(Theme.color.fg, root.on ? Theme.alpha.on : (root.containsMouse ? Theme.alpha.hover : Theme.alpha.rest))
   }
   Rectangle {
@@ -36,9 +36,10 @@ MouseArea {
     spacing: Theme.space.l
     Icon {
       anchors.verticalCenter: parent.verticalCenter
-      text: root.icon
+      name: root.icon
+      active: root.on && root.held
       size: Theme.font.size.title
-      color: root.on && root.held ? Theme.color.amber : Theme.color.fg
+      color: root.on && root.held ? Theme.color.accent : Theme.color.fg
     }
     DText {
       anchors.verticalCenter: parent.verticalCenter

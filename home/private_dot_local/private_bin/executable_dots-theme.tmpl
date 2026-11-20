@@ -4,7 +4,7 @@
 #   dots-theme [auto]              DEFAULT: wallpaper colours (matugen) from the current
 #                                  wallpaper; falls back to the preset when matugen or the
 #                                  wallpaper is unavailable or matugen fails
-#   dots-theme preset              fixed Dracula palette, identical every run
+#   dots-theme preset              the fixed palette, identical every run
 #   dots-theme wallpaper [PATH]    matugen scheme-tonal-spot on a wallpaper, same keys;
 #                                  regenerates the icon theme when the palette changed
 #                                  (--no-icons skips that)
@@ -17,9 +17,9 @@
 #   dots-theme status
 #
 # One contract, two producers: both modes emit the same key set (docs/contracts/
-# tokens.schema.json), so the shell never knows which one ran. Status colours (amber,
-# red, green ...) are semantic and stay on the preset in BOTH modes; a wallpaper must not
-# be able to turn "someone waits" into blue. Waybar's CSS is templated straight from the
+# tokens.schema.json), so the shell never knows which one ran. Status colours (waiting,
+# failed, unknown) and the accent are fixed from the palette in BOTH modes; a wallpaper
+# recolours the surfaces only, and must not be able to turn "someone waits" into blue. Waybar's CSS is templated straight from the
 # palette and never reads a generated file, so the fallback bar cannot depend on this.
 #
 # Every derived tone is computed from the palette below, never typed by hand
@@ -29,11 +29,12 @@ from pathlib import Path
 
 # rendered from .chezmoidata/palette.yaml by chezmoi
 PALETTE = {
-    "bg": "{{ .palette.bg }}", "fg": "{{ .palette.fg }}", "sel": "{{ .palette.sel }}",
-    "comment": "{{ .palette.comment }}", "cyan": "{{ .palette.cyan }}",
-    "green": "{{ .palette.green }}", "orange": "{{ .palette.orange }}",
-    "pink": "{{ .palette.pink }}", "purple": "{{ .palette.purple }}",
-    "red": "{{ .palette.red }}", "yellow": "{{ .palette.yellow }}",
+    "ground": "{{ .palette.ground }}", "panel": "{{ .palette.panel }}",
+    "raised": "{{ .palette.raised }}", "line": "{{ .palette.line }}",
+    "border": "{{ .palette.border }}", "text": "{{ .palette.text }}",
+    "text_dim": "{{ .palette.text_dim }}", "accent": "{{ .palette.accent }}",
+    "accent_fg": "{{ .palette.accent_fg }}", "waiting": "{{ .palette.waiting }}",
+    "failed": "{{ .palette.failed }}", "unknown": "{{ .palette.unknown }}",
 }
 
 HOME = Path(os.environ.get("HOME", "~")).expanduser()
@@ -100,53 +101,67 @@ class ThemeError(Exception):
 # ── token sets ─────────────────────────────────────────────────────────
 def status_colours():
     p = PALETTE
-    return {"amber": norm(p["orange"]), "red": norm(p["red"]), "green": norm(p["green"]),
-            "purple": norm(p["purple"]), "pink": norm(p["pink"]), "cyan": norm(p["cyan"]),
-            "yellow": norm(p["yellow"])}
+    return {"waiting": norm(p["waiting"]), "failed": norm(p["failed"]), "unknown": norm(p["unknown"])}
 
 
 def static_tokens():
     return {
         "alpha": {"slab": 0.78, "panel": 0.86, "wash": 0.20, "hover": 0.10, "divider": 0.24,
                   "rest": 0.04, "on": 0.16, "pressed": 0.18},
-        "radius": {"chip": 8, "panel": 16, "card": 16, "pill": 999},
-        "space": {"xs": 2, "s": 4, "m": 6, "l": 8, "xl": 12, "xxl": 16, "xxxl": 24},
-        "font": {"sans": "Lato", "mono": "JetBrainsMono Nerd Font", "icon": "Material Symbols Rounded",
-                 "size": {"caption": 11, "bodyS": 12, "body": 13, "title": 16, "headline": 20, "display": 28}},
-        "motion": {"fast": 120, "base": 180, "slow": 240, "easeIn": "OutExpo", "easeOut": "OutCubic"},
-        "bar": {"height": 30, "gutter": 8, "chipGapPx": 6},
+        "radius": {"chip": 6, "row": 10, "card": 14, "panel": 14, "pill": 999},
+        "space": {"xs": 4, "s": 4, "m": 8, "l": 8, "xl": 12, "xxl": 16, "xxxl": 24, "xxxxl": 32},
+        "font": {"sans": "Bricolage Grotesque", "mono": "JetBrains Mono", "icon": "dots Icons",
+                 "size": {"caption": 12, "bodyS": 13, "body": 14, "title": 16, "headline": 20,
+                          "page": 28, "display": 40},
+                 "line": {"caption": 16, "bodyS": 18, "body": 20, "title": 24, "headline": 28,
+                          "page": 36, "display": 48},
+                 "weight": {"label": 600, "body": 400, "title": 600, "page": 600, "display": 500},
+                 "track": {"label": 0.04}},
+        "motion": {"fast": 120, "base": 180, "slow": 180, "fade": 240,
+                   "easeIn": "OutExpo", "easeOut": "OutCubic"},
+        "bar": {"height": 30, "gutter": 8, "chipGapPx": 8},
     }
 
 
 def preset_tokens():
     p = PALETTE
-    bg = norm(p["bg"])
-    # secondary text: the palette's comment tone lifted 40 % toward fg, so it clears
-    # WCAG AA (4.5:1) on the panel surface (the bare comment tone reads 2.8:1)
-    dim = mix(p["comment"], p["fg"], 0.40)
+    ground = norm(p["ground"])
     color = {
-        "bg": bg,
-        "surface": lighten(bg, 0.04),
-        "surfaceDim": darken(bg, 0.20),
-        "surfaceContainer": norm(p["sel"]),
-        "surfaceContainerHigh": lighten(p["sel"], 0.06),
-        "outline": norm(p["comment"]),
-        "outlineVariant": mix(p["comment"], bg, 0.50),
-        "fg": norm(p["fg"]),
-        "fgDim": dim,
-        "fgFaint": mix(bg, dim, 0.70),
-        "accent": norm(p["purple"]),
-        "accentFg": bg,
+        "bg": ground,
+        "surface": norm(p["panel"]),
+        "surfaceDim": mix(p["ground"], "#000000", 0.20),
+        "surfaceContainer": norm(p["raised"]),
+        "surfaceContainerHigh": mix(p["raised"], "#ffffff", 0.06),
+        "outline": norm(p["border"]),
+        "outlineVariant": norm(p["line"]),
+        "fg": norm(p["text"]),
+        "fgDim": norm(p["text_dim"]),
+        "fgFaint": mix(p["ground"], p["text_dim"], 0.70),
+        "accent": norm(p["accent"]),
+        "accentFg": norm(p["accent_fg"]),
     }
     color.update(status_colours())
     return finish("preset", None, color)
+
+
+# Status colours and the accent are FIXED, so a wallpaper scheme is refused (auto falls back
+# to the preset) when they cannot be read on the surfaces it derives. What renders is judged:
+#   marks  waiting/failed/unknown/accent are icons and shapes: 3:1 (WCAG 1.4.11), measured on
+#          every derived surface drawn at slab alpha over a bright worst-case wallpaper
+#   text   the same colours as drawn text, and accentFg on accent: 4.5:1 on the opaque surfaces
+MARK_MIN = 3.0
+TEXT_MIN = 4.5
+# grey level of the brightest wallpaper a translucent surface is still held to MARK_MIN over
+WORST_WALLPAPER = 160
+SURFACES = ("bg", "surface", "surfaceDim", "surfaceContainer", "surfaceContainerHigh")
+FIXED = ("waiting", "failed", "unknown", "accent")
 
 
 # matugen role -> token. Roles are M3 names as printed by `matugen --json hex`.
 M3 = {"bg": "background", "surface": "surface", "surfaceDim": "surface_dim",
       "surfaceContainer": "surface_container", "surfaceContainerHigh": "surface_container_high",
       "outline": "outline", "outlineVariant": "outline_variant", "fg": "on_surface",
-      "fgDim": "on_surface_variant", "accent": "primary", "accentFg": "on_primary"}
+      "fgDim": "on_surface_variant"}
 
 
 def wallpaper_tokens(roles, wallpaper):
@@ -156,7 +171,21 @@ def wallpaper_tokens(roles, wallpaper):
     color = {k: norm(roles[r]) for k, r in M3.items()}
     color["fgDim"] = readable(color["fgDim"], color["fg"], color["surface"])
     color["fgFaint"] = mix(color["bg"], color["fgDim"], 0.70)
+    # the accent and the status set never follow the wallpaper
+    color["accent"] = norm(PALETTE["accent"])
+    color["accentFg"] = norm(PALETTE["accent_fg"])
     color.update(status_colours())
+    a = static_tokens()["alpha"]["slab"]
+    backdrop = hexc((WORST_WALLPAPER,) * 3)
+    for surf in SURFACES:
+        seen = mix(backdrop, color[surf], a)
+        for k in FIXED:
+            if contrast(color[k], seen) < MARK_MIN:
+                raise ThemeError(f"{k} below {MARK_MIN:g}:1 on wallpaper {surf}")
+            if contrast(color[k], color[surf]) < TEXT_MIN:
+                raise ThemeError(f"{k} below {TEXT_MIN:g}:1 as text on wallpaper {surf}")
+    if contrast(color["accentFg"], color["accent"]) < TEXT_MIN:
+        raise ThemeError(f"accentFg below {TEXT_MIN:g}:1 on accent")
     return finish("wallpaper", wallpaper, color)
 
 
@@ -184,11 +213,49 @@ def write_atomic(path, text, mode=0o644):
         raise
 
 
+HEX = re.compile(r"^#[0-9a-f]{6}$")
+COLOR_KEYS = ("bg", "surface", "surfaceDim", "surfaceContainer", "surfaceContainerHigh", "outline",
+              "outlineVariant", "fg", "fgDim", "fgFaint", "accent", "accentFg", "waiting", "failed", "unknown")
+
+
+def shape_ok(got, want):
+    """Same keys at every level, and numbers where the contract has numbers."""
+    if isinstance(want, dict):
+        return (isinstance(got, dict) and set(got) == set(want)
+                and all(shape_ok(got[k], want[k]) for k in want))
+    if isinstance(want, bool) or not isinstance(want, (int, float)):
+        return isinstance(got, str)
+    return isinstance(got, (int, float)) and not isinstance(got, bool)
+
+
+def valid_tokens(t):
+    """A tokens.json this version can use: current key set, hex colours, in-range motion."""
+    if not isinstance(t, dict) or t.get("v") != 1 or t.get("source") not in ("preset", "wallpaper"):
+        return False
+    c = t.get("color")
+    if (not isinstance(c, dict) or set(c) != set(COLOR_KEYS)
+            or not all(isinstance(v, str) and HEX.match(v) for v in c.values())):
+        return False
+    want = static_tokens()
+    if not all(shape_ok(t.get(k), want[k]) for k in want):
+        return False
+    return t["motion"]["slow"] <= want["motion"]["slow"]
+
+
 def load_tokens():
+    """tokens.json if present AND current; None when absent. A stale or damaged file (an older
+    key set, hand edits, truncation) is never returned: callers regenerate from the preset."""
     try:
-        return json.loads(TOKENS.read_text())
-    except (OSError, ValueError):
+        t = json.loads(TOKENS.read_text())
+    except OSError:
         return None
+    except ValueError:
+        t = None
+    if valid_tokens(t):
+        return t
+    print("dots-theme: tokens.json is from an older schema or damaged; "
+          "regenerating from the preset", file=sys.stderr)
+    return None
 
 
 def current_wallpaper():
@@ -266,7 +333,7 @@ def emit(t):
 
     # hyprlang-style variables; the Lua config reads them with io.open if it wants them
     hypr = "".join(f"${k} = rgb({h(k)})\n" for k in
-                   ("bg", "surface", "fg", "fgDim", "accent", "amber", "red", "outline"))
+                   ("bg", "surface", "fg", "fgDim", "accent", "waiting", "failed", "outline"))
     write_atomic(CONF / "hypr/colors.conf", "# written by dots-theme; do not edit\n" + hypr)
 
     ghostty = (f"# written by dots-theme; include with: config-file = ?dots-theme.conf\n"
@@ -277,7 +344,7 @@ def emit(t):
 
     css = "/* written by dots-theme; @import it before the swaync sheet */\n" + "".join(
         f"@define-color dots_{k} {c[k]};\n" for k in
-        ("bg", "surface", "surfaceContainer", "fg", "fgDim", "accent", "amber", "red", "outline"))
+        ("bg", "surface", "surfaceContainer", "fg", "fgDim", "accent", "waiting", "failed", "outline"))
     write_atomic(CONF / "swaync/dots-theme.css", css)
 
     lock = ("# written by dots-theme; source it from hyprlock.conf\n"
@@ -287,11 +354,13 @@ def emit(t):
 
 # ── icons ──────────────────────────────────────────────────────────────
 ICONS_NAME = "dots-themed"
-ICONS_VERSION = "1"                      # bump when the recolouring algorithm changes
+ICONS_VERSION = "3"                      # bump when the recolouring algorithm changes
 ICONS_DIR = Path(os.environ.get("DOTS_ICONS_DIR") or
                  (Path(os.environ.get("XDG_DATA_HOME", HOME / ".local/share")) / "icons" / ICONS_NAME))
 ICON_PREFER = ("Papirus-Dark", "Papirus", "Adwaita")
-ACCENTS = ("accent", "amber", "red", "green", "purple", "pink", "cyan", "yellow")
+# App-icon recolouring uses its own, wider hue ramp. It is NOT part of the token contract and
+# never drives UI status: colourful app icons need more than the accent and three status hues.
+ICON_RAMP = ("#f07178", "#f2a15f", "#e8c468", "#8fd18a", "#6fcfc0", "#78bff0", "#b79cf0", "#ec8fc6")
 SVG_HEX = re.compile(r"(?<!url\()(?<!href=\")(?<!href=')#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-zA-Z_-])")
 
 
@@ -317,7 +386,7 @@ def find_icon_source(want=None):
 
 def palette_list(t):
     c = t["color"]
-    return [c[k] for k in ("bg", "surfaceContainer", "fgDim", "fg") + ACCENTS]
+    return [c[k] for k in ("bg", "surfaceContainer", "fgDim", "fg")] + list(ICON_RAMP)
 
 
 def icons_hash(t, src):
@@ -329,26 +398,22 @@ def icons_hash(t, src):
 
 
 def recolour_hex(h, pal):
-    """Greys ride the bg..fg ramp at their own lightness; colours take the nearest palette
-    hue (accent, status colours) and keep their own lightness, so shading survives."""
+    """Greys ride the bg..fg ramp at their own lightness; colours take the nearest hue of
+    ICON_RAMP and keep their own lightness, so shading survives."""
     if len(h) == 3:
         h = "".join(ch * 2 for ch in h)
     r, g, b = (int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
     hh, ll, ss = colorsys.rgb_to_hls(r, g, b)
     if ss < 0.12:
         return mix(pal["bg"], pal["fg"], ll)
-    best, bd, bh = None, 9.0, 0.0
-    for k in ACCENTS:
-        ph, pl, ps = colorsys.rgb_to_hls(*(v / 255 for v in rgb(pal[k])))
-        if ps < 0.08:
-            continue
+    best, bd = None, 9.0
+    for c in ICON_RAMP:
+        ph, _, ps = colorsys.rgb_to_hls(*(v / 255 for v in rgb(c)))
         d = abs(ph - hh)
         d = min(d, 1 - d)
         if d < bd:
-            best, bd, bh = k, d, (ph, ps)
-    if best is None:
-        return mix(pal["bg"], pal["fg"], ll)
-    rr, gg, bb = colorsys.hls_to_rgb(bh[0], ll, (bh[1] + ss) / 2)
+            best, bd = (ph, ps), d
+    rr, gg, bb = colorsys.hls_to_rgb(best[0], ll, (best[1] + ss) / 2)
     return hexc((rr * 255, gg * 255, bb * 255))
 
 
@@ -524,12 +589,12 @@ def run(cmd, rest):
     elif cmd == "emit":
         t = load_tokens()
         if t is None:
-            raise SystemExit("dots-theme: no tokens.json yet; run `dots-theme` first")
+            t = preset_tokens()
         emit(t)
     elif cmd == "status":
         t = load_tokens()
         if t is None:
-            print("tokens: absent (the shell uses its built-in defaults)")
+            print("tokens: absent or stale (the shell uses its built-in defaults)")
         else:
             print(f"tokens: {TOKENS}\nsource: {t.get('source')}\nwallpaper: {t.get('wallpaper')}\n"
                   f"accent: {t['color']['accent']}  bg: {t['color']['bg']}")

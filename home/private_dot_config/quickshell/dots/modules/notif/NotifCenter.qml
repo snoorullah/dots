@@ -35,7 +35,7 @@ Popout {
         Rectangle {
           anchors.fill: parent
           radius: Theme.radius.chip
-          color: win.notifs && win.notifs.dnd ? Qt.alpha(Theme.color.amber, Theme.alpha.wash) : Qt.alpha(Theme.color.fg, Theme.alpha.hover)
+          color: win.notifs && win.notifs.dnd ? Qt.alpha(Theme.color.accent, Theme.alpha.wash) : Qt.alpha(Theme.color.fg, Theme.alpha.hover)
         }
         DText {
           id: dndLabel

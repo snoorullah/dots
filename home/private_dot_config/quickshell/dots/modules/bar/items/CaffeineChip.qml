@@ -10,13 +10,14 @@ Chip {
 
   shown: Lamp.on || Caffeine.on
   wash: true
-  tint: Theme.color.amber
+  tint: Theme.color.accent
 
   Icon {
     anchors.verticalCenter: parent.verticalCenter
-    text: "coffee"
+    name: "coffee"
+    active: true
     size: Theme.font.size.title
-    color: Theme.color.amber
+    color: Theme.color.accent
   }
 
   onClicked: button => Caffeine.toggle()

@@ -2,13 +2,14 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import qs.modules.overview
 import qs.modules.overview.parts
+import qs.modules.common
 import "js/Fmt.js" as Fmt
 import "js/Model.js" as Model
 
 // The bar's overview module. Nominal = zero width AND zero height: no items, no
 // focus, fresh data. Anything else enters from width 0 over motion.base and never
-// recolours, pulses or loops. Amber = someone waits on me, red = failed and nobody
-// waits, a hollow ? = the data layer is stale, a ring = a focus block is running.
+// recolours, pulses or loops. Waiting (circle) = someone waits on me, failed (diamond)
+// = failed and nobody waits, a hollow ? = the data layer is stale, a ring = a focus block is running.
 // Left click asks for the card, right click for the panel. The keybind twin is
 // `qs ipc call dots.overview toggle`, because a zero-width module has no click target.
 Item {
@@ -59,6 +60,7 @@ Item {
         property bool want: false
         property string label: ""
         property color tone: Look.fg
+        property string level: ""          // waiting | failed | "" (no status shape)
         property bool ring: false
         property bool mark: false
         property real reveal: 0
@@ -111,12 +113,18 @@ Item {
                 size: Look.iconSize
                 anchors.verticalCenter: parent.verticalCenter
             }
+            StatusMark {
+                visible: c.level !== "" && !c.mark && !Feed.dim
+                level: c.level
+                size: Look.fBodyS
+                anchors.verticalCenter: parent.verticalCenter
+            }
             Txt {
                 visible: !c.mark
                 anchors.verticalCenter: parent.verticalCenter
                 text: c.label
                 role: "monoS"
-                color: Feed.dim ? Look.fgFaint : Look.legible(c.tone)
+                color: Feed.dim ? Look.fgFaint : Look.fg   // the shape carries the status
                 elide: Text.ElideNone
             }
         }
@@ -141,7 +149,8 @@ Item {
             objectName: "failedChip"
             owner: pill
             want: pill.attnFailed > 0 || pill.lampOn
-            tone: Look.red
+            tone: Look.failed
+            level: "failed"
             label: Fmt.badge(Math.max(pill.attnFailed, pill.lampOn ? 1 : 0))
         }
         Chip {
@@ -149,7 +158,8 @@ Item {
             objectName: "waitingChip"
             owner: pill
             want: pill.attnWaiting > 0 || pill.lampOn
-            tone: Look.amber
+            tone: Look.waiting
+            level: "waiting"
             label: Fmt.badge(Math.max(pill.attnWaiting, pill.lampOn ? 1 : 0))
         }
         Chip {

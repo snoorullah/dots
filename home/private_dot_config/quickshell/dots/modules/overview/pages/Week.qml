@@ -36,7 +36,7 @@ FocusScope {
             Item {
                 width: parent.width
                 height: big.implicitHeight
-                Txt { id: big; text: Fmt.hm(pg.wk ? pg.wk.workedSec : 0); role: "display"; font.family: Look.mono; dim: pg.dim; elide: Text.ElideNone }
+                Txt { id: big; text: Fmt.hm(pg.wk ? pg.wk.workedSec : 0); role: "display"; mono: true; dim: pg.dim; elide: Text.ElideNone }
                 Txt {
                     id: cap
                     anchors.left: big.right

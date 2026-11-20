@@ -5,7 +5,8 @@ import "../../common"
 import "../../../services"
 
 // Notifications. Nothing held and nothing waiting -> zero width. Do-not-disturb is a
-// state I hold open, so it washes amber; so does a running focus block, which quiets toasts.
+// state I hold open, so it takes the accent (filled bell + accent tint); so does a running
+// focus block, which quiets toasts. Amber is reserved for "someone waits on me".
 // If another daemon owns the notification bus
 // the shell does not claim it and this shows a hollow "?" instead.
 // Twins: `qs ipc call dots.notif toggle` / `dnd`.
@@ -19,7 +20,7 @@ Chip {
 
   shown: Lamp.on || dnd || count > 0 || held
   wash: dnd || Lamp.on
-  tint: Theme.color.amber
+  tint: Theme.color.accent
 
   Row {
     anchors.verticalCenter: parent.verticalCenter
@@ -28,9 +29,10 @@ Chip {
     Icon {
       anchors.verticalCenter: parent.verticalCenter
       visible: !chip.held
-      text: chip.dnd ? "notifications_off" : "notifications"
+      name: chip.dnd ? "bell-slash" : "bell"
+      active: chip.dnd || Lamp.on
       size: Theme.font.size.title
-      color: chip.dnd || Lamp.on ? Theme.color.amber : Theme.color.fg
+      color: chip.dnd || Lamp.on ? Theme.color.accent : Theme.color.fg
     }
     DText {
       anchors.verticalCenter: parent.verticalCenter
