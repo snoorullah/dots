@@ -104,6 +104,29 @@ function metrics(v) {
   return out
 }
 
+// "Logout 03:12" (the Bar board): time left until today reaches its worked-hours target, so a
+// break pushes it later. Past the target it counts up with a "+". "" when there is no figure.
+var DAY_TARGET_SEC = 8 * 3600
+function logoutLeft(workedSec, targetSec) {
+  if (workedSec === undefined || workedSec === null) return ""
+  var t = targetSec > 0 ? targetSec : DAY_TARGET_SEC
+  var d = t - num(workedSec), over = d < 0
+  var m = Math.floor(Math.abs(d) / 60)
+  var h = Math.floor(m / 60), mm = m % 60
+  return (over ? "+" : "") + (h < 10 ? "0" : "") + h + ":" + (mm < 10 ? "0" : "") + mm
+}
+
+// a running focus block -> "24m" left (minutes, rounded up; the bar never ticks seconds).
+// "" when no block runs or its time is up.
+function focusLeft(focus, nowSec) {
+  if (!focus || focus.state !== "running") return ""
+  var target = num(focus.targetSec), start = num(focus.startedAt)
+  if (target <= 0 || start <= 0) return ""
+  var left = target - (num(nowSec) - start)
+  if (left <= 0) return ""
+  return Math.ceil(left / 60) + "m"
+}
+
 function taskText(task) {
   if (!task) return ""
   var ref = task.ref ? String(task.ref) : "", d = task.desc ? String(task.desc) : ""

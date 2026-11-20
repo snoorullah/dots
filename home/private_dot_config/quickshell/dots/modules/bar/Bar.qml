@@ -111,7 +111,8 @@ PanelWindow {
         art: player ? player.trackArtUrl : ""
       },
       metrics: Model.metrics({ tasks: today ? today.tasksDone : undefined, workedSec: today ? today.workedSec : undefined }),
-      logout: "",                         // STUB: no source
+      logout: Model.logoutLeft(today ? today.workedSec : undefined),
+      focus: Model.focusLeft(Feed.focus, clock.date.getTime() / 1000),
       bell: {
         dot: lamp || (bar.notifs ? (bar.notifs.count > 0 || bar.notifs.held) : false),
         quiet: bar.notifs ? bar.notifs.quiet : false
@@ -125,6 +126,7 @@ PanelWindow {
     model: bar.viewModel
     trayModel: SystemTray.items
     onToggleRequested: (name, x) => Ui.toggle(name, bar.screen.name, x)
+    onCcRequested: tab => Ui.toggleCc(tab)
     onLogoClicked: Ui.toggleCc()
     onWorkspaceRequested: id => Hypr.focus(id)
   }
