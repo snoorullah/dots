@@ -15,6 +15,14 @@ root="$(git rev-parse --show-toplevel)"; cd "$root"
 # run as a git hook, git exports GIT_DIR & co.; they would leak into the suites' scratch repos
 unset $(git rev-parse --local-env-vars)
 log="${ALL_LOG_DIR:-$(mktemp -d -t dots-tests.XXXXXX)}"; mkdir -p "$log"
+# Scene tests point XDG_CACHE_HOME at a temp dir, so nix-gl-host copies the NVIDIA libraries (~3.9 GB)
+# into it on every run; a killed or retried run left them behind and filled the disk (280 GB, 2026-11-21).
+# Whatever happens, drop every nix-gl-host copy made under /tmp since this run started.
+mark="$log/.started"; : > "$mark"
+cleanup_glhost() {
+  find /tmp -maxdepth 3 -type d -name nix-gl-host -user "$(id -u)" -newer "$mark" -prune -exec rm -rf -- {} + 2>/dev/null || true
+}
+trap cleanup_glhost EXIT
 jobs="${ALL_JOBS:-6}"
 
 # not suites: sourced libraries, render helpers, and the opt-in ones above
