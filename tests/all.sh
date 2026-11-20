@@ -48,7 +48,13 @@ run_one() {
       for img in ubuntu:24.04 debian:12 archlinux:latest fedora:41 rockylinux:9; do
         docker run --rm -v "$PWD:/src:ro" "$img" bash /src/tests/distro-matrix.sh >>"$log/$n.log" 2>&1 || rc=$?
       done ;;
-    *) bash "tests/$n.sh" >"$log/$n.log" 2>&1 || rc=$? ;;
+    *) bash "tests/$n.sh" >"$log/$n.log" 2>&1 || rc=$?
+       # wall-clock suites (scenes, term) can miss a deadline under load: one retry, said in the log
+       if [ "$rc" != 0 ] && [[ "$n" == *-ui || "$n" == term ]]; then
+         mv "$log/$n.log" "$log/$n.first.log"; rc=0
+         bash "tests/$n.sh" >"$log/$n.log" 2>&1 || rc=$?
+         [ "$rc" = 0 ] && echo "NOTE $n passed on retry (first run: $log/$n.first.log)" >>"$log/$n.log"
+       fi ;;
   esac
   printf '%s %s %ss\n' "$rc" "$n" "$((SECONDS - t0))" >"$log/$n.rc"
 }

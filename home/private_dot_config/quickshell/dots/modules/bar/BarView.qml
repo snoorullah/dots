@@ -22,6 +22,7 @@ Item {
   readonly property int stripHeight: pillHeight + Theme.space.m
 
   signal toggleRequested(string name, real x)
+  signal ccRequested(string tab)
   signal logoClicked()
   signal workspaceRequested(int id)
 
@@ -90,6 +91,11 @@ Item {
       date: view.m.date || ""
       salah: view.m.salah || ""
       onActivated: (name, x) => view.toggleRequested(name, x)
+    }
+    FocusChip {
+      anchors.verticalCenter: parent.verticalCenter
+      remaining: view.m.focus || ""
+      onClicked: view.ccRequested("time")
     }
   }
 

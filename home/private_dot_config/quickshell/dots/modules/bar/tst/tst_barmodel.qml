@@ -5,6 +5,20 @@ import "../js/BarModel.js" as M
 TestCase {
   name: "BarModel"
 
+  function test_logout_left() {
+    compare(M.logoutLeft(undefined), "")
+    compare(M.logoutLeft(0), "08:00")
+    compare(M.logoutLeft(3 * 3600 + 25 * 60), "04:35")
+    compare(M.logoutLeft(8 * 3600 + 12 * 60), "+00:12")
+    compare(M.logoutLeft(3600, 2 * 3600), "01:00")
+  }
+  function test_focus_left() {
+    compare(M.focusLeft(null, 100), "")
+    compare(M.focusLeft({ state: "idle", startedAt: 0, targetSec: 1500 }, 100), "")
+    compare(M.focusLeft({ state: "running", startedAt: 1000, targetSec: 1500 }, 1000), "25m")
+    compare(M.focusLeft({ state: "running", startedAt: 1000, targetSec: 1500 }, 1061), "24m")
+    compare(M.focusLeft({ state: "running", startedAt: 1000, targetSec: 1500 }, 2600), "")
+  }
   function test_age() {
     compare(M.age(0), "now")
     compare(M.age(45), "now")
