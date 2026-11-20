@@ -8,7 +8,8 @@ import "modules/launcher/providers"
 
 // Test scene for tests/launcher-ui.sh: quickshell -p <root> on Qt's offscreen platform. It renders the REAL
 // Card from the REAL LauncherState with the real All, Apps, Commands, Math and Clipboard providers (fed by
-// fixture files and the real Python helpers) and stub Dictionary, Files, Fonts, Work providers. It walks a
+// fixture files and the real Python helpers) and stub Dictionary, Files, Fonts, Work providers, plus five
+// empty stub modes (Emoji, Snippets, Hosts, Kube, Windows) so the chip row has all 12 chips of the real shell. It walks a
 // list of steps, logs `PROBE <tag> {json}` (box and text of every objectName'd item) and saves a PNG per step.
 ShellRoot {
   id: sc
@@ -77,6 +78,11 @@ ShellRoot {
               actions: [{ label: "Copy name", primary: true }, { label: "Copy CSS" }, { label: "Install" }] }
           ]
         }
+        Stub { id: emoji; providerId: "emoji"; name: "Emoji"; prefix: "e:"; icon: "note"; inAll: false }
+        Stub { id: snip; providerId: "snip"; name: "Snippets"; prefix: "s:"; icon: "note"; inAll: false }
+        Stub { id: hosts; providerId: "hosts"; name: "SSH hosts"; prefix: "h:"; icon: "globe"; inAll: false }
+        Stub { id: kube; providerId: "kube"; name: "Kube"; prefix: "k:"; icon: "globe"; inAll: false }
+        Stub { id: winp; providerId: "win"; name: "Windows"; prefix: "w:"; icon: "note"; inAll: false }
         Stub {
           id: work
           providerId: "work"; name: "Work"; prefix: ""; icon: "note"; inAll: true; allLimit: 2
@@ -93,7 +99,7 @@ ShellRoot {
 
       LauncherState {
         id: st
-        providers: [all, clip, dict, files, fonts, cmds, math, work, apps]
+        providers: [all, clip, dict, files, fonts, cmds, emoji, snip, hosts, kube, winp, math, work, apps]
         onCloseRequested: { sc.closes++; st.open = false; }    // what Launcher.qml does through Ui.close()
         onFarewell: text => { sc.farewellText = text; }
       }
@@ -127,6 +133,7 @@ ShellRoot {
       if (it.text !== undefined) r.text = String(it.text);
       if (it.titleText !== undefined) { r.title = it.titleText; r.sub = it.subText; }
       if (it.selected !== undefined) r.selected = it.selected;
+      if (it.contentX !== undefined) { r.clip = it.clip; r.cx = sc.px(it.contentX); r.cw = sc.px(it.contentWidth); }
       if (it.tabId !== undefined) { r.tab = it.tabId; r.active = it.active; }
       if (it.label !== undefined) { r.label = it.label; r.primary = it.primary; r.picked = it.picked; }
       if (!m.names[it.objectName]) m.names[it.objectName] = [];
@@ -182,6 +189,10 @@ ShellRoot {
     { tag: "act-clip-delete", wait: 1500, run: function () { sc.reopen(); st.setMode("clip"); type("kubectl"); }, late: function () { sc.key(Qt.Key_3, sc.ctrl); } },
     { tag: "recents-after", wait: 1200, run: function () { sc.reopen(); } },
     { tag: "recents-run", wait: 1800, run: function () { sc.key(Qt.Key_Return); } },
+    { tag: "tabs-last", wait: 700, run: function () { sc.reopen(); st.setMode("math"); } },
+    { tag: "tabs-mid", wait: 700, run: function () { st.setMode("hosts"); } },
+    { tag: "tabs-first", wait: 700, run: function () { st.setMode("all"); } },
+    { tag: "tabs-cycle", wait: 700, run: function () { sc.key(Qt.Key_Backtab); sc.key(Qt.Key_Backtab); } },
     { tag: "locked", wait: 400, run: function () { sc.reopen(); st.blocked = "locked"; } },
     { tag: "salah", wait: 400, run: function () { st.blocked = "salah"; } },
     { tag: "error", wait: 600, run: function () { st.blocked = ""; st.setMode("dict"); dict.error = "The word list is not installed."; } }

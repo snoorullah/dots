@@ -59,6 +59,7 @@ ShellRoot {
   WsSwitcher {}
   Sess.SessionMenu { id: sessionMenu }
   Sess.AwayPicker {}
+  Sess.PolkitPrompt {}
   Lnch.Launcher { id: launcher }
   WinSw.WinSwitcher { id: winSwitcher }
   Wall.WallpaperPicker {}

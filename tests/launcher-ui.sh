@@ -52,11 +52,6 @@ fi
 [ -n "$QTD" ] && export QML_IMPORT_PATH="$QTD/lib/qt-6/qml"
 export QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=none QML_XHR_ALLOW_FILE_READ=1
 
-mkqmldir() { # dir module
-  ( cd "$1" && { echo "module $2"; for f in *.qml; do [ -e "$f" ] || continue; n="${f%.qml}"
-      if grep -q '^pragma Singleton' "$f"; then echo "singleton $n 1.0 $f"; else echo "$n 1.0 $f"; fi; done; } > qmldir )
-}
-
 # ---- 1. unit tests -----------------------------------------------------------------------
 if [ -z "${ONLY_SCENE:-}" ]; then
 res="$(timeout 120 "$QTR" -input "$L/tst" 2>&1)"
@@ -66,20 +61,17 @@ echo "$res" | grep -q ' 0 failed' && ok "1 qmltestrunner: launcher model" || bad
 # ---- 3. qmllint --------------------------------------------------------------------------
 if [ -n "${QML_LINT:-}" ] && [ -x "$QML_LINT" ]; then
   lint="$work/lint/qs"; mkdir -p "$lint/modules/bar"
-  for m in theme common barpop launcher; do mkdir -p "$lint/modules/$m"; cp "$mod/$m/"*.qml "$lint/modules/$m/"; done
-  for d in parts providers; do mkdir -p "$lint/modules/launcher/$d"; cp "$L/$d/"*.qml "$lint/modules/launcher/$d/"; done
+  # the REAL qmldir files, never generated ones: a type missing from a qmldir must fail here
+  for m in theme common barpop launcher; do mkdir -p "$lint/modules/$m"; cp "$mod/$m/"*.qml "$mod/$m/qmldir" "$lint/modules/$m/"; done
+  for d in parts providers; do mkdir -p "$lint/modules/launcher/$d"; cp "$L/$d/"*.qml "$L/$d/qmldir" "$lint/modules/launcher/$d/"; done
   cp "$L/tst/Stub.qml" "$lint/modules/launcher/providers/Stub.qml"
+  echo "Stub 1.0 Stub.qml" >> "$lint/modules/launcher/providers/qmldir"   # the only test-only entry
   cp -r "$L/js" "$lint/modules/launcher/js"
   cp -r "$mod/barpop/js" "$lint/modules/barpop/js"; cp -r "$mod/bar/js" "$lint/modules/bar/js"
   cp "$mod/theme/Palette.qml.tmpl" "$lint/modules/theme/Palette.qml"
   sed -i 's/{{ \.palette\.[a-z_]* }}/#000000/' "$lint/modules/theme/Palette.qml"; rm -f "$lint/modules/theme/Palette.qml.tmpl"
   cp -r "$mod/overview" "$lint/modules/overview"; rm -rf "$lint/modules/overview/tst"
   cp -r "$dots/services" "$lint/services"
-  for m in theme common barpop launcher overview; do mkqmldir "$lint/modules/$m" qs.modules.$m; done
-  for d in parts pages; do [ -d "$lint/modules/overview/$d" ] && mkqmldir "$lint/modules/overview/$d" qs.modules.overview.$d; done
-  mkqmldir "$lint/modules/launcher/parts" qs.modules.launcher.parts
-  mkqmldir "$lint/modules/launcher/providers" qs.modules.launcher.providers
-  mkqmldir "$lint/services" qs.services
   qsq="$(dirname "$(dirname "$QS")")/lib/qt-6/qml"
   lintimp=(-I "$work/lint"); [ -d "$qsq" ] && lintimp+=(-I "$qsq"); [ -n "$QTD" ] && lintimp+=(-I "$QTD/lib/qt-6/qml")
   lm="$lint/modules/launcher"
@@ -164,11 +156,14 @@ cp -r "$mod/common" "$shellroot/modules/common"
 python3 -I "$root/tools/gen-phosphor-qml.py" --stdout > "$shellroot/modules/common/PhosphorIcons.qml"
 mkdir -p "$shellroot/modules/barpop"; cp "$mod/barpop/Gly.qml" "$shellroot/modules/barpop/"; printf 'module qs.modules.barpop\nGly 1.0 Gly.qml\n' > "$shellroot/modules/barpop/qmldir"
 lr="$shellroot/modules/launcher"; mkdir -p "$lr/parts" "$lr/providers"
-cp "$L/LauncherState.qml" "$lr/"; cp -r "$L/js" "$lr/js"; cp "$L/parts/"* "$lr/parts/"
-for p in Provider All Apps Commands Math Clipboard; do cp "$L/providers/$p.qml" "$lr/providers/"; done
+# the REAL qmldir files (launcher, parts, providers) and every real provider: a type missing from a
+# qmldir fails the scene. Only Launcher.qml (the window, needs the live services) is a placeholder, and
+# Stub (test-only) is the one line appended to the providers qmldir.
+cp "$L/LauncherState.qml" "$L/qmldir" "$lr/"; cp -r "$L/js" "$lr/js"; cp "$L/parts/"* "$lr/parts/"
+printf 'import QtQuick\nItem {}\n' > "$lr/Launcher.qml"
+cp "$L/providers/"*.qml "$L/providers/qmldir" "$lr/providers/"
 cp "$L/tst/Stub.qml" "$lr/providers/Stub.qml"
-printf 'module qs.modules.launcher\nLauncherState 1.0 LauncherState.qml\n' > "$lr/qmldir"
-mkqmldir "$lr/providers" qs.modules.launcher.providers
+echo "Stub 1.0 Stub.qml" >> "$lr/providers/qmldir"
 cp "$L/tst/Scene.qml" "$shellroot/shell.qml"
 
 # fixtures: desktop entries, commands, recents, clipboard history, and shims that log what would have run
@@ -240,7 +235,7 @@ run_scene() {
 }
 run_scene
 n=$(wc -l < "$work/scene.probes")
-[ "$n" -ge 40 ] && ok "5 scene walked $n steps" || { grep -aE 'ERROR|WARN' "$work/scene.log" | head -12; bad "5 scene reached only $n of 41 steps"; }
+[ "$n" -ge 45 ] && ok "5 scene walked $n steps" || { grep -aE 'ERROR|WARN' "$work/scene.log" | head -12; bad "5 scene reached only $n of 45 steps"; }
 
 python3 -I - "$work/scene.probes" "$shots" "$fx/log" "$fx/clip" <<'PY' && ok "5 probes: layout, rows, keys, actions" || bad "5 probes"
 import json, os, sys
@@ -255,6 +250,7 @@ except Exception as e:
 fails = []
 def need(c, msg):
     if not c: fails.append(msg)
+ALLTABS = "all clip dict files fonts cmd emoji snip hosts kube win math".split()
 def vis(m, name): return [e for e in m["names"].get(name, []) if e["visible"]]
 def texts(m, name): return [e.get("text", "") for e in vis(m, name)]
 def titles(m): return [e["title"] for e in vis(m, "row")]
@@ -265,7 +261,7 @@ def log(name):
 steps = """all-recents all-query all-math all-nomatch clip clip-filter clip-image clip-nomatch dict-word dict-grammar files fonts
 fonts-icon cmd cmd-secondary cmd-new math math-units tab-next tab-back backspace-chip confirm confirm-esc confirm-enter esc-clear
 esc-close act-app act-app-open act-math act-math-copy act-cmd act-cmd-run act-clip act-clip-pin act-clip-paste act-clip-delete
-recents-after recents-run locked salah error""".split()
+recents-after recents-run locked salah error tabs-last tabs-mid tabs-first tabs-cycle""".split()
 for t in steps:
     need(t in P, "%s: step missing" % t)
     f = os.path.join(shots, "launcher-%s.png" % t)
@@ -279,8 +275,12 @@ for t, m in P.items():
         continue
     sb = vis(m, "searchBar"); need(len(sb) == 1 and sb[0]["h"] == 56 and sb[0]["w"] == 1080, "%s: search bar 56 high" % t)
     tb = vis(m, "tabs"); need(len(tb) == 1 and tb[0]["h"] == 40 and tb[0]["y"] == 57, "%s: tabs 40 high under the search bar" % t)
-    tabs = vis(m, "tab")
-    need([e["tab"] for e in tabs] == ["all", "clip", "dict", "files", "fonts", "cmd", "math"], "%s: chips %s" % (t, [e["tab"] for e in tabs]))
+    tabs = [e for e in m["names"].get("tab", []) if e["visible"]]
+    need([e["tab"] for e in tabs] == ALLTABS, "%s: chips %s" % (t, [e["tab"] for e in tabs]))
+    strip = vis(m, "tabStrip")
+    need(len(strip) == 1 and strip[0]["clip"] and strip[0]["x"] >= 0 and strip[0]["x"] + strip[0]["w"] <= m["card"]["w"], "%s: the chip strip is clipped inside the card (%s)" % (t, strip))
+    act = [e for e in tabs if e["active"]]
+    need(len(act) == 1 and act[0]["x"] >= strip[0]["x"] and act[0]["x"] + act[0]["w"] <= strip[0]["x"] + strip[0]["w"], "%s: the active chip is fully in view (%s)" % (t, act))
     need(len([e for e in tabs if e["active"]]) == 1 and [e for e in tabs if e["active"]][0]["tab"] == m["mode"], "%s: exactly the current mode is active" % t)
     need(all(e["h"] == 28 for e in tabs), "%s: chips 28 high" % t)
     rs = vis(m, "results"); pv = vis(m, "preview")
@@ -375,6 +375,18 @@ runs = [l for l in log("herdr") if l[:3] == ["ARGV", "pane", "run"]]
 need(len(runs) >= 2, "recents-run: herdr ran twice (%d)" % len(runs))
 m = P["locked"]; need(texts(m, "closedTitle") == ["Locked. The launcher stays closed."], "locked: %s" % texts(m, "closedTitle"))
 m = P["salah"]; need("Salah" in texts(m, "closedTitle")[0], "salah: closed card")
+# 12 chips are wider than the card: the strip scrolls, the active chip stays in view, first and last mode
+for t in ("tabs-last", "tabs-mid", "tabs-first", "tabs-cycle"):
+    sp = P[t]["names"]["tabStrip"][0]; ts = P[t]["names"]["tab"]
+    need(len(ts) == 12 and sp["cw"] > sp["w"], "%s: the 12 chips overflow the card (content %s, card strip %s)" % (t, sp["cw"], sp["w"]))
+    need(sp["w"] <= 1080 and sp["x"] >= 0, "%s: the strip never extends past the card" % t)
+sp = P["tabs-first"]["names"]["tabStrip"][0]; first = [e for e in P["tabs-first"]["names"]["tab"] if e["tab"] == "all"][0]
+need(P["tabs-first"]["mode"] == "all" and sp["cx"] == 0 and first["x"] >= 0 and first["x"] + first["w"] <= 1080, "tabs-first: All fully visible, strip at the start (cx %s)" % sp["cx"])
+sp = P["tabs-last"]["names"]["tabStrip"][0]; last = [e for e in P["tabs-last"]["names"]["tab"] if e["tab"] == "math"][0]
+need(P["tabs-last"]["mode"] == "math" and sp["cx"] > 0 and last["active"] and last["x"] >= 0 and last["x"] + last["w"] <= 1080, "tabs-last: Math fully visible, strip scrolled (cx %s, chip %s)" % (sp["cx"], last))
+m = P["tabs-mid"]; mid = [e for e in m["names"]["tab"] if e["tab"] == "hosts"][0]
+need(m["mode"] == "hosts" and mid["x"] >= 0 and mid["x"] + mid["w"] <= 1080, "tabs-mid: a middle mode is in view (%s)" % mid)
+m = P["tabs-cycle"]; need(m["mode"] == "win" and [e for e in m["names"]["tab"] if e["tab"] == "win"][0]["x"] >= 0, "tabs-cycle: Shift+Tab twice from All reaches Windows and scrolls it in (%s)" % m["mode"])
 m = P["error"]; need(titles(m) == ["The word list is not installed."], "error: one error row %s" % titles(m))
 # nothing plaintext in the clipboard store, and no preview left behind after the last close
 blob = b"".join(open(os.path.join(clipdir, f), "rb").read() for f in os.listdir(clipdir))

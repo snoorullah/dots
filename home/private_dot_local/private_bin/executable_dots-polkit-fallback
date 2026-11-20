@@ -1,0 +1,24 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# dots-polkit-fallback: the password prompt belongs to the Quickshell shell (modules/session/PolkitPrompt.qml,
+# a polkit agent). Only one agent may own a session, so Hyprland no longer starts hyprpolkitagent at login.
+# This runs from autostart instead: wait, and only if no Quickshell process of this user came up, start the
+# hyprpolkitagent user unit so the session is never left without a password prompt. Never starts both.
+#   DOTS_POLKIT_WAIT   seconds to wait (default 20)
+#   DOTS_POLKIT_DRY    set to print the decision instead of starting anything
+set -u
+wait_s="${DOTS_POLKIT_WAIT:-20}"
+uid="$(id -u)"
+sleep "$wait_s"
+if pgrep -u "$uid" -x quickshell >/dev/null 2>&1 || pgrep -u "$uid" -x qs >/dev/null 2>&1; then
+  echo "dots-polkit-fallback: quickshell is running, its polkit prompt owns the session"
+  exit 0
+fi
+if pgrep -u "$uid" -x hyprpolkitagent >/dev/null 2>&1; then
+  echo "dots-polkit-fallback: hyprpolkitagent is already running"
+  exit 0
+fi
+echo "dots-polkit-fallback: no quickshell after ${wait_s}s, starting hyprpolkitagent"
+[ -n "${DOTS_POLKIT_DRY:-}" ] && exit 0
+# the unit sets QT_QUICK_BACKEND=software (the Nix build cannot see the GPU drivers)
+exec systemctl --user start hyprpolkitagent.service
