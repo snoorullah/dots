@@ -39,6 +39,13 @@ function hm(sec) {
     return Math.floor(m / 60) + ":" + (mm < 10 ? "0" : "") + mm
 }
 
+// epoch seconds -> local "17:04" (the login time under "Day so far")
+function clock(ts) {
+    var d = new Date((Number(ts) || 0) * 1000)
+    var h = d.getHours(), m = d.getMinutes()
+    return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m
+}
+
 function sectionOf(tone, ageSec, nowSec, sinceTs) {
     if (tone) return SECTIONS[0]
     if (ageSec >= DAY) return SECTIONS[3]

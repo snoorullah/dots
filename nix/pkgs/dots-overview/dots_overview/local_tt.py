@@ -471,8 +471,34 @@ def term_detail(segs):
     return " \u00b7 ".join(f"{k} {_hm(v)}" for k, v in ranked(acc)[:3])
 
 
+def login_ts():
+    """Epoch of today's login: when the session that is open now was opened (None if none is).
+
+    Any session counts here, the live clock's too (the login itself, not billable time). A gap
+    closes a session, so after a long break this is the new login, never last night's."""
+    conn = _ro(config.TT_DIR / "work.db")
+    if conn is None:
+        return None
+    try:
+        r = conn.execute("SELECT MAX(opened_unix) AS o FROM work_session WHERE closed_unix IS NULL").fetchone()
+    except sqlite3.Error:
+        return None
+    finally:
+        conn.close()
+    return int(r["o"]) if r and r["o"] else None
+
+
 def clock_state(now=None):
-    """The `clock` block of now.json: in / out / away, from timetrack's own state files."""
+    """The `clock` block of now.json: in / out / away, from timetrack's own state files.
+
+    sinceTs is when the clock state last changed; loginTs is when today's session opened
+    ("Day so far" counts from it)."""
+    out = _clock_state(now)
+    out["loginTs"] = login_ts()
+    return out
+
+
+def _clock_state(now=None):
     now = int(now or time.time())
     intent = atomic.read_json(config.TT_DIR / "away-intent.json")
     if intent and now - int(intent.get("since", 0)) < 4 * 3600:

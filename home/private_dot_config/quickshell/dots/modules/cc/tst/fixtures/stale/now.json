@@ -11,6 +11,7 @@
  "clock": {
   "awayReason": "",
   "sinceTs": 1761596400,
+  "loginTs": 1761596400,
   "state": "in"
  },
  "focus": {

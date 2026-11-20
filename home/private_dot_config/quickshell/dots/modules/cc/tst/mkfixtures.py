@@ -57,7 +57,7 @@ def now(ts=NOW - 10, agent=True):
                  "tags": [], "startedAt": NOW - 6120, "agent": None, "pane": None, "workspace": None, "sess": None},
         "agent": {"name": "ingress-upgrade", "pane": "p3", "tab": None, "workspace": "w1", "sess": "s3", "status": "Working", "cwd": "infra/ingress"} if agent else None,
         "focus": {"state": "running", "zone": "infra", "startedAt": NOW - 360, "endsAt": None, "elapsedSec": 360, "targetSec": 1500},
-        "clock": {"state": "in", "sinceTs": NOW - 3600, "awayReason": ""},
+        "clock": {"state": "in", "sinceTs": NOW - 3600, "loginTs": NOW - 3600, "awayReason": ""},
     }
 
 

@@ -37,7 +37,7 @@ Flickable {
     return out
   }
   readonly property bool implemented: CcState.timeTab === "Today" || CcState.timeTab === "Week" || CcState.timeTab === "Heatmap" || CcState.timeTab === "Report"
-  readonly property real dayElapsed: (CcState.clock && CcState.clock.state === "in" && CcState.sinceTs > 0) ? Math.max(0, Feed.nowTs - CcState.sinceTs) : -1
+  readonly property real dayElapsed: CcState.loginTs > 0 ? Math.max(0, Feed.nowTs - CcState.loginTs) : -1
 
   ColumnLayout {
     id: col
@@ -63,7 +63,7 @@ Flickable {
       columnSpacing: 16
       rowSpacing: 16
 
-      Stat { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop; label: "Day so far"; icon: "sign-out"; value: pg.dayElapsed >= 0 ? Q.hm(pg.dayElapsed) : "--:--"; note: pg.dayElapsed >= 0 ? "since you started" : "clock is not running"; dim: pg.dayElapsed < 0 }
+      Stat { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop; label: "Day so far"; icon: "sign-out"; value: pg.dayElapsed >= 0 ? Q.hm(pg.dayElapsed) : "--:--"; note: pg.dayElapsed >= 0 ? "since you logged in at " + Q.clock(CcState.loginTs) : "no session open"; dim: pg.dayElapsed < 0 }
       Stat { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop; label: "This week"; icon: "calendar-blank"; value: Q.hm(pg.buckets ? pg.buckets.week.workedSec : 0); note: (pg.buckets ? pg.buckets.week.tasksDone : 0) + " tasks done" }
       Stat { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop; label: "This month"; icon: "calendar-dots"; value: Q.hm(pg.buckets ? pg.buckets.month.workedSec : 0); note: (pg.buckets ? pg.buckets.month.tasksDone : 0) + " tasks done" }
 

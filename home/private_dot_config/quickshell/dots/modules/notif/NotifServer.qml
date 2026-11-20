@@ -15,6 +15,17 @@ Scope {
   property bool checked: false
   property bool held: false          // another daemon owns the name
   property bool dnd: false
+  // Do-not-disturb survives a shell restart: it lives in the Quickshell state dir, not only in
+  // memory (a restart used to switch notifications back on without a word).
+  property bool dndLoaded: false
+  onDndChanged: if (dndLoaded) dndFile.setText(dnd ? "1\n" : "0\n")
+  FileView {
+    id: dndFile
+    path: Quickshell.statePath("dnd")
+    atomicWrites: true
+    onLoaded: { root.dnd = text().trim() === "1"; root.dndLoaded = true; }
+    onLoadFailed: root.dndLoaded = true
+  }
   // A running focus block (dots-overview, now.json) quiets toasts: only critical ones and
   // Claude Code agents asking for me pop up. Everything still lands in the centre.
   readonly property bool focusQuiet: focusState.running && focusState.endsAt > focusState.clock
