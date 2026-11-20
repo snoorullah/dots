@@ -98,7 +98,8 @@ PanelWindow {
       task: Model.taskText(Feed.task),
       detour: MomentState.detour.text,    // now.json away clock (modules/moments)
       clock: Qt.formatDateTime(clock.date, "HH:mm"),
-      date: Qt.formatDateTime(clock.date, "ddd d MMM"),
+      // a running focus block takes the date's room in the centre pill (the calendar keeps it)
+      date: Model.focusLeft(Feed.focus, clock.date.getTime() / 1000) !== "" ? "" : Qt.formatDateTime(clock.date, "ddd d MMM"),
       salah: Model.salahLabel(salahSrc.failed ? "" : salahSrc.text, clock.date),
       waits: Model.waitSymbols(lamp ? bar.lampWaits : Feed.attentionItems, 3),
       fault: lamp ? { kind: "failed", text: "lamp test" }
