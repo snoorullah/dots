@@ -1,1 +1,14 @@
 Provider 1.0 Provider.qml
+All 1.0 All.qml
+Apps 1.0 Apps.qml
+Clipboard 1.0 Clipboard.qml
+Commands 1.0 Commands.qml
+Dictionary 1.0 Dictionary.qml
+Emoji 1.0 Emoji.qml
+Files 1.0 Files.qml
+Fonts 1.0 Fonts.qml
+Hosts 1.0 Hosts.qml
+Kube 1.0 Kube.qml
+Math 1.0 Math.qml
+Snippets 1.0 Snippets.qml
+Windows 1.0 Windows.qml

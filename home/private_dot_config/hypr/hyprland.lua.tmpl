@@ -80,6 +80,9 @@ hl.config({
     follow_mouse = 1,
     accel_profile = "flat",
   },
+  -- grouped windows: the Quickshell tab strip (modules/windows TabsOverlay) draws the tabs, so
+  -- Hyprland's own group bar stays off (both showed at once, 2026-11-21)
+  group = { groupbar = { enabled = false } },
   misc = {
     disable_hyprland_logo = true,
     disable_splash_rendering = true,
@@ -271,7 +274,9 @@ hl.on("hyprland.start", function()
   -- second hypridle double-locked, leaving a hyprlock with no lock that made every later
   -- `pidof hyprlock || hyprlock` a no-op (Super+Esc and the 5-min idle lock stopped locking).
   hl.exec_cmd("systemctl --user start hypridle.service")
-  hl.exec_cmd("systemctl --user start hyprpolkitagent.service")
+  -- password prompts: the Quickshell shell is the polkit agent (modules/session/PolkitPrompt.qml) and only one
+  -- agent may own the session. After 20 s this starts hyprpolkitagent only if Quickshell is not running.
+  hl.exec_cmd("~/.local/bin/dots-polkit-fallback")
   -- on-return break prompt (D7). WantedBy=graphical-session.target, which nothing activates on this
   -- session, so after a reboot it never ran and a declared break stayed open until the 4 h cap.
   hl.exec_cmd("systemctl --user start timetrack-away.service")

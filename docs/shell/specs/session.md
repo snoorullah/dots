@@ -45,6 +45,9 @@ Away picker, session menu, polkit prompt. Nothing is sent. Code: `modules/sessio
    action message and id; the agent hint uses herdr (an agent pane is working), else is hidden.
 6. Return rows: Agent and Mail come in as props (no source owned here), hidden when absent.
 7. Shell, hyprlock and keybind wiring belong to integration (see result `wiring`).
+8. Wiring: `shell.qml` instantiates `Sess.PolkitPrompt`. Hyprland no longer starts `hyprpolkitagent.service` at
+   login; autostart runs `dots-polkit-fallback`, which waits 20 s and starts that unit only if no Quickshell
+   process of the user is running. Only one polkit agent may own the session, so never both.
 
 ## 5. Logic and tests
 

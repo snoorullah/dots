@@ -79,17 +79,11 @@ fi
 [ -n "$QTD" ] && export QML_IMPORT_PATH="$QTD/lib/qt-6/qml"
 export QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=none QML_XHR_ALLOW_FILE_READ=1
 
-mkqmldir() { # dir module
-  ( cd "$1" && { echo "module $2"; for f in *.qml; do [ -e "$f" ] || continue; n="${f%.qml}"
-      if grep -q '^pragma Singleton' "$f"; then echo "singleton $n 1.0 $f"; else echo "$n 1.0 $f"; fi; done; } > qmldir )
-}
-
 # ---- 3. qmllint ----------------------------------------------------------------------------
 if [ -n "${QML_LINT:-}" ] && [ -x "$QML_LINT" ]; then
   lint="$work/lint/qs"; mkdir -p "$lint/modules/launcher/providers"
-  cp "$prov/Provider.qml" "$lint/modules/launcher/providers/"
-  for m in $MODES; do cp "$prov/$m.qml" "$lint/modules/launcher/providers/"; done
-  mkqmldir "$lint/modules/launcher/providers" qs.modules.launcher.providers
+  # the REAL qmldir and every real provider: a type missing from the qmldir must fail here
+  cp "$prov/"*.qml "$prov/qmldir" "$lint/modules/launcher/providers/"; cp -r "$mod/launcher/js" "$lint/modules/launcher/js"
   qsq="$(dirname "$(dirname "$QS")")/lib/qt-6/qml"
   lintimp=(-I "$work/lint"); [ -d "$qsq" ] && lintimp+=(-I "$qsq"); [ -n "$QTD" ] && lintimp+=(-I "$QTD/lib/qt-6/qml")
   files=(); for m in $MODES; do files+=("$lint/modules/launcher/providers/$m.qml"); done
@@ -131,12 +125,10 @@ extra = ",\n".join('    "%s": [0x%X, %s]' % (n, reg[n], "0x%X" % reg[n + "-fill"
 src = src.replace("({\n", "({\n" + extra + ",\n", 1)
 open(out, "w").write(src)
 PY
-cp "$prov/Provider.qml" "$shellroot/modules/launcher/providers/"
-for m in $MODES; do cp "$prov/$m.qml" "$shellroot/modules/launcher/providers/"; done
+# the REAL providers qmldir and every real provider (not a generated qmldir): a type missing from it fails the scene
+cp "$prov/"*.qml "$prov/qmldir" "$shellroot/modules/launcher/providers/"; cp -r "$mod/launcher/js" "$shellroot/modules/launcher/js"
 cp "$tst/Frame.qml" "$shellroot/Frame.qml"
 cp "$tst/Scene.qml" "$shellroot/shell.qml"
-mkqmldir "$shellroot/modules/launcher/providers" providers
-( cd "$shellroot" && sed -i 's/^module .*/module qs.modules.launcher.providers/' modules/launcher/providers/qmldir )
 mkdir -p "$work/home" "$work/out" "$work/fx"
 python3 -I "$tst/mkcases.py" "$work/fx" "$root" >/dev/null || bad "4 mkcases failed"
 mkdir -p "$work/tmp"   # the GL host wrapper copies GBs of driver libs into $TMPDIR on every run: keep them in $work, deleted on exit

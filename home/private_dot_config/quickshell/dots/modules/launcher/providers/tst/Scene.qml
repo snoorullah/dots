@@ -2,7 +2,7 @@ import QtQuick
 import Quickshell
 import "modules/theme"
 import "modules/common"
-import "modules/launcher/providers"
+import "modules/launcher/providers" as Prov   // qualified: the real Math provider type would shadow the JS Math object
 
 // Test scene for tests/launcher-modes.sh: quickshell -p <root> on Qt's offscreen platform. For every
 // case in $CASES it creates the REAL provider, points it at the case's wrapper bin dir (real Python
@@ -33,14 +33,14 @@ ShellRoot {
     property double readyAt: 0
     property var events: []
 
-    Component { id: cFiles; Files {} }
-    Component { id: cDict; Dictionary {} }
-    Component { id: cFonts; Fonts {} }
-    Component { id: cWindows; Windows {} }
-    Component { id: cSnippets; Snippets {} }
-    Component { id: cEmoji; Emoji {} }
-    Component { id: cHosts; Hosts {} }
-    Component { id: cKube; Kube {} }
+    Component { id: cFiles; Prov.Files {} }
+    Component { id: cDict; Prov.Dictionary {} }
+    Component { id: cFonts; Prov.Fonts {} }
+    Component { id: cWindows; Prov.Windows {} }
+    Component { id: cSnippets; Prov.Snippets {} }
+    Component { id: cEmoji; Prov.Emoji {} }
+    Component { id: cHosts; Prov.Hosts {} }
+    Component { id: cKube; Prov.Kube {} }
     readonly property var comps: ({ files: cFiles, dict: cDict, fonts: cFonts, windows: cWindows, snippets: cSnippets, emoji: cEmoji, hosts: cHosts, kube: cKube })
 
     function walk(item, fn) {

@@ -56,5 +56,4 @@ Contract: `launcher-contract.md`. Modes by the modes team: `launcher-modes.md`. 
 3. **Prefix opens**: a surface that opens with a prefix sets `startMode` (e.g. `"c:"`).
 4. **Clipboard unit**: add `dots-clip.service` (user): `ExecStart` x2 = `wl-paste --type text --watch %h/.local/bin/dots-clip store` and `wl-paste --type image/png --watch %h/.local/bin/dots-clip store --image`; `ExecStop=%h/.local/bin/dots-clip clear`.
 5. **Autostart**: replace the `dots-clip-store` line (`hyprland.lua.tmpl` ~265) with `systemctl --user start dots-clip`. Until then history stays empty and nothing clears at logout.
-6.5 **Open design call (owner)**: 12 chips need ~1300 px, card is 1080, `ModeTabs` is a plain `Row`.
-Options: `Flickable` scrolling the active chip in, or icon-only past the 7th. Not applied; then add a 12-provider scene probe (chip right edge <= card - 10).
+6.5 **Chip overflow (owner chose scroll)**: 12 chips need ~1300 px, card is 1080. `ModeTabs` is a clipped, scrollbar-less `Flickable`; the active chip is scrolled fully into view (animated, `Theme.motion.base`) on every mode change, including Tab and Shift+Tab. `tests/launcher-ui.sh` runs 12 chips and probes the first and last mode.
