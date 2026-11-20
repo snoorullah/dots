@@ -590,7 +590,7 @@ LYN1='hardening_index=70\nwarning[]=SSH-7408|weak|\n'
 render_pkgs() {   # render_pkgs <osRelease id> [idLike]: DOTS_PKG_LIST output of the rendered root script
   local out="$BATS_TEST_TMPDIR/sys.sh" real
   real=$(PATH="$ORIG_PATH" command -v chezmoi) || skip "no chezmoi"
-  "$real" execute-template --override-data "{\"gpu\":\"mesa\",\"multiplexer\":\"tmux\",\"chezmoi\":{\"homeDir\":\"/h\",\"workingTree\":\"/w\",\"osRelease\":{\"id\":\"$1\",\"idLike\":\"${2:-}\"}}}" \
+  "$real" execute-template --override-data "{\"orgManaged\":false,\"gpu\":\"mesa\",\"multiplexer\":\"tmux\",\"chezmoi\":{\"homeDir\":\"/h\",\"workingTree\":\"/w\",\"osRelease\":{\"id\":\"$1\",\"idLike\":\"${2:-}\"}}}" \
     < "$R/home/.chezmoiscripts/run_once_before_00-system.sh.tmpl" > "$out"
   bash -n "$out"
   DOTS_PKG_LIST=1 bash "$out"
