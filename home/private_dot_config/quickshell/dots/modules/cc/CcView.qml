@@ -53,7 +53,7 @@ FocusScope {
           anchors.right: parent.right
           role: "headline"
           font.weight: Font.Medium
-          text: (CcState.clock && CcState.clock.state === "in" && CcState.sinceTs > 0) ? Q.hm(Math.max(0, Feed.nowTs - CcState.sinceTs)) : "--:--"
+          text: (CcState.loginTs > 0) ? Q.hm(Math.max(0, Feed.nowTs - CcState.loginTs)) : "--:--"
         }
       }
     }

@@ -171,6 +171,12 @@ class Workday(helpers.Scratch):
         db.commit()
         db.close()
 
+    def test_login_is_the_open_session_not_the_last_clock_change(self):
+        # "Day so far" counts from here: the session open now (20:24), never last night's
+        self.assertEqual(local_tt.login_ts(), self.at(28, 20, 24))
+        with mock.patch.object(local_tt, "_clock_state", return_value={"state": "in", "sinceTs": 1}):
+            self.assertEqual(local_tt.clock_state()["loginTs"], self.at(28, 20, 24))
+
     def test_past_midnight_is_still_the_sessions_day(self):
         self.assertEqual(str(local_tt.workday(self.at(28, 6, 30))), "2026-10-27")   # still in the 27th's session
         self.assertEqual(str(local_tt.workday(self.at(29, 0, 30))), "2026-10-28")   # after midnight, same session

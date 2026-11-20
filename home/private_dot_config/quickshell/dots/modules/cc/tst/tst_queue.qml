@@ -74,6 +74,11 @@ TestCase {
         compare(Q.age(90000), "1d")
     }
 
+    function test_clock() {
+        var t = new Date(2026, 10, 20, 17, 4, 17).getTime() / 1000
+        compare(Q.clock(t), "17:04")
+        compare(Q.clock(new Date(2026, 10, 20, 9, 5, 0).getTime() / 1000), "09:05")
+    }
     function test_hm() {
         compare(Q.hm(0), "0:00")
         compare(Q.hm(6120), "1:42")

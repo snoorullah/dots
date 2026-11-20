@@ -33,6 +33,7 @@ Singleton {
   // ---- data -------------------------------------------------------------------
   readonly property var clock: Feed.nowDoc ? Feed.nowDoc.clock : null
   readonly property real sinceTs: (clock && clock.sinceTs) ? clock.sinceTs : 0
+  readonly property real loginTs: (clock && clock.loginTs) ? clock.loginTs : 0   // today's session opened
   readonly property var feedItems: Feed.attDoc ? Feed.attDoc.items : []
   readonly property var all: Q.fromFeed(feedItems, Feed.nowTs, sinceTs)
   readonly property var shown: Q.select(all, { tab: tab, src: src, view: view, hidden: hidden })
