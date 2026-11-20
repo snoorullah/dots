@@ -25,7 +25,8 @@ conn = dbs.open_work()
 # these runs stand for what clockd RECORDED and COUNTS, so the live clock is promoted
 # here; shadow mode (live recorded, not counted) is tests/shadow.sh's subject
 conn.execute("UPDATE schema_meta SET v='1' WHERE k='live_counts'"); conn.commit()
-now = int(time.time())
+# pinned to noon: the real clock made "now - 2h" cross midnight between 00:00 and 02:00
+now = int(datetime.combine(date.today(), datetime.min.time()).timestamp()) + 12 * 3600
 day = date.fromtimestamp(now).isoformat()
 def iso(t): return datetime.fromtimestamp(t).isoformat(timespec="seconds")
 

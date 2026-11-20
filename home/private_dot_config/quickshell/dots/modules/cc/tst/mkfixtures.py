@@ -144,3 +144,16 @@ for sid, rec in (("sess-aaaa", {"agent": "Atlas", "pane": "w2:p1", "ticket": "la
                  ("sess-bbbb", {"agent": "Vega", "pane": "w3:p1", "ticket": "local:ab12", "prompt_head": "tidy the chart values"})):
     with open(os.path.join(sd, sid + ".json"), "w") as fh:
         json.dump(dict(rec, v=1, ts=NOW - 10, action="stop", sess=sid), fh, indent=1, sort_keys=True)
+
+# a long task list: 24 tasks with internal refs, long titles and a long current task, so the
+# Tasks lists have to scroll and the ticket-first labels are exercised
+many = copy.deepcopy(board)
+longs = []
+for i in range(24):
+    ref = ("TASK-2026-%05d" % (700 + i)) if i % 3 == 0 else (("local:ab%02d" % i) if i % 3 == 1 else ("HD %d" % (8100 + i)))
+    title = ("TASK-2026-%05d " % (700 + i) if i % 3 == 0 else "") + "Verify and roll out the long running change number %d across every tenant cluster in the fleet" % i
+    longs.append(item("m%d" % i, "task", title, "You", 600, ("critical", "time", "active", "passive")[i % 4], False, ref, "erp", jump=False))
+many["attention"] = att(ITEMS + longs)
+many["now"]["task"]["ref"] = "TASK-2026-00781"
+many["now"]["task"]["desc"] = "TASK-2026-00781 Move every tenant database to the new storage class and verify the nightly backups still restore cleanly"
+write("tasks-many", many)

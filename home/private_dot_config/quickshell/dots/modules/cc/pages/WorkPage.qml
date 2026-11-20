@@ -9,13 +9,11 @@ import "../js/Queue.js" as Q
 
 // Tasks: the task in hand, then Today / Board / All over what the feed knows. Anything the
 // feed has no field for (blocked-on-others, captures list) says "no data" rather than inventing rows.
-Flickable {
+Item {
   id: pg
+  objectName: "workPage"
   property bool dim: false
   clip: true
-  contentWidth: width
-  contentHeight: col.height + 48
-  boundsBehavior: Flickable.StopAtBounds
 
   readonly property var task: Feed.task
   readonly property int taskSec: {
@@ -34,13 +32,18 @@ Flickable {
     CcState.all.forEach(function (it) { if (it.tone === "wait") out.push(it) })
     return out
   }
+  // "HD 8580 Fix the thing": the ticket and a short description, never a TASK- or local: id
+  function itemLabel(it) { return Q.label(it.ticket, it.ref, it.title) || "Untitled" }
+  function itemTicket(it) { return it.ticket || Q.humanRef(it.ref, it.title) }
+  readonly property string taskLabel: task ? (Q.label(task.ticket, task.ref, task.desc) || "Untitled") : ""
   function dueText(u) { return u === "critical" ? "Now" : (u === "time" ? "Due" : (u === "active" ? "Today" : "")) }
 
+  // Header, NOW card and sub-tabs are fixed. The page never scrolls: only the long lists
+  // (today's order, board columns, the All table) scroll, each inside its own clipped area.
   ColumnLayout {
     id: col
-    x: 24
-    y: 24
-    width: pg.width - 48
+    anchors.fill: parent
+    anchors.margins: 24
     spacing: 16
 
     RowLayout {
@@ -52,7 +55,7 @@ Flickable {
         Seg { required property var modelData; objectName: "taskView"; text: modelData[0]; icon: modelData[1]; h: 28; on: CcState.taskView === modelData[0]; onClicked: CcState.taskView = modelData[0] }
       }
       Item { Layout.fillWidth: true }
-      DText { text: "Your feed, as one list. Duplicates merged."; role: "bodyS"; dim: true }
+      DText { text: "Your feed, as one list. Duplicates merged."; role: "bodyS"; dim: true; elide: Text.ElideRight; Layout.maximumWidth: 360 }
     }
 
     RowLayout {
@@ -62,15 +65,14 @@ Flickable {
         objectName: "nowCard"
         Layout.fillWidth: true
         Layout.preferredWidth: 8
+        Layout.minimumWidth: 0
         implicitHeight: 150
+        clip: true
         Column {
-          anchors.fill: parent
-          Column {
-            width: parent.width
-            Cap { text: "NOW" }
-            DText { text: pg.task ? pg.task.desc : "No task in hand"; role: "page"; width: parent.width; elide: Text.ElideRight; opacity: pg.task ? 1 : 0.5 }
-            DText { text: pg.task ? ((pg.task.ref || "") + (pg.task.project ? " · " + pg.task.project : "")) : "Start one from Today, in order."; role: "bodyS"; dim: true; width: parent.width; elide: Text.ElideRight }
-          }
+          width: parent.width
+          Cap { text: "NOW" }
+          DText { text: pg.task ? pg.taskLabel : "No task in hand"; role: "page"; width: parent.width; elide: Text.ElideRight; opacity: pg.task ? 1 : 0.5 }
+          DText { text: pg.task ? (pg.task.project || "") : "Start one from Today, in order."; role: "bodyS"; dim: true; width: parent.width; elide: Text.ElideRight }
         }
         Row {
           anchors.bottom: parent.bottom
@@ -86,6 +88,7 @@ Flickable {
       Stat {
         Layout.fillWidth: true
         Layout.preferredWidth: 4
+        Layout.minimumWidth: 0
         implicitHeight: 150
         label: "Time on this task"
         icon: "timer"
@@ -100,50 +103,72 @@ Flickable {
       objectName: "taskToday"
       visible: CcState.taskView === "Today"
       Layout.fillWidth: true
-      Layout.alignment: Qt.AlignTop
+      Layout.fillHeight: true
+      Layout.minimumHeight: 0
       spacing: 16
       Card {
+        objectName: "todayListCard"
         Layout.fillWidth: true
         Layout.preferredWidth: 5
-        Layout.alignment: Qt.AlignTop
+        Layout.minimumWidth: 0
+        Layout.fillHeight: true
+        Layout.minimumHeight: 0
+        implicitHeight: 0
         pad: 16
-        Column {
-          width: parent.width
-          Head { text: "Today, in order"; icon: "list-numbers"; bottomPadding: 8 }
-          Repeater {
-            model: CcState.nextTasks
-            Item {
-              id: tr
-              required property var modelData
-              required property int index
-              objectName: "todayRow"
-              width: parent.width
-              height: 56
-              Rectangle { width: parent.width; height: 1; color: Theme.color.outlineVariant }
-              RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 4
-                anchors.rightMargin: 4
-                spacing: 8
-                DText { Layout.preferredWidth: 24; text: String(tr.index + 1); role: "bodyS"; dim: true }
-                ColumnLayout {
-                  Layout.fillWidth: true
-                  spacing: 0
-                  DText { Layout.fillWidth: true; text: tr.modelData.title; role: "body"; font.pixelSize: 13; font.weight: Font.Medium; elide: Text.ElideRight }
-                  DText { Layout.fillWidth: true; text: tr.modelData.ref || ""; role: "bodyS"; dim: true; elide: Text.ElideRight }
+        clip: true
+        Head { id: todayHead; text: "Today, in order"; icon: "list-numbers"; bottomPadding: 8 }
+        Flickable {
+          id: todayScroll
+          objectName: "todayScroll"
+          anchors.top: todayHead.bottom
+          anchors.left: parent.left
+          anchors.right: parent.right
+          height: Math.max(0, parent.height - todayHead.height)
+          clip: true
+          contentWidth: width
+          contentHeight: todayCol.height
+          boundsBehavior: Flickable.StopAtBounds
+          Column {
+            id: todayCol
+            width: todayScroll.width
+            Repeater {
+              model: CcState.nextTasks
+              Item {
+                id: tr
+                required property var modelData
+                required property int index
+                objectName: "todayRow"
+                width: todayCol.width
+                height: 56
+                Rectangle { width: parent.width; height: 1; color: Theme.color.outlineVariant }
+                RowLayout {
+                  anchors.fill: parent
+                  anchors.leftMargin: 4
+                  anchors.rightMargin: 4
+                  spacing: 8
+                  DText { Layout.preferredWidth: 24; text: String(tr.index + 1); role: "bodyS"; dim: true }
+                  ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    spacing: 0
+                    DText { objectName: "todayRowTitle"; Layout.fillWidth: true; text: pg.itemLabel(tr.modelData); role: "body"; font.pixelSize: 13; font.weight: Font.Medium; elide: Text.ElideRight }
+                    DText { Layout.fillWidth: true; text: tr.modelData.actor || "You"; role: "bodyS"; dim: true; elide: Text.ElideRight }
+                  }
+                  DText { Layout.preferredWidth: 66; horizontalAlignment: Text.AlignRight; text: pg.dueText(tr.modelData.urgency); role: "bodyS"; elide: Text.ElideRight; color: (tr.modelData.urgency === "critical" || tr.modelData.urgency === "time") ? Theme.color.waiting : Theme.color.fgDim }
                 }
-                DText { Layout.preferredWidth: 66; horizontalAlignment: Text.AlignRight; text: pg.dueText(tr.modelData.urgency); role: "bodyS"; color: (tr.modelData.urgency === "critical" || tr.modelData.urgency === "time") ? Theme.color.waiting : Theme.color.fgDim }
               }
             }
+            DText { visible: CcState.nextTasks.length === 0; text: "Nothing picked for today."; role: "bodyS"; dim: true; topPadding: 8 }
           }
-          DText { visible: CcState.nextTasks.length === 0; text: "Nothing picked for today."; role: "bodyS"; dim: true; topPadding: 8 }
         }
       }
       Card {
         Layout.fillWidth: true
         Layout.preferredWidth: 4
+        Layout.minimumWidth: 0
         Layout.alignment: Qt.AlignTop
         pad: 16
+        clip: true
         Column {
           width: parent.width
           Head { text: "Waiting on others"; icon: "hourglass-medium"; bottomPadding: 8 }
@@ -153,11 +178,14 @@ Flickable {
       ColumnLayout {
         Layout.fillWidth: true
         Layout.preferredWidth: 3
-        Layout.alignment: Qt.AlignTop
+        Layout.minimumWidth: 0
+        Layout.fillHeight: true
+        Layout.minimumHeight: 0
         spacing: 16
         Card {
           Layout.fillWidth: true
           pad: 16
+          clip: true
           Column {
             width: parent.width
             Head { text: "Your captures"; icon: "note-pencil"; bottomPadding: 8 }
@@ -165,15 +193,34 @@ Flickable {
           }
         }
         Card {
+          objectName: "untickCard"
           Layout.fillWidth: true
+          Layout.fillHeight: true
+          Layout.minimumHeight: 0
+          implicitHeight: 0
           pad: 16
-          Column {
-            width: parent.width
-            spacing: 8
-            Head { text: "Unticketed work"; icon: "ticket" }
-            Repeater { model: pg.untracked; DText { required property var modelData; text: modelData.title; role: "bodyS"; width: parent.width; wrapMode: Text.Wrap } }
-            DText { visible: pg.untracked.length === 0; text: "None today."; role: "bodyS"; dim: true }
-            Btn { visible: pg.untracked.length > 0; text: "Make ticket"; icon: "ticket"; stub: true }
+          clip: true
+          Head { id: untickHead; text: "Unticketed work"; icon: "ticket" }
+          Flickable {
+            id: untickScroll
+            objectName: "untickScroll"
+            anchors.top: untickHead.bottom
+            anchors.topMargin: 8
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: Math.max(0, parent.height - untickHead.height - 8)
+            clip: true
+            contentWidth: width
+            contentHeight: untickCol.height
+            boundsBehavior: Flickable.StopAtBounds
+            Column {
+              id: untickCol
+              width: untickScroll.width
+              spacing: 8
+              Repeater { model: pg.untracked; DText { required property var modelData; text: Q.plainDesc(modelData.title) || modelData.title; role: "bodyS"; width: untickCol.width; wrapMode: Text.Wrap } }
+              DText { visible: pg.untracked.length === 0; text: "None today."; role: "bodyS"; dim: true }
+              Btn { visible: pg.untracked.length > 0; text: "Make ticket"; icon: "ticket"; stub: true }
+            }
           }
         }
       }
@@ -184,44 +231,61 @@ Flickable {
       objectName: "taskBoard"
       visible: CcState.taskView === "Board"
       Layout.fillWidth: true
-      Layout.alignment: Qt.AlignTop
+      Layout.fillHeight: true
+      Layout.minimumHeight: 0
       spacing: 12
       Repeater {
         model: [
-          { name: "Next", items: CcState.nextTasks.map(function (t) { return t.title }) },
-          { name: "Doing", items: pg.task ? [pg.task.desc] : [] },
+          { name: "Next", items: CcState.nextTasks.map(function (t) { return pg.itemLabel(t) }) },
+          { name: "Doing", items: pg.task ? [pg.taskLabel] : [] },
           { name: "With an agent", items: CcState.agents.filter(function (a) { return a.tone === "" }).map(function (a) { return a.name }) },
-          { name: "Waiting", items: pg.waitingItems.map(function (t) { return t.title }) }
+          { name: "Waiting", items: pg.waitingItems.map(function (t) { return pg.itemLabel(t) }) }
         ]
         Rectangle {
           id: bc
           required property var modelData
+          objectName: "boardCol"
           Layout.fillWidth: true
           Layout.preferredWidth: 1
-          Layout.alignment: Qt.AlignTop
-          implicitHeight: bcol.implicitHeight + 24
+          Layout.minimumWidth: 0
+          Layout.fillHeight: true
+          Layout.minimumHeight: 0
           radius: Theme.radius.card
           color: Theme.color.surface
-          Column {
-            id: bcol
+          clip: true
+          Row {
+            id: bhead
             x: 12
             y: 12
+            spacing: 6
+            DText { text: bc.modelData.name; role: "bodyS"; font.weight: Font.DemiBold; dim: true }
+            DText { text: bc.modelData.items.length; role: "bodyS"; dim: true }
+          }
+          Flickable {
+            id: bscroll
+            objectName: "boardScroll"
+            x: 12
+            y: bhead.y + bhead.height + 8
             width: parent.width - 24
-            spacing: 8
-            Row {
-              spacing: 6
-              DText { text: bc.modelData.name; role: "bodyS"; font.weight: Font.DemiBold; dim: true }
-              DText { text: bc.modelData.items.length; role: "bodyS"; dim: true }
-            }
-            Repeater {
-              model: bc.modelData.items
-              Rectangle {
-                required property string modelData
-                width: bcol.width
-                height: ct.implicitHeight + 20
-                radius: Theme.radius.row
-                color: Theme.color.surfaceContainer
-                DText { id: ct; x: 10; y: 10; width: parent.width - 20; text: parent.modelData; role: "bodyS"; wrapMode: Text.Wrap }
+            height: Math.max(0, parent.height - y - 12)
+            clip: true
+            contentWidth: width
+            contentHeight: bcol.height
+            boundsBehavior: Flickable.StopAtBounds
+            Column {
+              id: bcol
+              width: bscroll.width
+              spacing: 8
+              Repeater {
+                model: bc.modelData.items
+                Rectangle {
+                  required property string modelData
+                  width: bcol.width
+                  height: ct.implicitHeight + 20
+                  radius: Theme.radius.row
+                  color: Theme.color.surfaceContainer
+                  DText { id: ct; x: 10; y: 10; width: parent.width - 20; text: parent.modelData; role: "bodyS"; wrapMode: Text.Wrap }
+                }
               }
             }
           }
@@ -234,9 +298,11 @@ Flickable {
       objectName: "taskAll"
       visible: CcState.taskView === "All"
       Layout.fillWidth: true
+      Layout.fillHeight: true
+      Layout.minimumHeight: 0
       spacing: 4
       DText { text: "All tasks"; role: "headline" }
-      DText { text: "Every source, one row per real piece of work. Duplicates merged."; role: "bodyS"; dim: true; bottomPadding: 12 }
+      DText { text: "Every source, one row per real piece of work. Duplicates merged."; role: "bodyS"; dim: true; bottomPadding: 12; Layout.fillWidth: true; elide: Text.ElideRight }
       RowLayout {
         Layout.fillWidth: true
         spacing: 0
@@ -245,27 +311,43 @@ Flickable {
           Cap { required property var modelData; Layout.preferredWidth: modelData[1] > 0 ? modelData[1] : -1; Layout.fillWidth: modelData[1] === 0; Layout.leftMargin: 8; text: modelData[0] }
         }
       }
-      Repeater {
-        model: CcState.nextTasks
-        Item {
-          id: ar
-          required property var modelData
-          Layout.fillWidth: true
-          Layout.preferredHeight: 49
-          Rectangle { width: parent.width; height: 1; color: Theme.color.outlineVariant }
-          RowLayout {
-            anchors.fill: parent
-            anchors.topMargin: 1
-            spacing: 0
-            DText { Layout.fillWidth: true; Layout.leftMargin: 8; text: ar.modelData.title; role: "body"; font.weight: Font.Medium; elide: Text.ElideRight }
-            DText { Layout.preferredWidth: 220; Layout.leftMargin: 8; text: ar.modelData.ref || "terminal only"; role: "bodyS"; dim: true; elide: Text.ElideRight }
-            DText { Layout.preferredWidth: 110; Layout.leftMargin: 8; text: pg.dueText(ar.modelData.urgency); role: "bodyS" }
-            DText { Layout.preferredWidth: 140; Layout.leftMargin: 8; text: ar.modelData.actor || "You"; role: "bodyS"; dim: true }
-            DText { Layout.preferredWidth: 80; Layout.leftMargin: 8; text: ""; role: "bodyS" }
+      Flickable {
+        id: allScroll
+        objectName: "allScroll"
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        Layout.minimumHeight: 0
+        clip: true
+        contentWidth: width
+        contentHeight: allCol.height
+        boundsBehavior: Flickable.StopAtBounds
+        Column {
+          id: allCol
+          width: allScroll.width
+          Repeater {
+            model: CcState.nextTasks
+            Item {
+              id: ar
+              required property var modelData
+              objectName: "allRow"
+              width: allCol.width
+              height: 49
+              Rectangle { width: parent.width; height: 1; color: Theme.color.outlineVariant }
+              RowLayout {
+                anchors.fill: parent
+                anchors.topMargin: 1
+                spacing: 0
+                DText { Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.leftMargin: 8; text: Q.plainDesc(ar.modelData.title) || pg.itemLabel(ar.modelData); role: "body"; font.weight: Font.Medium; elide: Text.ElideRight }
+                DText { Layout.preferredWidth: 220; Layout.leftMargin: 8; text: pg.itemTicket(ar.modelData) || "terminal only"; role: "bodyS"; dim: true; elide: Text.ElideRight }
+                DText { Layout.preferredWidth: 110; Layout.leftMargin: 8; text: pg.dueText(ar.modelData.urgency); role: "bodyS"; elide: Text.ElideRight }
+                DText { Layout.preferredWidth: 140; Layout.leftMargin: 8; text: ar.modelData.actor || "You"; role: "bodyS"; dim: true; elide: Text.ElideRight }
+                DText { Layout.preferredWidth: 80; Layout.leftMargin: 8; text: ""; role: "bodyS" }
+              }
+            }
           }
+          DText { visible: CcState.nextTasks.length === 0; text: "No tasks in the feed."; role: "title"; font.weight: Font.Normal; dim: true; topPadding: 16 }
         }
       }
-      DText { visible: CcState.nextTasks.length === 0; text: "No tasks in the feed."; role: "title"; font.weight: Font.Normal; dim: true; topPadding: 16 }
     }
   }
 }

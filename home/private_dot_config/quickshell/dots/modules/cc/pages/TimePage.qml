@@ -47,7 +47,8 @@ Item {
     anchors.margins: 24
     spacing: 16
 
-    Row {
+    Flow {
+      Layout.fillWidth: true
       spacing: 2
       Repeater {
         model: pg.tabs
@@ -122,47 +123,73 @@ Item {
 
           RowLayout {
             Layout.fillWidth: true
-            Layout.alignment: Qt.AlignTop
+            Layout.fillHeight: true
+            Layout.minimumHeight: 0
             spacing: 16
             Card {
               Layout.fillWidth: true
               Layout.preferredWidth: 1
+              Layout.minimumWidth: 0
               Layout.alignment: Qt.AlignTop
               pad: 16
+              clip: true
               Column {
                 width: parent.width
                 spacing: 10
                 Cap { text: "NEXT" }
-                DText { text: CcState.nextTasks.length ? pg.nextLabel(CcState.nextTasks[0]) : "Nothing picked"; role: "headline"; font.weight: Font.Normal; width: parent.width; wrapMode: Text.Wrap }
-                DText { text: CcState.nextTasks.length > 1 ? "Then: " + CcState.nextTasks.slice(1, 3).map(pg.nextLabel).join(", ") : ""; role: "bodyS"; dim: true; width: parent.width; wrapMode: Text.Wrap }
+                DText { text: CcState.nextTasks.length ? pg.nextLabel(CcState.nextTasks[0]) : "Nothing picked"; role: "headline"; font.weight: Font.Normal; width: parent.width; wrapMode: Text.Wrap; maximumLineCount: 3; elide: Text.ElideRight }
+                DText { text: CcState.nextTasks.length > 1 ? "Then: " + CcState.nextTasks.slice(1, 3).map(pg.nextLabel).join(", ") : ""; role: "bodyS"; dim: true; width: parent.width; wrapMode: Text.Wrap; maximumLineCount: 4; elide: Text.ElideRight }
               }
             }
             Card {
               objectName: "whereTime"
               Layout.fillWidth: true
               Layout.preferredWidth: 1
-              Layout.alignment: Qt.AlignTop
+              Layout.minimumWidth: 0
+              Layout.fillHeight: true
+              Layout.minimumHeight: 0
+              implicitHeight: 0
               pad: 16
+              clip: true
               Column {
+                id: whereHead
                 width: parent.width
                 spacing: 10
                 Cap { text: "WHERE TIME WENT" }
-                Row {
+                Flow {
+                  width: parent.width
                   spacing: 2
                   Repeater {
                     model: ["Project", "Item", "Agent", "App"]
                     Seg { required property string modelData; objectName: "timeBy"; text: modelData; h: 24; pad: 10; on: CcState.timeBy === modelData; onColor: Theme.color.outlineVariant; onClicked: CcState.timeBy = modelData }
                   }
                 }
-                Repeater {
-                  model: pg.rows
-                  TimeRow { required property var modelData; width: parent.width; n: modelData.n; v: modelData.v; w: modelData.w }
+              }
+              Flickable {
+                id: whereScroll
+                objectName: "whereScroll"
+                anchors.top: whereHead.bottom
+                anchors.topMargin: 10
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: Math.max(0, parent.height - whereHead.height - 10)
+                clip: true
+                contentWidth: width
+                contentHeight: whereCol.height
+                boundsBehavior: Flickable.StopAtBounds
+                Column {
+                  id: whereCol
+                  width: whereScroll.width
+                  spacing: 10
+                  Repeater {
+                    model: pg.rows
+                    TimeRow { required property var modelData; width: whereCol.width; n: modelData.n; v: modelData.v; w: modelData.w }
+                  }
+                  DText { visible: pg.rows.length === 0; text: "Nothing recorded yet."; role: "bodyS"; dim: true }
                 }
-                DText { visible: pg.rows.length === 0; text: "Nothing recorded yet."; role: "bodyS"; dim: true }
               }
             }
           }
-          Item { Layout.fillHeight: true }
         }
 
         // right third: Focus fixed, "Done today" scrolls on its own
@@ -223,36 +250,82 @@ Item {
     }
 
     // ---- Week ----
-    GridLayout {
+    ColumnLayout {
       objectName: "timeWeek"
       visible: CcState.timeTab === "Week"
       Layout.fillWidth: true
-      columns: 3
-      columnSpacing: 16
-      rowSpacing: 16
-      Stat { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop; label: "Week"; icon: "calendar-blank"; value: Q.hm(pg.buckets ? pg.buckets.week.workedSec : 0); note: (pg.buckets ? pg.buckets.week.tasksDone : 0) + " tasks done" }
-      Stat { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop; label: "Month"; icon: "calendar-dots"; value: Q.hm(pg.buckets ? pg.buckets.month.workedSec : 0); note: (pg.buckets ? pg.buckets.month.tasksDone : 0) + " tasks done" }
-      Stat { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop; label: "Quarter"; icon: "calendar-check"; value: Q.hm(pg.buckets ? pg.buckets.quarter.workedSec : 0); note: (pg.buckets ? pg.buckets.quarter.tasksDone : 0) + " tasks done" }
-      Card {
-        Layout.columnSpan: 3
+      Layout.fillHeight: true
+      Layout.minimumHeight: 0
+      spacing: 16
+      RowLayout {
         Layout.fillWidth: true
-        Layout.alignment: Qt.AlignTop
-        Row {
-          width: parent.width
-          spacing: 32
-          Column {
-            width: (parent.width - 32) / 2
-            spacing: 8
-            Cap { text: "BY PROJECT" }
-            Repeater { model: pg.weekRows; TimeRow { required property var modelData; width: parent.width; n: modelData.n; v: modelData.v } }
-            DText { visible: pg.weekRows.length === 0; text: "Nothing recorded yet."; role: "bodyS"; dim: true }
+        spacing: 16
+        Stat { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.minimumWidth: 0; Layout.alignment: Qt.AlignTop; label: "Week"; icon: "calendar-blank"; value: Q.hm(pg.buckets ? pg.buckets.week.workedSec : 0); note: (pg.buckets ? pg.buckets.week.tasksDone : 0) + " tasks done" }
+        Stat { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.minimumWidth: 0; Layout.alignment: Qt.AlignTop; label: "Month"; icon: "calendar-dots"; value: Q.hm(pg.buckets ? pg.buckets.month.workedSec : 0); note: (pg.buckets ? pg.buckets.month.tasksDone : 0) + " tasks done" }
+        Stat { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.minimumWidth: 0; Layout.alignment: Qt.AlignTop; label: "Quarter"; icon: "calendar-check"; value: Q.hm(pg.buckets ? pg.buckets.quarter.workedSec : 0); note: (pg.buckets ? pg.buckets.quarter.tasksDone : 0) + " tasks done" }
+      }
+      // the two lists share the card; each scrolls on its own
+      Card {
+        objectName: "weekCard"
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        Layout.minimumHeight: 0
+        implicitHeight: 0
+        clip: true
+        Item {
+          id: weekProj
+          anchors.left: parent.left
+          anchors.top: parent.top
+          anchors.bottom: parent.bottom
+          width: (parent.width - 32) / 2
+          Cap { id: wpCap; text: "BY PROJECT" }
+          Flickable {
+            id: wpScroll
+            objectName: "weekScroll"
+            anchors.top: wpCap.bottom
+            anchors.topMargin: 8
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            clip: true
+            contentWidth: width
+            contentHeight: wpCol.height
+            boundsBehavior: Flickable.StopAtBounds
+            Column {
+              id: wpCol
+              width: wpScroll.width
+              spacing: 8
+              Repeater { model: pg.weekRows; TimeRow { required property var modelData; width: wpCol.width; n: modelData.n; v: modelData.v } }
+              DText { visible: pg.weekRows.length === 0; text: "Nothing recorded yet."; role: "bodyS"; dim: true }
+            }
           }
-          Column {
-            width: (parent.width - 32) / 2
-            spacing: 8
-            Cap { text: "BY ITEM" }
-            Repeater { model: pg.weekItems; TimeRow { required property var modelData; width: parent.width; n: modelData.n; v: modelData.v } }
-            DText { visible: pg.weekItems.length === 0; text: "Nothing recorded yet."; role: "bodyS"; dim: true }
+        }
+        Item {
+          id: weekItem
+          anchors.right: parent.right
+          anchors.top: parent.top
+          anchors.bottom: parent.bottom
+          width: (parent.width - 32) / 2
+          Cap { id: wiCap; text: "BY ITEM" }
+          Flickable {
+            id: wiScroll
+            objectName: "weekScroll"
+            anchors.top: wiCap.bottom
+            anchors.topMargin: 8
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            clip: true
+            contentWidth: width
+            contentHeight: wiCol.height
+            boundsBehavior: Flickable.StopAtBounds
+            Column {
+              id: wiCol
+              width: wiScroll.width
+              spacing: 8
+              Repeater { model: pg.weekItems; TimeRow { required property var modelData; width: wiCol.width; n: modelData.n; v: modelData.v } }
+              DText { visible: pg.weekItems.length === 0; text: "Nothing recorded yet."; role: "bodyS"; dim: true }
+            }
           }
         }
       }
@@ -260,15 +333,27 @@ Item {
 
     // ---- Heatmap ----
     Card {
+      id: heatCard
       objectName: "timeHeat"
       visible: CcState.timeTab === "Heatmap"
       Layout.fillWidth: true
+      Layout.alignment: Qt.AlignTop
+      clip: true
       Column {
+        id: heatCol
         width: parent.width
         spacing: 16
         Cap { text: "LAST 119 DAYS" }
-        Ov.Heatmap { cellSize: 18; gap: 4; labels: true; days: Feed.heatDoc ? Feed.heatDoc.days : [] }
-        Row {
+        // cells follow the card's width: 17 columns, the label column and the gaps taken off
+        Ov.Heatmap {
+          objectName: "heatGrid"
+          gap: 4
+          labels: true
+          cellSize: Math.max(8, Math.min(28, Math.floor((heatCol.width - 56 - 16 * 4) / 17)))
+          days: Feed.heatDoc ? Feed.heatDoc.days : []
+        }
+        Flow {
+          width: parent.width
           spacing: 40
           Column { Cap { text: "TOTAL" } DText { text: Q.hm(pg.heat.totalSec); role: "headline" } }
           Column { Cap { text: "DAYS WORKED" } DText { text: String(pg.heat.daysWorked); role: "headline" } }
@@ -283,6 +368,7 @@ Item {
       objectName: "timeReport"
       visible: CcState.timeTab === "Report"
       Layout.fillWidth: true
+      Layout.alignment: Qt.AlignTop
       Column {
         width: parent.width
         spacing: 12
@@ -297,6 +383,7 @@ Item {
       objectName: "timeNoData"
       visible: !pg.implemented
       Layout.fillWidth: true
+      Layout.alignment: Qt.AlignTop
       Column {
         width: parent.width
         spacing: 8
@@ -304,5 +391,8 @@ Item {
         DText { text: "No data source yet. The overview files do not carry this view."; role: "bodyS"; dim: true; width: parent.width; wrapMode: Text.Wrap }
       }
     }
+
+    // sub-tabs that fit their card sit at the top; the rest of the page stays empty
+    Item { visible: CcState.timeTab !== "Today" && CcState.timeTab !== "Week"; Layout.fillHeight: true }
   }
 }

@@ -152,12 +152,42 @@ scene agents-extra extra TAB=agents
 scene work board TAB=work
 scene work-board board TAB=work TASKVIEW=Board
 scene work-all board TAB=work TASKVIEW=All
+scene work-many tasks-many TAB=work
+scene work-many-board tasks-many TAB=work TASKVIEW=Board
+scene work-many-all tasks-many TAB=work TASKVIEW=All
+scene work-wide tasks-many TAB=work WIN_W=1920 WIN_H=1080
+scene work-short tasks-many TAB=work WIN_H=640
+scene work-short-board tasks-many TAB=work TASKVIEW=Board WIN_H=640
+scene work-short-all tasks-many TAB=work TASKVIEW=All WIN_H=640
 scene time board TAB=time
+scene time-wide board TAB=time WIN_W=1920 WIN_H=1080
+scene time-short board TAB=time WIN_H=640
 scene time-week board TAB=time TIMETAB=Week
 scene time-heat board TAB=time TIMETAB=Heatmap
 scene time-agent board TAB=time TIMEBY=Agent
 scene time-days board TAB=time TIMETAB=Days
-check extra; check queue; check groups; check inbox; check compose; check empty; check stale; check agents; check work; check time
+scene time-week-wide board TAB=time TIMETAB="Week" WIN_W=1920 WIN_H=1080
+scene time-week-short board TAB=time TIMETAB="Week" WIN_H=640
+scene time-days-wide board TAB=time TIMETAB="Days" WIN_W=1920 WIN_H=1080
+scene time-days-short board TAB=time TIMETAB="Days" WIN_H=640
+scene time-heat-wide board TAB=time TIMETAB="Heatmap" WIN_W=1920 WIN_H=1080
+scene time-heat-short board TAB=time TIMETAB="Heatmap" WIN_H=640
+scene time-focus board TAB=time TIMETAB="Focus zones"
+scene time-focus-wide board TAB=time TIMETAB="Focus zones" WIN_W=1920 WIN_H=1080
+scene time-focus-short board TAB=time TIMETAB="Focus zones" WIN_H=640
+scene time-progress board TAB=time TIMETAB="Progress"
+scene time-progress-wide board TAB=time TIMETAB="Progress" WIN_W=1920 WIN_H=1080
+scene time-progress-short board TAB=time TIMETAB="Progress" WIN_H=640
+scene time-report board TAB=time TIMETAB="Report"
+scene time-report-wide board TAB=time TIMETAB="Report" WIN_W=1920 WIN_H=1080
+scene time-report-short board TAB=time TIMETAB="Report" WIN_H=640
+scene time-screen board TAB=time TIMETAB="Screen and health"
+scene time-screen-wide board TAB=time TIMETAB="Screen and health" WIN_W=1920 WIN_H=1080
+scene time-screen-short board TAB=time TIMETAB="Screen and health" WIN_H=640
+scene time-reminders board TAB=time TIMETAB="Reminders"
+scene time-reminders-wide board TAB=time TIMETAB="Reminders" WIN_W=1920 WIN_H=1080
+scene time-reminders-short board TAB=time TIMETAB="Reminders" WIN_H=640
+check extra; check queue; check groups; check inbox; check compose; check empty; check stale; check agents; check work; check work-layout; check time; check time-layout
 
 # ---- 5. actions: argv only, stubs do nothing -----------------------------------------------
 scene act-local board STEPS=pick:a1,act:"Open pane",pick:b1,"act:Open review","act:Break down & start"
