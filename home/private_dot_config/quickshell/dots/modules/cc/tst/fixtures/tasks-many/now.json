@@ -1,0 +1,41 @@
+{
+ "agent": {
+  "cwd": "infra/ingress",
+  "name": "ingress-upgrade",
+  "pane": "p3",
+  "sess": "s3",
+  "status": "Working",
+  "tab": null,
+  "workspace": "w1"
+ },
+ "clock": {
+  "awayReason": "",
+  "loginTs": 1761596400,
+  "sinceTs": 1761596400,
+  "state": "in"
+ },
+ "focus": {
+  "elapsedSec": 360,
+  "endsAt": null,
+  "startedAt": 1761599640,
+  "state": "running",
+  "targetSec": 1500,
+  "zone": "infra"
+ },
+ "task": {
+  "agent": null,
+  "desc": "TASK-2026-00781 Move every tenant database to the new storage class and verify the nightly backups still restore cleanly",
+  "id": 4,
+  "pane": null,
+  "project": "infra",
+  "ref": "TASK-2026-00781",
+  "sess": null,
+  "src": "erp",
+  "startedAt": 1761593880,
+  "tags": [],
+  "uuid": "u-1",
+  "workspace": null
+ },
+ "ts": 1761599990,
+ "v": 1
+}

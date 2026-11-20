@@ -96,6 +96,8 @@ ShellRoot {
                    page: find("timePage").map(function (x) { return { flick: x.contentHeight !== undefined } })[0] || null,
                    flicks: find("timeToday").length ? (function () { var n = []; walk(find("timeToday")[0], function (x) { if (x.contentHeight !== undefined && x.flickableDirection !== undefined) n.push(x.objectName) }); return n })() : [],
                    barSegs: (function () { var b = find("todayBar").filter(vis)[0]; if (!b) return null; var r = []; walk(b, function (x) { if (x.radius === 4 && x !== b) r.push({ x: Math.round(x.x), w: Math.round(x.width) }) }); return r })() }
+        m.work = measureWork("workPage", ["nowCard", "todayListCard", "untickCard", "boardCol", "allScroll"])
+        m.timePg = measureWork("timePage", ["todayCard", "whereTime", "doneCard", "weekCard", "timeHeat", "heatGrid", "timeReport", "timeNoData", "todayBar"])
         m.stats = find("statValue").filter(vis).map(function (t) { return t.text })
         m.heatCells = find("cell").filter(vis).length
         m.staleMark = find("staleMark").filter(vis).length
@@ -103,6 +105,40 @@ ShellRoot {
         m.hidden = Object.keys(CcState.hidden).sort().join(",")
         m.sel = CcState.effId
         return m
+    }
+
+    // Tasks page: is the page a Flickable, which Flickables exist and clip, and does any visible
+    // text run outside the clipped box (card, column or scroll area) it sits in
+    function isFlick(x) { return x.contentHeight !== undefined && x.flickableDirection !== undefined }
+    function measureWork(pageName, colNames) {
+        var pg = find(pageName)[0]
+        if (!pg) return null
+        var w = { page: box(pg), flickPage: isFlick(pg), flicks: [], texts: [], out: [], cols: [], rowsText: [] }
+        walk(pg, function (x) {
+            if (isFlick(x) && vis(x)) w.flicks.push({ name: x.objectName, clip: x.clip, box: box(x), contentH: Math.round(x.contentHeight) })
+        })
+        colNames.forEach(function (n) {
+            find(n).filter(vis).forEach(function (c) { var b = box(c); b.name = n; w.cols.push(b) })
+        })
+        walk(pg, function (x) {
+            if (x.text === undefined || x.contentWidth === undefined || !vis(x) || x.text === "") return
+            var b = box(x), host = null, flick = null
+            for (var p = x.parent; p; p = p.parent) {
+                if (p === pg) break
+                if (!flick && p.contentItem !== undefined && isFlick(p)) flick = p
+                if (!host && p.clip === true && p.contentItem === undefined) host = p
+            }
+            // tall lists may run below a scroll viewport (that is what scrolling is); x never may
+            var h = flick || host || pg
+            var hb = box(h)
+            var xo = b.x < hb.x - 1 || b.x + b.w > hb.x + hb.w + 1
+            var yo = !flick && (b.y < hb.y - 1 || b.y + b.h > hb.y + hb.h + 1)
+            w.texts.push(x.text)
+            if (xo || yo) w.out.push({ t: x.text, b: b, host: hb })
+        })
+        w.headerNow = texts("ccNowText")[0] || ""
+        w.rowsText = find("todayRowTitle").filter(vis).map(function (t) { return t.text })
+        return w
     }
 
     function runStep(s) {
@@ -147,8 +183,8 @@ ShellRoot {
     }
 
     FloatingWindow {
-        implicitWidth: 1600
-        implicitHeight: 1000
+        implicitWidth: Number(Quickshell.env("WIN_W")) || 1600
+        implicitHeight: Number(Quickshell.env("WIN_H")) || 1000
         color: "#000000"
 
         Item {

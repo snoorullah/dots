@@ -45,7 +45,8 @@ FocusScope {
           role: "headline"
           elide: Text.ElideRight
           opacity: v.dim ? 0.6 : 1
-          text: Feed.task ? ((Feed.task.ref ? Feed.task.ref + " " : "") + Feed.task.desc) : "No task in hand"
+          objectName: "ccNowText"
+          text: Feed.task ? (Q.label(Feed.task.ticket, Feed.task.ref, Feed.task.desc) || "Untitled") : "No task in hand"
         }
       }
       Btn { objectName: "backBtn"; text: "Back to task"; icon: "arrow-u-down-left"; keyHint: "Esc"; onClicked: v.closeRequested() }

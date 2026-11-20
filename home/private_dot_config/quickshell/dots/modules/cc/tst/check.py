@@ -11,6 +11,7 @@ palette exactly as the real Tokens.qml derives them.
 import colorsys
 import json
 import os
+import re
 import struct
 import sys
 import zlib
@@ -264,6 +265,62 @@ def check_work():
     report(Img("work").count(is_green) == 0, "tasks: no green")
 
 
+def work_geometry(tag, label, expect_scrolls, long_list=False, key="work"):
+    p = probe(tag)
+    w = p[key]
+    page = w["page"]
+    report(not w["flickPage"], label + ": the page itself is not a Flickable", str(page))
+    names = sorted(f["name"] for f in w["flicks"])
+    report(names == sorted(expect_scrolls), label + ": only the list areas scroll", str(names))
+    report(all(f["clip"] for f in w["flicks"]), label + ": every list area clips", str(w["flicks"]))
+    inside = all(c["x"] >= page["x"] and c["y"] >= page["y"] and c["x"] + c["w"] <= page["x"] + page["w"] and c["y"] + c["h"] <= page["y"] + page["h"] for c in w["cols"])
+    report(inside, label + ": no card or column leaves the page", str(w["cols"]))
+    report(not w["out"], label + ": no text runs outside the box it sits in", str(w["out"][:3]))
+    for f in w["flicks"]:
+        report(f["box"]["y"] + f["box"]["h"] <= page["y"] + page["h"], label + ": " + f["name"] + " ends inside the page", str(f["box"]))
+    if long_list:
+        report(any(f["contentH"] > f["box"]["h"] for f in w["flicks"]), label + ": the long list is taller than its area, so it scrolls", str(w["flicks"]))
+    bad = [t for t in w["texts"] + [w["headerNow"]] if re.search(r"TASK-\d{4}-\d+|local:|lane:", t)]
+    report(not bad, label + ": no TASK-/local:/lane: id on screen", str(bad[:3]))
+    return p
+
+
+def check_work_layout():
+    work_geometry("work", "tasks Today", ["todayScroll", "untickScroll"])
+    work_geometry("work-board", "tasks Board", ["boardScroll"] * 4)
+    work_geometry("work-all", "tasks All", ["allScroll"])
+    m = work_geometry("work-many", "tasks Today (24 tasks)", ["todayScroll", "untickScroll"], True)
+    report(any(re.match(r"^(HD \d{4}|[a-z]+#\d+)", t) for t in m["work"]["rowsText"]), "tasks: rows lead with a ticket", str(m["work"]["rowsText"][:3]))
+    work_geometry("work-many-board", "tasks Board (24 tasks)", ["boardScroll"] * 4, True)
+    work_geometry("work-many-all", "tasks All (24 tasks)", ["allScroll"], True)
+    work_geometry("work-wide", "tasks 1920x1080", ["todayScroll", "untickScroll"], True)
+    work_geometry("work-short", "tasks Today short", ["todayScroll", "untickScroll"], True)
+    work_geometry("work-short-board", "tasks Board short", ["boardScroll"] * 4, True)
+    work_geometry("work-short-all", "tasks All short", ["allScroll"], True)
+    n = probe("work-many")
+    report(n["work"]["page"]["h"] > 0 and any("Move every tenant database" in t for t in n["work"]["texts"]) and not any("00781" in t for t in n["work"]["texts"]), "tasks: the NOW header says the ticket and description, not TASK- ref", str([t for t in n["work"]["texts"] if "tenant database" in t]))
+    report(n["work"]["headerNow"].startswith("Move every tenant") or n["work"]["headerNow"].startswith("HD"), "tasks: the header's now text is ticket first", n["work"]["headerNow"])
+
+
+def check_time_layout():
+    tabs = [("time", "Today", ["doneScroll", "whereScroll"]), ("time-week", "Week", ["weekScroll", "weekScroll"]),
+            ("time-days", "Days", []), ("time-heat", "Heatmap", []), ("time-focus", "Focus zones", []),
+            ("time-progress", "Progress", []), ("time-report", "Report", []), ("time-screen", "Screen and health", []),
+            ("time-reminders", "Reminders", [])]
+    for tag, name, scrolls in tabs:
+        for suffix, size in (("", "1600x1000"), ("-wide", "1920x1080"), ("-short", "short")):
+            work_geometry(tag + suffix, "time %s %s" % (name, size), scrolls, key="timePg")
+    h = probe("time-heat-wide")["timePg"]
+    g = [c for c in h["cols"] if c["name"] == "heatGrid"]
+    k = [c for c in h["cols"] if c["name"] == "timeHeat"]
+    report(g and k and g[0]["x"] + g[0]["w"] <= k[0]["x"] + k[0]["w"], "time Heatmap: the grid sits inside its card at 1920 wide", str((g, k)))
+    t = probe("time-week")["timePg"]
+    report(t["cols"] and all(c["y"] < 400 for c in t["cols"] if c["name"] == "weekCard"), "time Week: content starts at the top, not centred", str(t["cols"]))
+    for tag in ("time-days", "time-report"):
+        q = probe(tag)["timePg"]
+        report(all(c["y"] < 300 for c in q["cols"]), "time %s: card sits under the sub-tabs" % tag, str(q["cols"]))
+
+
 def check_time():
     p = probe("time")
     layout("time", p)
@@ -277,7 +334,7 @@ def check_time():
     report(segs and segs[-1]["x"] + segs[-1]["w"] == bar["w"] and all(a["x"] + a["w"] <= b["x"] for a, b in zip(segs, segs[1:])),
            "time: Today segments sum to the bar exactly, no overlap", str(segs))
     report(p["time"]["page"] and not p["time"]["page"]["flick"], "time: the page itself is not a Flickable", str(p["time"]["page"]))
-    report(p["time"]["flicks"] == ["doneScroll"], "time: only the Done today list scrolls", str(p["time"]["flicks"]))
+    report(sorted(p["time"]["flicks"]) == ["doneScroll", "whereScroll"], "time: only the Where time went and Done today lists scroll", str(p["time"]["flicks"]))
     w = probe("time-week")
     report(w["time"]["week"] == 1 and w["time"]["today"] == 0, "time: Week sub-tab")
     h = probe("time-heat")
@@ -368,7 +425,7 @@ def check_back():
 
 CHECKS = {
     "queue": check_queue, "groups": check_groups, "inbox": check_inbox, "compose": check_compose, "empty": check_empty,
-    "extra": check_extra, "agent-jump": check_agent_jump, "stale": check_stale, "agents": check_agents, "work": check_work, "time": check_time,
+    "extra": check_extra, "agent-jump": check_agent_jump, "stale": check_stale, "agents": check_agents, "work": check_work, "work-layout": check_work_layout, "time-layout": check_time_layout, "time": check_time,
     "argv-local": check_argv_local, "argv-stub": check_argv_stub, "hide": check_hide, "undo": check_undo,
     "snooze": check_snooze, "argv-meta": check_argv_meta, "back": check_back,
 }
