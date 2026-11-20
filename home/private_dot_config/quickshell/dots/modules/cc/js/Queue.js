@@ -86,8 +86,10 @@ function hm(sec) {
 var DAY_TARGET_SEC = 8 * 3600
 function logoutLeft(workedSec, docTs, nowSec, targetSec) {
     if (workedSec === undefined || workedSec === null || !(Number(docTs) > 0)) return ""
+    // a figure older than 15 min (daemon stopped, or a fixture) is not a clock: show nothing
+    if (Number(nowSec) - Number(docTs) > 900 || Number(nowSec) < Number(docTs) - 60) return ""
     var t = Number(targetSec) > 0 ? Number(targetSec) : DAY_TARGET_SEC
-    var d = Math.round(t - Number(workedSec) - (Number(nowSec) - Number(docTs)))
+    var d = Math.round(t - Number(workedSec) - Math.max(0, Number(nowSec) - Number(docTs)))
     var over = d < 0, a = Math.abs(d)
     var h = Math.floor(a / 3600), m = Math.floor(a % 3600 / 60), sec = a % 60
     function p2(x) { return (x < 10 ? "0" : "") + x }

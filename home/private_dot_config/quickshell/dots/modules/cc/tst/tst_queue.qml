@@ -128,7 +128,8 @@ TestCase {
         compare(Q.logoutLeft(0, 1000, 1000), "8:00:00")
         compare(Q.logoutLeft(14116, 1000, 1000), "4:04:44")
         compare(Q.logoutLeft(14116, 1000, 1001), "4:04:43")
-        compare(Q.logoutLeft(8 * 3600, 1000, 1725), "+0:12:05")
+        compare(Q.logoutLeft(8 * 3600 + 700, 1000, 1025), "+0:12:05")
+        compare(Q.logoutLeft(3600, 1000, 1000 + 901), "")
     }
     function test_clock() {
         var t = new Date(2026, 10, 20, 17, 4, 17).getTime() / 1000
