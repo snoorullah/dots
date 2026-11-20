@@ -115,11 +115,14 @@ hl.animation({ leaf = "layers",     enabled = true, speed = 6, bezier = "snappy"
 -- Keep terminals fully opaque (don't translucent them via the global opacity).
 hl.window_rule({ match = { class = "^(com[.]mitchellh[.]ghostty)$" }, opaque = true })
 
-hl.window_rule({ match = { class = "^(zen-alpha|zen-beta|zen-browser|firefox|Firefox)$" }, workspace = "2 silent" })
-hl.window_rule({ match = { class = "^([Cc]ode|code-oss|Cursor)$" },                    workspace = "3 silent" })
-hl.window_rule({ match = { class = "^([Ss]lack)$" },                                   workspace = "4 silent" })
-hl.window_rule({ match = { class = "^([Tt]hunderbird)$" },                             workspace = "5 silent" })
-hl.window_rule({ match = { class = "^([Oo]bsidian)$" },                                workspace = "7 silent" })
+-- Workspace profiles (docs/shell/specs/profiles.md; the bar reads the same map from
+-- modules/bar/js/Profiles.js). Agents 1 · Web 2 · Dev 3 · Comms 4-5 · Review 6 · Notes 7 · Other 8-10.
+-- Terminals are not routed (ghostty has one class for agent and plain shells): they open where you are.
+hl.window_rule({ match = { class = "^(zen-alpha|zen-beta|zen|zen-browser|[Ff]irefox|[Bb]rave-browser|[Gg]oogle-chrome|[Cc]hromium|aether)$" }, workspace = "2 silent" })   -- Web
+hl.window_rule({ match = { class = "^([Cc]ode|code-oss|Cursor)$" },                    workspace = "3 silent" })   -- Dev
+hl.window_rule({ match = { class = "^([Ss]lack|teams-for-linux|[Tt]elegram.*|org[.]telegram[.]desktop|[Ll]egcord|[Bb]eeper|[Zz]ap[Zz]ap|com[.]rtosta[.]zapzap)$" }, workspace = "4 silent" })   -- Comms: chat
+hl.window_rule({ match = { class = "^([Tt]hunderbird)$" },                             workspace = "5 silent" })   -- Comms: mail
+hl.window_rule({ match = { class = "^(md[.]obsidian[.][Oo]bsidian|[Oo]bsidian)$" },    workspace = "7 silent" })   -- Notes
 hl.window_rule({ match = { class = "^([Ss]potify|YoutubeMusic|youtube-music)$" },      workspace = "8 silent" })
 hl.window_rule({ match = { class = "^([Pp]avucontrol|[Nn]m-connection-editor|file-roller)$" }, float = true })
 hl.window_rule({ match = { class = "^(zen-tab-switcher)$" },                           float = true, center = true })
@@ -290,7 +293,8 @@ hl.bind("ALT + F4",            hl.dsp.window.close())
 
 -- Launcher menus (otter-launcher popups)
 hl.bind(mod .. " + SPACE",     hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e otter-launcher app"))
-hl.bind(mod .. " + Tab",       hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e otter-launcher win"))
+hl.bind(mod .. " + Tab",       hl.dsp.exec_cmd("qs -c dots ipc call dots.workspaces toggle"))  -- profile and workspace switcher
+hl.bind(mod .. " + ALT + Tab", hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e otter-launcher win"))  -- window list (was Super+Tab)
 hl.bind(mod .. " + SHIFT + S", hl.dsp.exec_cmd("ghostty --class=dots.otter --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e otter-launcher run"))
 hl.bind(mod .. " + SHIFT + F", hl.dsp.exec_cmd("ghostty --class=dots.yazi --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e ~/.local/bin/yazi-launch.sh"))  -- file manager (yazi)
 hl.bind(mod .. " + C",         hl.dsp.exec_cmd("ghostty --class=dots.clipse --gtk-single-instance=false --config-file={{ .chezmoi.homeDir }}/.config/ghostty/popup -e clipse"))  -- clipse clipboard history (was legacy-menu-clipboard.sh)
@@ -379,6 +383,11 @@ local wskeys = { ["1"]=1,["2"]=2,["3"]=3,["4"]=4,["5"]=5,["6"]=6,["7"]=7,["8"]=8
 for key, ws in pairs(wskeys) do
   hl.bind(mod .. " + " .. key,           hl.dsp.focus({ workspace = ws }))
   hl.bind(mod .. " + SHIFT + " .. key,   hl.dsp.window.move({ workspace = ws }))
+end
+-- Profiles: Super+Ctrl+<letter> focuses the profile's first workspace (docs/shell/specs/profiles.md)
+local profkeys = { A = 1, W = 2, D = 3, C = 4, R = 6, N = 7, O = 8 }  -- Agents Web Dev Comms Review Notes Other
+for key, ws in pairs(profkeys) do
+  hl.bind(mod .. " + CTRL + " .. key, hl.dsp.focus({ workspace = ws }))
 end
 hl.bind(mod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
 hl.bind(mod .. " + mouse_up",   hl.dsp.focus({ workspace = "e-1" }))

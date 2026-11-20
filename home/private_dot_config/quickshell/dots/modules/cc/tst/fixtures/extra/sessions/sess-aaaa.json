@@ -1,0 +1,10 @@
+{
+ "action": "stop",
+ "agent": "Atlas",
+ "pane": "w2:p1",
+ "prompt_head": "verify the inventory keys",
+ "sess": "sess-aaaa",
+ "ticket": "lane:TASK-2026-00111",
+ "ts": 1761599990,
+ "v": 1
+}

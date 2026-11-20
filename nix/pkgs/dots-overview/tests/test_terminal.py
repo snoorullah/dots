@@ -61,9 +61,20 @@ class TerminalAttention(helpers.Scratch):
         self.seg(1800, 2400, task_uuid=self.b, agent_name="Vega")           # task only: ref and project via Taskwarrior
         self.seg(2400, 3000, project="gamma", verdict="delegated")
         t = self.build()
-        self.assertEqual(t["byRef"], [{"ref": "HD-101", "sec": 1800, "title": "Fix ingress"}])
+        self.assertEqual(t["byRef"], [{"ref": "HD-101", "sec": 1800, "title": "Fix ingress", "ticket": "HD 0101"}])
         self.assertEqual({p["project"]: p["sec"] for p in t["byProject"]}, {"alpha": 1800, "beta": 600, "gamma": 600})
         self.assertEqual(t["byAgent"], [{"agent": "Vega", "sec": 2400}])
+
+    def test_by_ref_carries_the_human_ticket_never_an_internal_id(self):
+        self.seg(0, 1800, ref="TASK-2026-00781", project="alpha")
+        self.seg(1800, 2400, ref="local:0a1a4f", project="alpha")
+        self.seg(2400, 3000, ref="gh:acme/infra#212", project="alpha")
+        doc = activity.build([], self.tw.tasks, now=self.t0 + 7 * 3600, apps="all",
+                             tickets={"TASK-2026-00781": "HD 8580"})
+        rows = {r["ref"]: r for r in doc["buckets"]["today"]["byRef"]}
+        self.assertEqual(rows["TASK-2026-00781"]["ticket"], "HD 8580")
+        self.assertIsNone(rows["local:0a1a4f"]["ticket"])
+        self.assertEqual(rows["gh:acme/infra#212"]["ticket"], "infra#212")
 
     def test_browser_visits_add_to_the_same_ref(self):
         self.seg(0, 600, task_uuid=self.a, ref="HD-101", project="alpha")

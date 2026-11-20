@@ -29,11 +29,13 @@ read -r -d '' ROWS <<'EOF'
 ━━━━━━━  WORKSPACES  ━━━━━━━
   Super + 1 … 0           Go to workspace 1–10
   Super + Shift + 1 … 0   Move window to workspace 1–10
+  Super + Ctrl + A/W/D/C/R/N/O  Profile: Agents/Web/Dev/Comms/Review/Notes/Other
   Super + Scroll ↑ / ↓    Previous / next workspace
 ━━━━━━━  LAUNCHERS  (otter)  ━━━━━━━
   Super + D               otter-launcher — main panel
   Super + Space           Apps
-  Super + Tab             Windows
+  Super + Tab             Profiles and workspaces (switcher)
+  Super + Alt + Tab       Windows
   Super + Shift + S       Run a command
   Super + Shift + F       Files — file manager (yazi)
   Super + /               Workspaces menu

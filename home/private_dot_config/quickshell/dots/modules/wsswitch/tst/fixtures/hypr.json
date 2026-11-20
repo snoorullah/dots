@@ -1,0 +1,30 @@
+{
+  "activeWs": 3,
+  "activeAddr": "0xd2",
+  "workspaces": [
+    {"id": 1, "name": "1"}, {"id": 2, "name": "2"}, {"id": 3, "name": "3"}, {"id": 4, "name": "4"},
+    {"id": 5, "name": "5"}, {"id": 6, "name": "6"}, {"id": 8, "name": "8"}, {"id": 11, "name": "11"}
+  ],
+  "windows": [
+    {"addr": "0xa1", "cls": "foot", "title": "claude: refactor", "wsId": 1, "needs": true},
+    {"addr": "0xa2", "cls": "foot", "title": "claude: tests", "wsId": 1},
+    {"addr": "0xa3", "cls": "foot", "title": "Terminal", "wsId": 1},
+    {"addr": "0xa5", "cls": "foot", "title": "claude: lint pass", "wsId": 1, "needs": true},
+    {"addr": "0xb1", "cls": "zen-beta", "title": "Search", "wsId": 2},
+    {"addr": "0xb2", "cls": "zen-beta", "title": "Reference docs", "wsId": 2},
+    {"addr": "0xb3", "cls": "zen-beta", "title": "Private window", "wsId": 2},
+    {"addr": "0xd1", "cls": "code", "title": "main.go - Editor", "wsId": 3},
+    {"addr": "0xd2", "cls": "foot", "title": "Terminal", "wsId": 3},
+    {"addr": "0xd3", "cls": "foot", "title": "Terminal 2", "wsId": 3},
+    {"addr": "0xd4", "cls": "org.gnome.Nautilus", "title": "Files", "wsId": 3},
+    {"addr": "0xc1", "cls": "slack", "title": "Chat", "wsId": 4},
+    {"addr": "0xc2", "cls": "thunderbird", "title": "Mail", "wsId": 5, "needs": true},
+    {"addr": "0xe1", "cls": "zen-beta", "title": "PR diff", "wsId": 6},
+    {"addr": "0xe2", "cls": "code", "title": "patch - Editor", "wsId": 6},
+    {"addr": "0xe3", "cls": "foot", "title": "Terminal", "wsId": 6},
+    {"addr": "0xf1", "cls": "org.gnome.Nautilus", "title": "Files", "wsId": 8},
+    {"addr": "0xf2", "cls": "foot", "title": "Terminal", "wsId": 8},
+    {"addr": "0xf3", "cls": "pavucontrol", "title": "Settings", "wsId": 8},
+    {"addr": "0xf4", "cls": "foot", "title": "Build log", "wsId": 11}
+  ]
+}

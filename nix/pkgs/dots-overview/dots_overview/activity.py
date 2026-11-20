@@ -7,7 +7,7 @@ ActivityWatch are asked for totals.
 import time
 from datetime import datetime, timedelta
 
-from . import local_tt, tw
+from . import local_tt, nowstate, tw
 from .heatmap import SPAN_DAYS
 
 TOP = 8
@@ -31,11 +31,13 @@ def _maps(tasks):
     return ref, proj
 
 
-def build(done_tasks, tasks, now=None, apps="today"):
+def build(done_tasks, tasks, now=None, apps="today", tickets=None):
     """apps: "all" queries ActivityWatch for every bucket, "today" only for today (the rest from cache)."""
     now = int(now or time.time())
     today = local_tt.workday(now)
     titles = _titles(tasks + done_tasks)
+    if tickets is None:
+        tickets = nowstate.load_ticket_map()
     out = {}
     first = local_tt.workday_start(bucket_starts(today)["quarter"])
     ints = local_tt.project_intervals(first, now)
@@ -59,7 +61,8 @@ def build(done_tasks, tasks, now=None, apps="today"):
             "byProject": [{"project": p, "sec": s} for p, s in projects],
             "byApp": by_app,
             "byAgent": [{"agent": a, "sec": s} for a, s in local_tt.ranked(att_agents)[:TOP]],
-            "byRef": [{"ref": r, "sec": s, "title": titles.get(r, r)} for r, s in refs]}
+            "byRef": [{"ref": r, "sec": s, "title": titles.get(r, r),
+                       "ticket": nowstate.ticket_for({"ref": r, "desc": titles.get(r, "")}, tickets)} for r, s in refs]}
     return {"v": 1, "ts": now, "buckets": out}
 
 

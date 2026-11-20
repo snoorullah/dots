@@ -116,21 +116,59 @@ function logoutLeft(workedSec, targetSec) {
   return (over ? "+" : "") + (h < 10 ? "0" : "") + h + ":" + (mm < 10 ? "0" : "") + mm
 }
 
-// a running focus block -> "24m" left (minutes, rounded up; the bar never ticks seconds).
+// a running focus block -> "24:27" left (mm:ss, a countdown stopwatch; h:mm:ss past an hour).
 // "" when no block runs or its time is up.
 function focusLeft(focus, nowSec) {
   if (!focus || focus.state !== "running") return ""
   var target = num(focus.targetSec), start = num(focus.startedAt)
   if (target <= 0 || start <= 0) return ""
-  var left = target - (num(nowSec) - start)
+  var left = Math.ceil(target - (num(nowSec) - start))
   if (left <= 0) return ""
-  return Math.ceil(left / 60) + "m"
+  var h = Math.floor(left / 3600), m = Math.floor(left % 3600 / 60), sec = left % 60
+  function p2(x) { return (x < 10 ? "0" : "") + x }
+  return (h > 0 ? h + ":" + p2(m) : p2(m)) + ":" + p2(sec)
+}
+
+// Owner rule: the bar's waiting symbols carry only today's GitHub items (reviews, PRs). "Today"
+// is the session: anything older than this login stays in the control centre, off the bar.
+function todaysOnly(items, nowSec, loginTs) {
+  var since = num(loginTs) > 0 ? num(nowSec) - num(loginTs) : 24 * 3600
+  return (items || []).filter(function (i) {
+    if (!i || i.src !== "gh") return true
+    return num(i.ageSec) <= since
+  })
+}
+
+// The ticket a person would say aloud: "HD 8580" or "infra#212". now.json carries it as
+// task.ticket; an older file falls back to the ref or an HD number in the title. Never an
+// internal TASK- or local: id, which the bar does not show.
+function pad4(n) { n = String(n); return n.length < 4 ? ("0000" + n).slice(-4) : n }
+
+function ticketOf(task) {
+  if (!task) return ""
+  if (task.ticket) return String(task.ticket)
+  var ref = task.ref ? String(task.ref) : "", d = task.desc ? String(task.desc) : ""
+  var m = /^(?:HD[ -]?#?)?(\d{3,6})$/.exec(ref)
+  if (m) return "HD " + pad4(m[1])
+  m = /^gh:[^\/\s]+\/([^#\s]+)#(\d+)$/.exec(ref)
+  if (m) return m[1] + "#" + m[2]
+  m = /\bHD[ -]?#?(\d{3,6})\b/.exec(d)
+  return m ? "HD " + pad4(m[1]) : ""
+}
+
+// the title without the ids the ticket already says: "TASK-2026-00846 Sophos ... (HD 8143)" -> "Sophos ..."
+function plainDesc(desc) {
+  var d = String(desc === undefined || desc === null ? "" : desc)
+  d = d.replace(/\(\s*(?:(?:TASK-\d{4}-\d+|HD[ -]?#?\d{3,6})\s*[,;]?\s*)+\)/g, " ")
+  d = d.replace(/\bTASK-\d{4}-\d+\b/g, " ")
+  d = d.replace(/^\s*HD[ -]?#?\d{3,6}\s*[:\-]\s*/, "")
+  return d.replace(/\s+/g, " ").replace(/^[\s:,;-]+|[\s:,;-]+$/g, "")
 }
 
 function taskText(task) {
   if (!task) return ""
-  var ref = task.ref ? String(task.ref) : "", d = task.desc ? String(task.desc) : ""
-  return (ref && d) ? ref + " " + d : (ref || d)
+  var t = ticketOf(task), d = plainDesc(task.desc)
+  return (t && d) ? t + " " + d : (t || d)
 }
 
 // the profile whose name the focused workspace carries, else none (no source yet)

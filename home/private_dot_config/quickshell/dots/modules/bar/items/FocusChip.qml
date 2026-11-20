@@ -3,8 +3,8 @@ import "../../theme"
 import "../../common"
 import ".."
 
-// A running focus block: "Focus 24m" left, in the accent (selection/progress, never a status).
-// Minutes only, so nothing on the bar ticks. Hidden when no block runs. Click: the Time tab.
+// A running focus block counting down like a stopwatch: "24:27", in the accent (progress, never a
+// status). The only thing on the bar that ticks, and only while a block runs. Click: the Time tab.
 Chip {
   id: root
 
@@ -26,6 +26,6 @@ Chip {
     role: "bodyS"
     mono: true
     color: Theme.color.accent
-    text: "Focus " + root.remaining
+    text: root.remaining
   }
 }

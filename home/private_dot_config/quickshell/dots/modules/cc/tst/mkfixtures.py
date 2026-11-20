@@ -125,3 +125,22 @@ write("stale", stale)
 meta = copy.deepcopy(board)
 meta["attention"]["items"][3]["ref"] = 'HD-7; touch "$PWN" `id` $(id) #'
 write("meta", meta)
+
+# board plus: a previous pending review, a Slack alert-channel post (kind alert), and two agent
+# tasks that sit in herdr panes with a session record each (For / Working on / Jump)
+extra = copy.deepcopy(board)
+prev = item("p1", "review", "Review: retire the old queue worker", "Marcus T.", 400000, "active", True, "gh:acme/worker#77", "gh")
+prev["section"] = "previous"
+slack_alert = item("s1", "alert", "Alert channel: disk pressure on node-9", None, 300, "active", False, "", "notif", jump=False)
+agent_a = item("g1", "task", "TASK-2026-00111 verify the inventory keys", None, 900, "active", False, "TASK-2026-00111", "claude")
+agent_a["jump"] = {"pane": "w2:p1", "workspace": "w2", "sess": "sess-aaaa"}
+agent_b = item("g2", "task", "tidy the chart values", None, 1500, "passive", False, "local:ab12", "lanes")
+agent_b["jump"] = {"pane": "w3:p1", "workspace": "w3", "sess": "sess-bbbb"}
+extra["attention"] = att(ITEMS + [prev, slack_alert, agent_a, agent_b])
+write("extra", extra)
+sd = os.path.join(HERE, "fixtures", "extra", "sessions")
+os.makedirs(sd, exist_ok=True)
+for sid, rec in (("sess-aaaa", {"agent": "Atlas", "pane": "w2:p1", "ticket": "lane:TASK-2026-00111", "prompt_head": "verify the inventory keys"}),
+                 ("sess-bbbb", {"agent": "Vega", "pane": "w3:p1", "ticket": "local:ab12", "prompt_head": "tidy the chart values"})):
+    with open(os.path.join(sd, sid + ".json"), "w") as fh:
+        json.dump(dict(rec, v=1, ts=NOW - 10, action="stop", sess=sid), fh, indent=1, sort_keys=True)

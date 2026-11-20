@@ -15,6 +15,12 @@ def run(args, timeout=5):
     return p.stdout if p.returncode == 0 else None
 
 
+def _clean(name):
+    """display_agent without the zero-width marks herdr appends; None when empty."""
+    n = "".join(c for c in str(name or "") if c.isprintable() and c not in "\u200b\u200c\u200d\ufeff").strip()
+    return n or None
+
+
 def snapshot():
     """The live agents, one dict per pane, or None when herdr is not reachable."""
     out = run(["api", "snapshot"])
@@ -27,10 +33,13 @@ def snapshot():
     agents = []
     for a in snap.get("agents") or []:
         sess = (a.get("agent_session") or {}).get("value")
+        tokens = a.get("tokens") if isinstance(a.get("tokens"), dict) else {}
         agents.append({
             "pane": a.get("pane_id"), "tab": a.get("tab_id"), "workspace": a.get("workspace_id"),
             "sess": sess, "status": a.get("agent_status") or "unknown", "cwd": a.get("cwd"),
             "title": a.get("terminal_title_stripped") or "", "focused": bool(a.get("focused")),
+            "name": _clean(a.get("display_agent")), "sub": tokens.get("hp_sub") or None,
+            "ticket": tokens.get("ticket") or None,
         })
     return agents
 
@@ -54,6 +63,9 @@ def focus(workspace, tab=None):
     return ok
 
 
-def waiting(status):
-    """herdr's blocked / waiting states mean an agent is stopped on me."""
-    return status in ("blocked", "waiting")
+def waiting(status, sub=None):
+    """An agent is stopped on me: herdr says blocked / waiting, or it finished (done / idle) and
+    its status line (tokens.hp_sub) says "needs you"."""
+    if status in ("blocked", "waiting"):
+        return True
+    return status in ("done", "idle") and "needs you" in str(sub or "").lower()

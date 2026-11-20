@@ -1,0 +1,4 @@
+module qs.modules.wsswitch
+WsPanel 1.0 WsPanel.qml
+WsSwitcher 1.0 WsSwitcher.qml
+Dispatcher 1.0 Dispatcher.qml

@@ -16,6 +16,7 @@ import "modules/cc"
 import "modules/sidebar"
 import "modules/system"
 import "modules/moments"
+import "modules/wsswitch"
 import "ipc"
 import "services"
 
@@ -47,6 +48,7 @@ ShellRoot {
   AgentPopout {}
   TrayPopout {}
   ControlCentre {}
+  WsSwitcher {}
   Sidebar {}
   QuickCapture { id: quickCapture }
   Osd {}

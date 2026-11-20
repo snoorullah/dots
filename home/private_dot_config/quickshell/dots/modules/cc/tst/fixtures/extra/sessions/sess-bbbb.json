@@ -1,0 +1,10 @@
+{
+ "action": "stop",
+ "agent": "Vega",
+ "pane": "w3:p1",
+ "prompt_head": "tidy the chart values",
+ "sess": "sess-bbbb",
+ "ticket": "local:ab12",
+ "ts": 1761599990,
+ "v": 1
+}

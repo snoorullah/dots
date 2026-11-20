@@ -9,7 +9,7 @@ import time
 from . import atomic, config, sources_erp, sources_gh, tw
 
 STATUS = "sync-status.json"
-ATTN_KINDS = ("review", "hd", "todo", "task")     # items somebody is waiting on me for
+ATTN_KINDS = ("review", "mention", "hd", "todo", "task")     # items somebody is waiting on me for
 
 
 def ensure(item, now):
@@ -24,6 +24,24 @@ def ensure(item, now):
     tw.add(item["title"], tags=tags, ref=item["ref"], src=item["src"], url=item.get("url"),
            srcstate=f"{item['kind']}:{item['state']}", srcsync=now)
     return True
+
+
+META = "gh-meta.json"
+
+
+def write_meta(items, now):
+    """gh-meta.json: what the attention rules need and the mirror tasks cannot hold (the UDAs are
+    fixed). Per ref: GitHub's updatedAt as epoch, asked-personally, @mentioned, feedback on my PR."""
+    refs = {}
+    for it in items:
+        if it.get("src") != "gh":
+            continue
+        m = refs.setdefault(it["ref"], {"updatedTs": None, "individual": False, "mention": False,
+                                         "feedback": False})
+        m["updatedTs"] = sources_gh.epoch(it.get("updatedAt")) or m["updatedTs"]
+        for k in ("individual", "mention", "feedback"):
+            m[k] = m[k] or bool(it.get(k))
+    atomic.write_json(config.STATE_DIR / META, {"v": 1, "ts": now, "refs": refs})
 
 
 def mirror_doc(now):
@@ -76,6 +94,7 @@ def run(cfg, erp_mcp=False, gh=sources_gh, erp=sources_erp, sleep=time.sleep, no
     try:
         got = gh.fetch(cfg, sleep=sleep)
         items += got
+        write_meta(got, now)
         status["gh"] = {"state": "ok", "ts": now, "detail": f"{len(got)} item(s)"}
     except sources_gh.GhError as e:
         status["gh"] = {"state": "stale", "ts": now, "detail": str(e)[:80]}

@@ -53,12 +53,14 @@ shellroot="$work/root"; mkdir -p "$shellroot/modules"
 ln -s "$stub" "$shellroot/modules/theme"
 ln -s "$dots/modules/common" "$shellroot/modules/common"
 ln -s "$mod" "$shellroot/modules/moments"
+ln -s "$dots/modules/bar" "$shellroot/modules/bar"      # MomentState reads bar/js/Profiles.js
 cp "$tst/Scene.qml" "$shellroot/shell.qml"
 
 # ---- 2. qmllint --------------------------------------------------------------------------
 if [ -n "${QML_LINT:-}" ] && [ -x "$QML_LINT" ]; then
   lint="$work/lint/qs/modules"; mkdir -p "$lint/moments" "$lint/notif" "$lint/theme" "$lint/common"
   cp "$mod"/*.qml "$mod/qmldir" "$lint/moments/"; cp -r "$mod/js" "$lint/moments/js"
+  mkdir -p "$lint/bar"; cp -r "$dots/modules/bar/js" "$lint/bar/js"
   cp "$dots"/modules/notif/*.qml "$lint/notif/"
   cp "$stub/Theme.qml" "$lint/theme/"; cp "$dots"/modules/common/*.qml "$lint/common/"
   mkqmldir() { # dir module
@@ -100,7 +102,7 @@ grep -q 'renudgeDelayMs' "$dots/modules/notif/Toast.qml" && grep -q 'renudgeDue'
 
 # ---- 4. scenes ---------------------------------------------------------------------------
 mkdir -p "$work/bin"
-for c in task dots-jump; do
+for c in task dots-jump hyprctl; do
   printf '#!/bin/sh\n{ printf "%%s" "%s"; for a in "$@"; do printf "\\t%%s" "$a"; done; printf "\\n"; } >> "$STUB_LOG"\n' "$c" > "$work/bin/$c"
   chmod +x "$work/bin/$c"
 done
@@ -129,6 +131,13 @@ scene bar chip away
 scene none chipnone in
 scene stale chipnone stale
 check default; check after; check bar; check none; check stale
+# detour from focus: the clock is "in", Hyprland's focus has been off the task (a Comms workspace)
+FOCUS_OFF='{"cls":"Slack","ws":4,"agoSec":300,"homeWs":1}'
+scene focusoff chip in DOTS_MOMENTS_FOCUS="$FOCUS_OFF"
+scene focusshort chip in DOTS_MOMENTS_FOCUS='{"cls":"Slack","ws":4,"agoSec":60}'
+scene focusterm chipnone in DOTS_MOMENTS_FOCUS='{"cls":"com.mitchellh.ghostty","ws":1,"agoSec":900}'
+scene focuspopup chipnone in DOTS_MOMENTS_FOCUS='{"cls":"dots.otter","ws":4,"agoSec":900}'
+check focusoff; check focusshort; check focusterm; check focuspopup
 
 # ---- 5. actions: argv only ---------------------------------------------------------------
 text='ask sam; $(id) `id` "q" -x'
@@ -144,6 +153,9 @@ scene back chip away ACTION=chip
 [ "$(cat "$work/stub.log")" = "$(printf 'dots-jump\tHD 4412')" ] && ok "5 the chip execs dots-jump with the ticket ref" || { cat "$work/stub.log"; bad "5 chip argv"; }
 scene backnone chip in ACTION=chip
 [ ! -s "$work/stub.log" ] && ok "5 no detour, no chip, no exec" || bad "5 chip exec'd without a detour"
+scene backfocus chip in ACTION=chip DOTS_MOMENTS_FOCUS="$FOCUS_OFF"
+want="$(printf 'hyprctl\tdispatch\thl.dsp.focus({ workspace = "1" })\ndots-jump\tHD 4412')"
+[ "$(cat "$work/stub.log")" = "$want" ] && ok "5 back from a focus detour: terminal workspace, then the task pane" || { cat "$work/stub.log"; bad "5 focus detour back argvs"; }
 
 if grep -aE 'ERROR|Type .* unavailable|is not a type|ReferenceError|TypeError|Cannot assign|binding loop' "$work"/*.log.clean 2>/dev/null | head -5 | grep .; then bad "4 QML errors in a scene log"; else ok "4 no QML errors in any scene log"; fi
 

@@ -146,20 +146,20 @@ def layout(tag, p):
 def check_queue():
     p = probe("queue")
     layout("queue", p)
-    report(p["navTabs"] == ["Queue:8*", "Inbox:6", "Agents:5", "Tasks:4", "Time:0"], "queue nav tabs and counts", str(p["navTabs"]))
+    report(p["navTabs"] == ["Queue:9*", "Inbox:9", "Agents:5", "Tasks:4", "Time:0"], "queue nav tabs and counts", str(p["navTabs"]))
     report(p["detail"] and p["detail"]["w"] == 500 and p["detail"]["x"] == 1100, "queue detail is 500 px at the right", str(p["detail"]))
     names = [s["text"] for s in p["sections"]]
     report(names == ["WAITING ON YOU", "TODAY", "WHILE YOU WERE AWAY", "FROM YESTERDAY"], "queue sections in board order", str(names))
     report(ids(p, "WAITING ON YOU") == ["a1", "a3", "a2"] and ids(p, "TODAY") == ["b2", "b1"]
-           and ids(p, "WHILE YOU WERE AWAY") == ["c2", "c1"] and ids(p, "FROM YESTERDAY") == ["d1"],
+           and ids(p, "WHILE YOU WERE AWAY") == ["m1", "c2", "c1"] and ids(p, "FROM YESTERDAY") == ["d1"],
            "queue rows land in the right sections, urgency first")
-    report(len(p["rows"]) == 8 and all(r["h"] == 56 for r in p["rows"]), "queue 8 rows, 56 px each")
+    report(len(p["rows"]) == 9 and all(r["h"] == 56 for r in p["rows"]), "queue 9 rows, 56 px each")
     report(non_overlap(p["rows"]) and non_overlap(p["sections"]), "queue rows and headings do not overlap")
     report(all(r["w"] == p["rows"][0]["w"] for r in p["rows"]), "queue rows share one width")
     cur = [r["id"] for r in p["rows"] if r["current"]]
     report(cur == ["a1"] and p["sel"] == "a1", "queue first row is selected", str(cur))
     marks = {r["id"]: r["mark"] for r in p["rows"]}
-    report(marks == {"a1": True, "a3": True, "a2": True, "b2": False, "b1": False, "c2": False, "c1": False, "d1": False},
+    report(marks == {"a1": True, "a3": True, "a2": True, "b2": False, "b1": False, "m1": False, "c2": False, "c1": False, "d1": False},
            "queue marks only on waiting and failed", str(marks))
     report(p["detailTitle"] == "Permission: terraform plan on staging", "queue detail shows the selected item", p["detailTitle"])
     acts = [(a["t"], a["stub"], a["blocked"]) for a in p["actions"]]
@@ -190,7 +190,7 @@ def check_queue():
 def check_groups():
     p = probe("queue-source")
     names = [s["text"] for s in p["sections"]]
-    report(sorted(names) == sorted(["AGENT", "ALERT", "SLACK", "ERP", "GITHUB", "YOU"]), "group by Source: one section per source", str(names))
+    report(sorted(names) == sorted(["AGENT", "ALERT", "SLACK", "ERP", "MAIL", "GITHUB", "YOU"]), "group by Source: one section per source", str(names))
     report([g["t"] for g in p["groups"] if g["on"]] == ["Source"], "group by Source is the active toggle")
     p = probe("queue-person")
     names = [s["text"] for s in p["sections"]]
@@ -203,9 +203,9 @@ def check_groups():
 
 def check_inbox():
     p = probe("inbox")
-    report(len(p["rows"]) == 6 and "a1" not in ids(p) and "c2" not in ids(p), "inbox is the queue without agent items", str(ids(p)))
-    report(p["navTabs"][1] == "Inbox:6*", "inbox tab is current", str(p["navTabs"]))
-    report(p["sel"] == "a3", "inbox selects its own first row", p["sel"])
+    report(len(p["rows"]) == 9 and "a1" in ids(p) and "c2" in ids(p), "inbox lists the agents that need me too", str(ids(p)))
+    report(p["navTabs"][1] == "Inbox:9*", "inbox tab is current", str(p["navTabs"]))
+    report(p["sel"] == ids(p)[0], "inbox selects its own first row", p["sel"])
 
 
 def check_compose():
@@ -234,7 +234,7 @@ def check_empty():
 
 def check_stale():
     p = probe("queue-stale")
-    report(all(r["dim"] for r in p["rows"]) and len(p["rows"]) == 8, "stale feed: every row dims", "dim=%s" % [r["dim"] for r in p["rows"]])
+    report(all(r["dim"] for r in p["rows"]) and len(p["rows"]) == 9, "stale feed: every row dims", "dim=%s" % [r["dim"] for r in p["rows"]])
     report(p["staleMark"] == 1, "stale feed: the ? shows beside SOURCES", str(p.get("staleMark")))
     report(probe("queue")["staleMark"] == 0, "fresh feed: no ? mark")
 
@@ -272,6 +272,12 @@ def check_time():
     report(len(p["timeTabs"]) == 9 and [t["t"] for t in p["timeTabs"] if t["on"]] == ["Today"], "time: nine sub-tabs, Today active")
     report(p["time"]["bar"] is not None and p["time"]["bar"]["w"] > 400, "time: the Today bar spans its card", str(p["time"]["bar"]))
     report(p["time"]["whereRows"] == 1, "time: Where time went card present")
+    bar, card, segs = p["time"]["bar"], p["time"]["card"], p["time"]["barSegs"]
+    report(bar and card and bar["x"] >= card["x"] and bar["x"] + bar["w"] <= card["x"] + card["w"], "time: the Today bar sits inside its card", str((bar, card)))
+    report(segs and segs[-1]["x"] + segs[-1]["w"] == bar["w"] and all(a["x"] + a["w"] <= b["x"] for a, b in zip(segs, segs[1:])),
+           "time: Today segments sum to the bar exactly, no overlap", str(segs))
+    report(p["time"]["page"] and not p["time"]["page"]["flick"], "time: the page itself is not a Flickable", str(p["time"]["page"]))
+    report(p["time"]["flicks"] == ["doneScroll"], "time: only the Done today list scrolls", str(p["time"]["flicks"]))
     w = probe("time-week")
     report(w["time"]["week"] == 1 and w["time"]["today"] == 0, "time: Week sub-tab")
     h = probe("time-heat")
@@ -288,9 +294,36 @@ def check_argv(name, tag, want):
     report(got == want, name, "got %s want %s" % (got, want))
 
 
+HYPR_FOCUS = ["hyprctl", "dispatch", 'hl.dsp.focus({ window = "class:^(zen-beta|zen|firefox|librewolf|chromium|google-chrome|brave-browser)$" })']
+
+
+def check_extra():
+    p = probe("filter-mail")
+    report(ids(p) == ["m1"] and [c["t"] for c in p["chips"] if c["on"]] == ["Mail"], "Mail filter shows the mail item", str(ids(p)))
+    p = probe("filter-slack")
+    report(sorted(ids(p)) == ["a2", "c1"], "Slack filter shows only Slack, not the alert-channel post", str(ids(p)))
+    p = probe("filter-alert")
+    report(sorted(ids(p)) == ["a3", "s1"], "Alert filter shows alerts and the Slack alert-channel post", str(ids(p)))
+    p = probe("queue-extra")
+    names = [s["text"] for s in p["sections"]]
+    report(names[-2:] == ["FROM YESTERDAY", "PREVIOUS PENDING REVIEWS"], "previous reviews get their own last section", str(names))
+    report(ids(p, "PREVIOUS PENDING REVIEWS") == ["p1"], "the previous review sits in it", str(ids(p, "PREVIOUS PENDING REVIEWS")))
+    p = probe("agents-extra")
+    report("TASK-2026-00111" in p["agentFor"], "agents: For carries the ticket ref", str(p["agentFor"]))
+    report("verify the inventory keys" in p["agentWork"] and "tidy the chart values" in p["agentWork"], "agents: Working on is filled", str(p["agentWork"]))
+    report(sum(1 for j in p["agentJump"] if not j["blocked"]) >= 4, "agents: session and queue rows can jump", str(p["agentJump"]))
+
+
+def check_agent_jump():
+    e = execs("act-agent-jump")
+    p = probe("act-agent-jump")
+    report(len(e) == 1 and e[0][0] == "dots-jump" and e[0][1] == "TASK-2026-00111", "agent row jump execs dots-jump once", str(e))
+    report(p["ccOpen"] is False, "agent row jump closes the control centre", str(p["ccOpen"]))
+
+
 def check_argv_local():
     check_argv("local actions exec the exact argv (Open pane, Open review, Break down)", "act-local",
-               [["dots-jump", "INFRA-88"], ["xdg-open", "https://example.invalid/b1"],
+               [["dots-jump", "INFRA-88"], ["xdg-open", "https://example.invalid/b1"], HYPR_FOCUS,
                 ["dots-overview", "breakdown", "gh:acme/charts#2291", "--start"]])
 
 
@@ -303,23 +336,23 @@ def check_argv_stub():
 
 def check_hide():
     p = probe("act-hide")
-    report(p["hidden"] == "b1" and len(p["rows"]) == 7 and "b1" not in ids(p), "Queue hides the item for this session", p["hidden"])
+    report(p["hidden"] == "b1" and len(p["rows"]) == 8 and "b1" not in ids(p), "Queue hides the item for this session", p["hidden"])
     report(p["status"] == "Queued. Hidden for this session." and p["undo"], "Queue says so and offers Undo", p["status"])
-    report(p["sel"] == "c2", "selection moves to the row that followed", p["sel"])
+    report(p["sel"] == "m1", "selection moves to the row that followed", p["sel"])
     report(execs("act-hide") == [], "Queue execs nothing")
-    report(p["navTabs"][0] == "Queue:7*", "Queue count drops", str(p["navTabs"]))
+    report(p["navTabs"][0] == "Queue:8*", "Queue count drops", str(p["navTabs"]))
 
 
 def check_undo():
     p = probe("act-undo")
-    report(p["hidden"] == "" and len(p["rows"]) == 8 and p["sel"] == "b1" and p["status"] == "Back on the list." and not p["undo"],
+    report(p["hidden"] == "" and len(p["rows"]) == 9 and p["sel"] == "b1" and p["status"] == "Back on the list." and not p["undo"],
            "Undo puts the item back and selects it", p["status"])
 
 
 def check_snooze():
     p = probe("act-snooze")
     report(p["hidden"] == "a3" and p["status"] == "Snoozed: tonight. It stays listed under Snoozed.", "Snooze hides and says where it went", p["status"])
-    report(len(p["rows"]) == 7 and p["navTabs"][0] == "Queue:7*", "Snooze drops the count")
+    report(len(p["rows"]) == 8 and p["navTabs"][0] == "Queue:8*", "Snooze drops the count")
 
 
 def check_argv_meta():
@@ -335,7 +368,7 @@ def check_back():
 
 CHECKS = {
     "queue": check_queue, "groups": check_groups, "inbox": check_inbox, "compose": check_compose, "empty": check_empty,
-    "stale": check_stale, "agents": check_agents, "work": check_work, "time": check_time,
+    "extra": check_extra, "agent-jump": check_agent_jump, "stale": check_stale, "agents": check_agents, "work": check_work, "time": check_time,
     "argv-local": check_argv_local, "argv-stub": check_argv_stub, "hide": check_hide, "undo": check_undo,
     "snooze": check_snooze, "argv-meta": check_argv_meta, "back": check_back,
 }

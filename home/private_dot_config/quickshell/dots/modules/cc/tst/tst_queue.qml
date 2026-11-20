@@ -27,11 +27,59 @@ TestCase {
         return null
     }
 
-    function test_fromFeed_drops_tasks_and_mail() {
+    function test_fromFeed_drops_tasks_keeps_mail() {
         var l = Q.fromFeed(feed(), now, since)
-        compare(l.length, 7)
+        compare(l.length, 8)
         verify(byId(l, "t1") === null)
-        verify(byId(l, "m1") === null)
+        compare(byId(l, "m1").src, "Mail")
+        compare(byId(l, "m1").kind, "mail")
+    }
+
+    function test_source_filter_matches_real_src_and_kind() {
+        var items = feed().concat([
+            { id: "s1", kind: "alert", title: "Alert channel post", ref: null, src: "notif", urgency: "active", waiting: false, ageSec: 60, actor: null, jump: null, url: null },
+            { id: "s2", kind: "dm", title: "Pager", ref: null, src: "alert", urgency: "active", waiting: false, ageSec: 60, actor: null, jump: null, url: null }
+        ])
+        var l = Q.fromFeed(items, now, since)
+        function ids(src) { return Q.select(l, { tab: "queue", src: src, hidden: {} }).map(function (x) { return x.id }).sort().join(",") }
+        compare(ids("Slack"), "b1,o1")
+        compare(ids("Mail"), "m1")
+        compare(ids("Alert"), "f1,s1,s2")
+        compare(ids("Agent"), "g1")
+    }
+
+    function test_previous_reviews_get_their_own_section_after_yesterday() {
+        var items = feed().concat([
+            { id: "p1", kind: "review", title: "Old review", ref: "gh:acme/widgets#3", src: "gh", urgency: "active", waiting: true, section: "previous", ageSec: 300000, actor: "ada", jump: null, url: null }
+        ])
+        var l = Q.fromFeed(items, now, since)
+        compare(byId(l, "p1").sec, "PREVIOUS PENDING REVIEWS")
+        var g = Q.group(l, "Urgency")
+        compare(g[g.length - 1].name, "PREVIOUS PENDING REVIEWS")
+        compare(g[g.length - 2].name, "FROM YESTERDAY")
+    }
+
+    function test_agent_rows_fill_for_and_working_on() {
+        var tasks = [
+            { id: "task:T-1", kind: "task", src: "claude", title: "TASK-2026-00781 part b: verify keys", ref: "TASK-2026-00781", jump: { pane: "w2:p1", workspace: "w2", sess: "s-1" }, ageSec: 60 },
+            { id: "task:local:c1", kind: "task", src: "lanes", title: "tidy the charts", ref: "local:c1", jump: { pane: "w3:p1", workspace: "w3", sess: "s-2" }, ageSec: 60 },
+            { id: "task:x", kind: "task", src: "gh", title: "not an agent", ref: "HD 9", jump: null, ageSec: 60 }
+        ]
+        var sessions = { "s-1": { agent: "Atlas", ticket: "lane:TASK-2026-00999" }, "s-2": { agent: "Vega", ticket: "local:c1", prompt_head: "fix the chart split" } }
+        var rows = Q.agentRows([], null, [], tasks, sessions)
+        compare(rows.length, 2)
+        compare(rows[0].name, "Atlas"); compare(rows[0].forRef, "TASK-2026-00781"); compare(rows[0].task, "part b: verify keys")
+        compare(rows[0].action, "Jump"); compare(rows[0].item.raw.id, "task:T-1")
+        compare(rows[1].name, "Vega"); compare(rows[1].forRef, ""); compare(rows[1].task, "tidy the charts")
+    }
+
+    function test_agent_row_falls_back_to_session_ticket_and_prompt() {
+        var tasks = [{ id: "task:a", kind: "task", src: "claude", title: "", ref: null, jump: { pane: "w2:p1", sess: "s-1" }, ageSec: 5 }]
+        var rows = Q.agentRows([], null, [], tasks, { "s-1": { agent: "Atlas", ticket: "lane:TASK-2026-00657", prompt_head: "<task-notification>" } })
+        compare(rows[0].forRef, "TASK-2026-00657")
+        compare(rows[0].task, "")
+        rows = Q.agentRows([], null, [], tasks, { "s-1": { agent: "Atlas", prompt_head: "ship the setup\nmore" } })
+        compare(rows[0].task, "ship the setup")
     }
 
     function test_fromFeed_maps_kind_src_tone() {
@@ -74,6 +122,15 @@ TestCase {
         compare(Q.age(90000), "1d")
     }
 
+    function test_logout_left() {
+        compare(Q.logoutLeft(undefined, 100, 100), "")
+        compare(Q.logoutLeft(0, 0, 100), "")
+        compare(Q.logoutLeft(0, 1000, 1000), "8:00:00")
+        compare(Q.logoutLeft(14116, 1000, 1000), "4:04:44")
+        compare(Q.logoutLeft(14116, 1000, 1001), "4:04:43")
+        compare(Q.logoutLeft(8 * 3600 + 700, 1000, 1025), "+0:12:05")
+        compare(Q.logoutLeft(3600, 1000, 1000 + 901), "")
+    }
     function test_clock() {
         var t = new Date(2026, 10, 20, 17, 4, 17).getTime() / 1000
         compare(Q.clock(t), "17:04")
@@ -113,13 +170,13 @@ TestCase {
         verify(p.some(function (x) { return x.name === "YOU" }))
     }
 
-    function test_select_tab_inbox_drops_agents() {
+    function test_select_tab_inbox_keeps_agents_that_need_me() {
         var l = Q.fromFeed(feed(), now, since)
         var q = Q.select(l, { tab: "queue", src: "All", view: "", hidden: {} })
         var i = Q.select(l, { tab: "inbox", src: "All", view: "", hidden: {} })
-        compare(q.length, 7)
-        compare(i.length, 6)
-        verify(byId(i, "g1") === null)
+        compare(q.length, 8)
+        compare(i.length, 8)
+        verify(byId(i, "g1") !== null)
     }
 
     function test_select_source_filter() {
@@ -132,7 +189,7 @@ TestCase {
         var l = Q.fromFeed(feed(), now, since)
         var hid = { a1: "done", b1: "snoozed" }
         var q = Q.select(l, { tab: "queue", src: "All", view: "", hidden: hid })
-        compare(q.length, 5)
+        compare(q.length, 6)
         var sn = Q.select(l, { tab: "queue", src: "All", view: "Snoozed", hidden: hid })
         compare(sn.length, 1)
         compare(sn[0].id, "b1")
@@ -148,8 +205,8 @@ TestCase {
     function test_counts() {
         var l = Q.fromFeed(feed(), now, since)
         var c = Q.counts(l, {})
-        compare(c.queue, 7)
-        compare(c.inbox, 6)
+        compare(c.queue, 8)
+        compare(c.inbox, 8)
     }
 
     function test_neighbour_wraps_never() {
@@ -262,5 +319,45 @@ TestCase {
     function test_time_rows_item_without_ref() {
         var r = Q.timeRows({ byRef: [{ ref: "", title: "No ticket: observability", sec: 60 }] }, "Item")
         compare(r[0].n, "No ticket: observability")
+    }
+
+    function test_time_rows_item_never_shows_internal_ids() {
+        var r = Q.timeRows({ byRef: [
+            { ref: "TASK-2026-00781", title: "TASK-2026-00781 Fix ingress", ticket: "HD 8580", sec: 900 },
+            { ref: "local:0a1a4f", title: "local:0a1a4f", ticket: null, sec: 600 },
+            { ref: "local:0b2b5f", title: "Plain description", ticket: null, sec: 500 },
+            { ref: "TASK-2026-00900", title: "Sophos sign-ins (HD 8143)", sec: 400 },
+            { ref: "gh:acme/infra#212", title: "A PR", ticket: "infra#212", sec: 300 }] }, "Item")
+        compare(r[0].n, "HD 8580 Fix ingress")
+        compare(r[1].n, "No ticket")
+        compare(r[2].n, "Plain description")
+        compare(r[3].n, "HD 8143 Sophos sign-ins")
+        compare(r[4].n, "infra#212 A PR")
+        for (var i = 0; i < r.length; i++) verify(!/TASK-|local:/.test(r[i].n))
+    }
+
+    function test_label_for_next_tasks() {
+        compare(Q.label("HD 8580", "TASK-2026-00781", "TASK-2026-00781 Fix ingress"), "HD 8580 Fix ingress")
+        compare(Q.label(null, "local:abc", "Do the thing"), "Do the thing")
+        compare(Q.label(null, "local:abc", ""), "")
+    }
+
+    function test_agent_item_hides_internal_ref() {
+        var l = Q.fromFeed([{ id: "blocker:p1", kind: "blocker", title: "Nova needs you", ref: "lane:TASK-2026-00552", src: "herdr", urgency: "time", waiting: true, ageSec: 5, actor: "Nova", jump: { pane: "p1" } }], now, since)
+        compare(l[0].sub, "agent stopped")
+        compare(l[0].ctx, "")
+        compare(l[0].tone, "wait")
+    }
+
+    function test_bar_widths_sum_to_the_bar_exactly() {
+        var cases = [[[10320, 2880, 1320, 1080], 700, 2], [[1, 1, 1], 100, 2], [[5], 300, 2], [[3, 0, 7], 333, 2], [[17280, 17280, 9000], 640, 2]]
+        for (var c = 0; c < cases.length; c++) {
+            var w = Q.barWidths(cases[c][0], cases[c][1], cases[c][2])
+            var sum = 0
+            for (var i = 0; i < w.length; i++) { sum += w[i]; verify(w[i] >= 0) }
+            compare(sum + cases[c][2] * (w.length - 1), cases[c][1])
+        }
+        compare(Q.barWidths([], 100, 2).length, 0)
+        compare(Q.barWidths([0, 0], 100, 2).join(), "0,0")
     }
 }

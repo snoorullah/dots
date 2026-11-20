@@ -121,4 +121,18 @@ elif name in ("none", "stale"):
     report(m["right"]["x"] - (m["left"]["x"] + m["left"]["w"]) == 6, "no gap is left where the chip would be")
     report(not m["detour"]["active"], "detour inactive (%s)" % ("stale now.json" if name == "stale" else "clock is in"))
 
+elif name == "focusoff":
+    m = load("chip")
+    c = m["chip"]
+    report(m["detour"]["active"] and m["detour"]["text"] == "Detour 5m · back to HD 4412",
+           "clock in, focus off the task 5 min: chip says %s" % m["detour"]["text"])
+    report(vis(c) and c["h"] == 32 and c["w"] > 200, "the chip shows (w=%s)" % c["w"])
+elif name == "focusshort":
+    m = load("chip")
+    report(not m["detour"]["active"] and m["chip"]["w"] == 0, "focus off for 1 min: not a detour yet, no chip")
+elif name in ("focusterm", "focuspopup"):
+    m = load("chipnone")
+    report(not m["detour"]["active"] and m["chip"]["w"] == 0 and not m["chip"]["visible"],
+           "%s: no detour, chip hidden" % ("focus on the terminal" if name == "focusterm" else "a shell popup is not leaving"))
+
 sys.exit(1 if fails else 0)

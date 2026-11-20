@@ -12,6 +12,9 @@ import "js/Queue.js" as Q
 // ControlCentre wraps it in a full-screen window; the tests render it on a plain stage.
 FocusScope {
   id: v
+  // the logout countdown ticks each second, only while the control centre is on screen
+  property real tickNow: Date.now() / 1000
+  Timer { interval: 1000; repeat: true; triggeredOnStart: true; running: v.visible; onTriggered: v.tickNow = Date.now() / 1000 }
   objectName: "ccView"
   signal closeRequested()
 
@@ -46,6 +49,20 @@ FocusScope {
         }
       }
       Btn { objectName: "backBtn"; text: "Back to task"; icon: "arrow-u-down-left"; keyHint: "Esc"; onClicked: v.closeRequested() }
+      Column {
+        objectName: "logoutBlock"
+        Layout.alignment: Qt.AlignVCenter
+        visible: logoutText.text !== ""
+        DText { anchors.right: parent.right; text: "Logout in"; role: "caption"; font.capitalization: Font.MixedCase; font.letterSpacing: 0 }
+        DText {
+          id: logoutText
+          anchors.right: parent.right
+          role: "headline"
+          mono: true
+          font.weight: Font.Medium
+          text: Q.logoutLeft(Feed.today ? Feed.today.workedSec : undefined, Feed.actDoc ? Feed.actDoc.ts : 0, v.tickNow)
+        }
+      }
       Column {
         Layout.alignment: Qt.AlignVCenter
         DText { anchors.right: parent.right; text: "Day so far"; role: "caption"; font.capitalization: Font.MixedCase; font.letterSpacing: 0 }

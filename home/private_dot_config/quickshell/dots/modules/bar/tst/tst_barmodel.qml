@@ -15,9 +15,16 @@ TestCase {
   function test_focus_left() {
     compare(M.focusLeft(null, 100), "")
     compare(M.focusLeft({ state: "idle", startedAt: 0, targetSec: 1500 }, 100), "")
-    compare(M.focusLeft({ state: "running", startedAt: 1000, targetSec: 1500 }, 1000), "25m")
-    compare(M.focusLeft({ state: "running", startedAt: 1000, targetSec: 1500 }, 1061), "24m")
+    compare(M.focusLeft({ state: "running", startedAt: 1000, targetSec: 1500 }, 1000), "25:00")
+    compare(M.focusLeft({ state: "running", startedAt: 1000, targetSec: 1500 }, 1061), "23:59")
+    compare(M.focusLeft({ state: "running", startedAt: 1000, targetSec: 5400 }, 1000), "1:30:00")
     compare(M.focusLeft({ state: "running", startedAt: 1000, targetSec: 1500 }, 2600), "")
+  }
+  function test_todays_only() {
+    var items = [{ src: "gh", ageSec: 600 }, { src: "gh", ageSec: 23 * 86400 }, { src: "herdr", ageSec: 99999 }]
+    compare(M.todaysOnly(items, 10000, 10000 - 3600).length, 2)
+    compare(M.todaysOnly(items, 10000, 10000 - 3600)[0].ageSec, 600)
+    compare(M.todaysOnly(items, 10000, 0).length, 2)
   }
   function test_age() {
     compare(M.age(0), "now")
@@ -135,6 +142,35 @@ TestCase {
     compare(M.taskText({ ref: "HD 4412", desc: "Rotate deploy keys" }), "HD 4412 Rotate deploy keys")
     compare(M.taskText({ desc: "Only desc" }), "Only desc")
     compare(M.taskText(null), "")
+  }
+
+  // the bar shows the human ticket and a description with no internal id in it
+  function test_taskText_humanTicket() {
+    // the ticket now.json carries wins; the internal TASK id and local id never show
+    compare(M.taskText({ ticket: "HD 8580", ref: "TASK-2026-00896", desc: "TASK-2026-00896 CI sizing (HD 8580)" }), "HD 8580 CI sizing")
+    compare(M.taskText({ ticket: "HD 8143", ref: "local:c99479", desc: "TASK-2026-00846 Sophos source of Entra sign-ins (HD 8143)" }),
+            "HD 8143 Sophos source of Entra sign-ins")
+    compare(M.taskText({ ticket: "HD 8279", ref: "8279", desc: "HD 8279: Cancel subscription" }), "HD 8279 Cancel subscription")
+    // no ticket: short description only
+    compare(M.taskText({ ticket: null, ref: "TASK-2026-00906", desc: "TASK-2026-00781 part b: verify SSH host keys" }), "part b: verify SSH host keys")
+    compare(M.taskText({ ref: "local:6f2d51", desc: "Fix the thing" }), "Fix the thing")
+    // a ref that is a ticket already, with no ticket field (an older now.json)
+    compare(M.taskText({ ref: "gh:acme/infra#212", desc: "Arc host access" }), "infra#212 Arc host access")
+    compare(M.taskText({ ref: "8635", desc: "Rotate keys" }), "HD 8635 Rotate keys")
+    compare(M.taskText({ ref: "TASK-2026-00001", desc: "x (HD 2222)" }), "HD 2222 x")
+    // only an internal id and nothing else: nothing to show beats an id
+    compare(M.taskText({ ticket: "HD 8334", ref: "local:9e96f7", desc: "pg-tenant base backups: quota sized (TASK-2026-00883, HD 8334)" }),
+            "HD 8334 pg-tenant base backups: quota sized")
+    compare(M.taskText({ ticket: "HD 8580" }), "HD 8580")
+    compare(M.taskText({ ref: "TASK-2026-00001", desc: "" }), "")
+    compare(M.taskText({ ref: "local:abc123", desc: "" }), "")
+  }
+
+  function test_ticketOf() {
+    compare(M.ticketOf({ ticket: "HD 1234" }), "HD 1234")
+    compare(M.ticketOf({ ref: "HD-4412" }), "HD 4412")
+    compare(M.ticketOf({ ref: "TASK-2026-00001" }), "")
+    compare(M.ticketOf(null), "")
   }
 
   function test_profileActive() {

@@ -1,0 +1,17 @@
+module qs.modules.wsswitch.parts
+Keycap 1.0 Keycap.qml
+Hints 1.0 Hints.qml
+Badge 1.0 Badge.qml
+Chip 1.0 Chip.qml
+Dot 1.0 Dot.qml
+MoveBar 1.0 MoveBar.qml
+WinRow 1.0 WinRow.qml
+FilterBar 1.0 FilterBar.qml
+ProfileStrip 1.0 ProfileStrip.qml
+Rail 1.0 Rail.qml
+Preview 1.0 Preview.qml
+TreeView 1.0 TreeView.qml
+FilteredView 1.0 FilteredView.qml
+GridView 1.0 GridView.qml
+MapView 1.0 MapView.qml
+Toast 1.0 Toast.qml

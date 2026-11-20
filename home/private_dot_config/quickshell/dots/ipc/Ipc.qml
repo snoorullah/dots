@@ -56,6 +56,11 @@ Scope {
 
     function toggle(): void { root.openPopout("system", 0.93); }
   }
+  IpcHandler {
+    target: "dots.workspaces"
+
+    function toggle(): void { root.openPopout("workspaces", 0.12); }
+  }
 
   IpcHandler {
     target: "dots.cc"
@@ -87,12 +92,9 @@ Scope {
   IpcHandler {
     target: "dots.ret"
 
-    // back to the task: only while a detour is active (dots-jump <ref>, local)
-    function back(): void {
-      if (!MomentState.detour.active) return;
-      var argv = Moments.jumpArgv(MomentState.task);
-      if (argv) Quickshell.execDetached(argv);
-    }
+    // back to the task: only while a detour is active. The workspace its terminal was on,
+    // then dots-jump <ref> (local); both argv-only, in MomentState.back()
+    function back(): void { MomentState.back(); }
   }
 
   IpcHandler {

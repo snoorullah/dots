@@ -8,6 +8,7 @@ package imports and runs on a machine where that file was never written.
 work.conf is KEY=VALUE, shell-style comments and optional quotes. It is parsed here, not
 sourced: nothing in it is ever executed.
 """
+import fnmatch
 import os
 import shlex
 from pathlib import Path
@@ -27,6 +28,7 @@ TT_DIR = Path(os.environ.get("TIMETRACK_STATE_DIR")
 
 # A state file older than this is stale to every reader (the spec's 180 s).
 STALE_SEC = 180
+ATTN_MODES = ("block", "explicit", "split", "new")
 NOTIF_CAP = 5000
 
 
@@ -68,6 +70,18 @@ class Work:
         self.work_projects = _split(raw.get("WORK_PROJECTS", ""))
         self.notify_body_apps = _split(raw.get("NOTIFY_BODY_APPS", ""))
         self.redact_words = _split(raw.get("REDACT_WORDS", ""))
+        # repos whose GitHub items never reach attention (bare "repo" or "owner/repo"):
+        # review requests and PRs there are someone else's work, not mine
+        self.attn_ignore_repos = [r.lower() for r in _split(raw.get("ATTN_IGNORE_REPOS", ""))]
+        # ATTN_REPO_RULES="repo:mode ...": block | explicit | split | new (see attention.py).
+        # ATTN_IGNORE_REPOS stays readable as `block`; an explicit rule wins over it.
+        self.attn_rules = {r: "block" for r in self.attn_ignore_repos}
+        for tok in _split(raw.get("ATTN_REPO_RULES", "")):
+            name, _, mode = tok.rpartition(":")
+            if name and mode.lower() in ATTN_MODES:
+                self.attn_rules[name.lower()] = mode.lower()
+        # Slack channels whose notifications are alerts, not messages (glob patterns)
+        self.slack_alert_channels = [p.lower() for p in _split(raw.get("SLACK_ALERT_CHANNELS", "")) or ["*-alerts"]]
         try:
             self.untracked_min = max(1, int(raw.get("UNTRACKED_MIN_MINUTES") or 30))
         except ValueError:
@@ -88,6 +102,20 @@ class Work:
         if self.gh_repos:
             return name_with_owner in self.gh_repos
         return bool(self.gh_org) and name_with_owner.split("/", 1)[0].lower() == self.gh_org.lower()
+
+    def attn_mode(self, ref):
+        """The ATTN_REPO_RULES mode for a gh:owner/repo#N ref (full name beats bare name), or None."""
+        if not ref or not ref.startswith("gh:") or not self.attn_rules:
+            return None
+        nwo = ref[3:].split("#", 1)[0].lower()
+        return self.attn_rules.get(nwo) or self.attn_rules.get(nwo.rsplit("/", 1)[-1])
+
+    def attn_ignored(self, ref):
+        """True when the repo of a gh ref is set to `block`."""
+        return self.attn_mode(ref) == "block"
+
+    def is_slack_alert(self, channel):
+        return any(fnmatch.fnmatchcase(channel.lower(), p) for p in self.slack_alert_channels)
 
     def is_work_task(self, t):
         """A Taskwarrior task (export dict) counted as company work, for the brief."""

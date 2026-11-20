@@ -1,6 +1,8 @@
 pragma Singleton
+pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import qs.modules.overview
 import "../../../services"
 import "../js/Queue.js" as Q
@@ -54,8 +56,38 @@ Singleton {
   }
   readonly property var actions: sel ? Q.actionsFor(sel.kind) : []
   readonly property var sourceRows: Q.sourceRows(Feed.sources)
+  // task items that sit in a herdr pane, and the hook's per-session record for each
+  readonly property var agentTasks: {
+    var out = []
+    for (var i = 0; i < feedItems.length; i++) {
+      var t = feedItems[i]
+      if (t && t.kind === "task" && t.jump && t.jump.sess && /^[0-9A-Za-z_-]+$/.test(String(t.jump.sess))) out.push(t)
+    }
+    return out
+  }
+  property var sessionDocs: ({})
   readonly property var agents: Q.agentRows(all, Feed.nowDoc ? Feed.nowDoc.agent : null,
-                                            Feed.today ? Feed.today.byAgent : [])
+                                            Feed.today ? Feed.today.byAgent : [], agentTasks, sessionDocs)
+  function setSession(id, text) {
+    var doc = null
+    try { doc = JSON.parse(text) } catch (e) { doc = null }
+    if (!doc) return
+    var m = {}
+    for (var k in sessionDocs) m[k] = sessionDocs[k]
+    m[id] = doc
+    root.sessionDocs = m
+  }
+  Instantiator {
+    model: root.agentTasks
+    delegate: FileView {
+      id: fv
+      required property var modelData
+      path: Feed.dir + "/sessions/" + modelData.jump.sess + ".json"
+      watchChanges: true
+      onFileChanged: reload()
+      onLoaded: root.setSession(modelData.jump.sess, fv.text())
+    }
+  }
   readonly property var nextTasks: {
     var out = []
     var items = Feed.attDoc ? Feed.attDoc.items : []
@@ -89,12 +121,38 @@ Singleton {
     root.status = "Back on the list."
   }
 
+  // Leave the control centre, then (for a link) bring the browser forward. Hyprland 0.56 runs a
+  // Lua config: the dispatch payload is the hl.dsp.focus form, as in services/Hypr.qml. The
+  // short delay lets the control centre's keyboard grab go first.
+  readonly property string browserFocus: "hl.dsp.focus({ window = \"class:^(zen-beta|zen|firefox|librewolf|chromium|google-chrome|brave-browser)$\" })"
+  Timer {
+    id: browserTimer
+    interval: 300
+    onTriggered: Quickshell.execDetached(["hyprctl", "dispatch", root.browserFocus])
+  }
+  function leave(toBrowser) {
+    Ui.cc = false
+    if (toBrowser) browserTimer.restart()
+  }
+
   function openUrl(item) {
     if (item.url && /^https?:\/\/[^\s]+$/.test(item.url)) {
       Quickshell.execDetached(["xdg-open", item.url])
+      root.leave(true)
       return true
     }
-    return item.jump ? Actions.jump(item.raw) : false
+    if (!item.jump) return false
+    var ok = Actions.jump(item.raw)
+    if (ok) root.leave(false)
+    return ok
+  }
+
+  // an Agents-tab row: focus its herdr pane, then close
+  function jumpRow(row) {
+    if (!row || !row.item || !row.item.raw) return false
+    var ok = Actions.jump(row.item.raw)
+    if (ok) root.leave(false)
+    return ok
   }
 
   function run(action, arg) {
@@ -104,7 +162,11 @@ Singleton {
     if (action.effect === "hide") { root.hide(it.id, "done", Q.statusFor(action.label)); return true }
     var ok = false
     if (action.effect === "open") ok = root.openUrl(it)
-    else if (action.effect === "jump") ok = Actions.jump(it.raw) || root.openUrl(it)
+    else if (action.effect === "jump") {
+      ok = Actions.jump(it.raw)
+      if (ok) root.leave(false)
+      else ok = root.openUrl(it)
+    }
     else if (action.effect === "breakdown") ok = Actions.breakdown(it.raw)
     if (ok) root.status = Q.statusFor(action.label)
     return ok
