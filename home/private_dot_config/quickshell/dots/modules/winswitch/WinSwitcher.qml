@@ -4,6 +4,7 @@ import Quickshell.Wayland
 import QtQuick
 import "../theme"
 import "../common"
+import "../../services"
 
 // Alt+Tab. The behaviour lives in WinCtl; this is the window around it: an overlay layer that
 // takes the keyboard only while the strip is shown, so a quick flip never grabs anything.
