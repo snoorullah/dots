@@ -7,5 +7,7 @@ Type=oneshot
 ExecStart=%h/.nix-profile/bin/dots-overview ingest
 ExecStart=%h/.nix-profile/bin/dots-overview local
 ExecStart=%h/.nix-profile/bin/dots-overview attention
+# the Time tab numbers (metrics.json); past days are cached, so this stays under a second
+ExecStart=%h/.nix-profile/bin/dots-overview metrics
 TimeoutStartSec=30
 Nice=10
