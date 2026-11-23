@@ -55,7 +55,7 @@ def from_tasks(tasks, now, cfg=None, meta=None, login=None, trust_meta=True, tic
     for t in tasks:
         ref = t.get("ref")
         mode = cfg.attn_mode(ref)
-        if mode == "block":
+        if mode == "block" or cfg.attn_below_min(ref):   # owner rules: blocked repo, or below its PR cutoff
             continue
         gm = meta.get(ref) or {}
         tags = t.get("tags") or []
