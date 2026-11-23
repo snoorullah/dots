@@ -11,6 +11,23 @@ Item {
   id: pg
   property bool dim: false
 
+  // keep the keyboard row inside the scroll viewport
+  function reveal(row) {
+    var y = row.mapToItem(fl.contentItem, 0, 0).y
+    if (y < fl.contentY) fl.contentY = Math.max(0, y - 8)
+    else if (y + row.height > fl.contentY + fl.height) fl.contentY = y + row.height - fl.height + 8
+  }
+
+  // hairline round the pane that holds the keyboard (list here, detail inside Detail)
+  Item {
+    x: 0
+    y: 56
+    width: parent.width - 500
+    height: parent.height - 56
+    z: 6
+    FocusRing { kind: "pane"; focused: CcState.zone === "list" }
+  }
+
   RowLayout {
     anchors.fill: parent
     spacing: 0
@@ -30,13 +47,14 @@ Item {
           anchors.rightMargin: 20
           spacing: 8
           Repeater {
-            model: ["All", "Agent", "Slack", "Mail", "GitHub", "ERP", "Alert"]
+            model: CcState.srcList
             Chip {
               required property string modelData
               objectName: "filterChip"
               text: modelData
               icon: Q.srcIcon(modelData)
               on: CcState.src === modelData
+              focused: on && CcState.chipFocus
               onClicked: CcState.src = modelData
             }
           }
@@ -53,6 +71,7 @@ Item {
               objectName: "groupSeg"
               text: modelData
               on: CcState.group === modelData
+              focused: on && CcState.groupFocus
               onClicked: CcState.group = modelData
             }
           }
@@ -100,7 +119,8 @@ Item {
                   dim: pg.dim
                   width: sec.width
                   current: CcState.effId === modelData.id
-                  onPicked: CcState.pick(modelData.id)
+                  onPicked: { CcState.pane = "list"; CcState.pick(modelData.id) }
+                  onRevealed: pg.reveal(this)
                 }
               }
             }

@@ -1,0 +1,28 @@
+{
+ "refs": [
+  {
+   "closedAt": 1761599100,
+   "ref": "HD 4378",
+   "reviewedAt": null,
+   "src": "erp",
+   "state": "closed",
+   "taskUuid": null,
+   "title": "HD 4378",
+   "updatedAt": 1761599100,
+   "url": null
+  },
+  {
+   "closedAt": null,
+   "ref": "PR #2288",
+   "reviewedAt": 1761598200,
+   "src": "gh",
+   "state": "merged",
+   "taskUuid": null,
+   "title": "PR #2288",
+   "updatedAt": 1761598200,
+   "url": null
+  }
+ ],
+ "ts": 1761599990,
+ "v": 1
+}

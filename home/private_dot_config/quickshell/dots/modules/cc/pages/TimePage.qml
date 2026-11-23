@@ -1,23 +1,143 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
+import Quickshell.Io
 import qs.modules.theme
 import qs.modules.common
 import qs.modules.cc.parts
 import qs.modules.overview
-import qs.modules.overview.parts as Ov
 import "../js/Queue.js" as Q
+import "../js/Metrics.js" as M
+import "../js/AgentMetrics.js" as AM
+import "time"
 
-// Time: sub-tabs over activity.json, heatmap.json and mirror.json. Sub-tabs whose data
-// the overview files do not carry (Days, Focus zones, Progress, Screen and health, Reminders)
-// show one card saying so.
+// Time: ten sub-tabs. Today still reads the overview files (activity.json, mirror.json). Agents
+// reads agent-metrics.json (through CcState). The other eight read metrics.json (docs/shell/specs/cc-time-kpis.md), which the daemon computes;
+// a sub-tab whose section is missing says which source is missing instead of drawing zeros.
+// Keys: the view resolves every key with js/Keys.js and offers it to handleKey() first.
 Item {
   id: pg
   objectName: "timePage"
   property bool dim: false
   clip: true
 
-  readonly property var tabs: ["Today", "Week", "Days", "Heatmap", "Focus zones", "Progress", "Report", "Screen and health", "Reminders"]
+  // ---- metrics.json ----------------------------------------------------------------------
+  // tests point metricsPath at a fixture; in a session it is the overview's state dir
+  property string metricsPath: Feed.dir + "/metrics.json"
+  property string metricsText: ""
+  readonly property var parsed: M.parse(metricsText, 0)
+  readonly property real docAge: (parsed.doc && parsed.doc.ts > 0) ? Math.max(0, Feed.nowTs - parsed.doc.ts) : -1
+  readonly property real docNow: (parsed.doc && parsed.doc.ts > 0) ? Math.max(Feed.nowTs, parsed.doc.ts) : Feed.nowTs
+  property bool metricsTried: false
+  // the age shown beside the sub-tabs: the file the current sub-tab reads
+  readonly property real stampAge: {
+    if (sub === "agents") { var a = CcState.agentMetrics.doc; return a && a.ts > 0 ? Math.max(0, Feed.nowTs - a.ts) : -1 }
+    return parsed.state === "ok" ? docAge : -1
+  }
+  FileView {
+    path: pg.metricsPath
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: { pg.metricsText = text(); pg.metricsTried = true }
+    onLoadFailed: { pg.metricsText = ""; pg.metricsTried = true }
+  }
+
+  // ---- keyboard state ----------------------------------------------------------------------
+  readonly property string sub: CcState.subId
+  property var ks: ({ row: 0, col: 0, period: 1, weekOff: 0, detail: false, scroll: 0 })
+  property var hiddenRem: ({})
+  property string remStatus: ""
+  readonly property bool inList: CcState.pane === "list" || CcState.pane === "detail"
+  readonly property bool inDetail: CcState.pane === "detail"
+  function setKs(patch) {
+    var n = {}
+    for (var k in ks) n[k] = ks[k]
+    for (var p in patch) n[p] = patch[p]
+    pg.ks = n
+  }
+  // the cursor starts on today (week, heatmap) once the numbers are in
+  property bool seeded: false
+  function seed() {
+    if (!parsed.doc) return
+    var c = M.initCursor(parsed.doc, sub, ks.weekOff)
+    pg.setKs({ row: c.row, col: c.col, detail: false, scroll: 0 })
+    pg.seeded = true
+  }
+  onParsedChanged: if (!seeded) seed()
+  onSubChanged: {
+    pg.setKs({ row: 0, col: 0, detail: false, scroll: 0 })
+    pg.seeded = false
+    pg.seed()
+    if (CcState.pane === "detail") CcState.pane = "list"
+  }
+  Connections {
+    target: CcState
+    function onTimeScrolled(dy) { whereScroll.contentY = Math.max(0, Math.min(Math.max(0, whereScroll.contentHeight - whereScroll.height), whereScroll.contentY + dy)) }
+    function onPaneChanged() { if (CcState.pane !== "detail" && pg.ks.detail) pg.setKs({ detail: false, scroll: 0 }) }
+  }
+  function extras() {
+    var e = { weeks: M.weeksAvailable(parsed.doc), legend: 0, zones: 0, reminders: 0, agents: 0 }
+    if (sub === "agents") e.agents = agentsTab.all.length
+    if (!parsed.doc) return e
+    if (sub === "week") e.legend = M.weekModel(parsed.doc, ks.weekOff).legend.length
+    if (sub === "zones" && M.present(parsed.doc, "zones")) e.zones = M.zoneRanks(parsed.doc, ks.period === 2 ? "month" : "week").rows.length
+    if (sub === "reminders") { var r = M.reminderRows(parsed.doc, hiddenRem, docNow); e.reminders = r ? r.rows.length : 0 }
+    return e
+  }
+  function applyNav(r, st) {
+    if (r.st.sub !== st.sub) CcState.timeTab = M.subName(r.st.sub)   // first: a sub-tab change resets the cursor
+    pg.ks = { row: r.st.row, col: r.st.col, period: r.st.period, weekOff: r.st.weekOff, detail: r.st.detail, scroll: r.st.scroll }
+    if (r.st.zone !== st.zone) CcState.pane = r.st.zone
+  }
+  function reminderAct(kind) {
+    var m = M.reminderRows(parsed.doc, hiddenRem, docNow)
+    var row = m ? m.rows[ks.row] : null
+    if (!row) { pg.remStatus = "Nothing selected."; return }
+    var h = {}
+    for (var k in hiddenRem) h[k] = hiddenRem[k]
+    h[row.key] = true
+    pg.hiddenRem = h
+    pg.remStatus = (kind === "done" ? "Marked handled here: " : "Hidden until the control centre closes: ") + row.desc + ". The task list is unchanged."
+    pg.setKs({ row: Math.max(0, Math.min(ks.row, m.rows.length - 2)) })
+  }
+  // Enter or o on an agent row: focus that agent's herdr pane when it is live
+  function agentJump(live) {
+    if (live && CcState.jumpRow(live)) return
+    var c = agentsTab.current()
+    CcState.say(c.row && c.row.kind === "agent" ? c.row.label + " has no live pane to jump to." : "Only an agent row has a pane to jump to.")
+  }
+  // The view calls this with the resolved action before it applies it. True means taken.
+  // The sub-tab whose side panels the keyboard scrolls (Week, Heatmap, Report, Screen and health)
+  function scrollTarget() {
+    return pg.sub === "week" ? weekTab : pg.sub === "heatmap" ? heatTab : pg.sub === "report" ? reportTab : pg.sub === "screen" ? screenTab : pg.sub === "agents" ? agentsTab : null
+  }
+  function handleKey(res, st) {
+    var mine = ["move", "top", "bottom", "page", "col", "period", "primary", "scroll", "act.copy", "act.run", "act.snooze", "act.done", "act.open"]
+    if (st.page !== "time" || st.sub === "today" || mine.indexOf(res.action) < 0) return false   // Today's keys live in CcState.apply
+    var sc = pg.scrollTarget()
+    if (sc && st.zone !== "detail" && (res.action === "scroll"
+        || ((st.sub === "screen" || st.sub === "report") && ["move", "page", "top", "bottom"].indexOf(res.action) >= 0))) {
+      var a = res.action, n = Number(res.arg) || 0
+      sc.scrollBy(a === "top" ? -100000 : a === "bottom" ? 100000 : a === "page" ? n * 160 : a === "scroll" ? n * 80 : n * 40)
+      return true
+    }
+    if (res.action === "act.run") { if (st.sub === "report") Actions.report(); return true }
+    var s = { sub: st.sub, zone: st.zone, row: ks.row, col: ks.col, period: ks.period, weekOff: ks.weekOff, detail: ks.detail, scroll: ks.scroll }
+    var r = M.nav(s, res.action, res.arg, M.dims(parsed.doc, s, extras()))
+    if (r.effect === "openDay") {
+      var day = M.cursorDay(parsed.doc, s)
+      if (day !== "") r.st = M.openDay(r.st, parsed.doc, day)
+    }
+    pg.applyNav(r, st)
+    if (r.effect === "copy") reportTab.copy()
+    else if (r.effect === "export") reportTab.save()
+    else if (r.effect === "snooze" || r.effect === "done") pg.reminderAct(r.effect)
+    else if (r.effect === "jump") pg.agentJump(agentsTab.current().live)
+    return true
+  }
+
+  readonly property var tabs: ["Today", "Week", "Days", "Heatmap", "Focus zones", "Progress", "Report", "Screen and health", "Reminders", "Agents"]
   readonly property var today: Feed.today
   readonly property var buckets: Feed.actDoc ? Feed.actDoc.buckets : null
   readonly property var rows: Q.timeRows(today, CcState.timeBy)
@@ -36,23 +156,35 @@ Item {
   }
   // "HD 8580 Fix the thing": the ticket and a short description, never a TASK- or local: id
   function nextLabel(t) { return Q.label(t.ticket, t.ref, t.title) || "Untitled" }
-  readonly property bool implemented: CcState.timeTab === "Today" || CcState.timeTab === "Week" || CcState.timeTab === "Heatmap" || CcState.timeTab === "Report"
   readonly property real dayElapsed: CcState.loginTs > 0 ? Math.max(0, Feed.nowTs - CcState.loginTs) : -1
 
-  // Header and sub-tabs are fixed. The page itself never scrolls: on Today only the right-hand
-  // list scrolls; the other sub-tabs fit their card and are clipped.
+  // Header and sub-tabs are fixed. The page itself never scrolls: lists scroll inside their own
+  // card, everything else fits and is clipped.
   ColumnLayout {
     id: col
     anchors.fill: parent
     anchors.margins: 24
     spacing: 16
 
-    Flow {
+    RowLayout {
       Layout.fillWidth: true
-      spacing: 2
-      Repeater {
-        model: pg.tabs
-        Seg { required property string modelData; objectName: "timeTab"; text: modelData; h: 28; pad: 12; on: CcState.timeTab === modelData; onColor: Theme.color.outlineVariant; onClicked: CcState.timeTab = modelData }
+      spacing: 16
+      Flow {
+        Layout.fillWidth: true
+        spacing: 2
+        Repeater {
+          model: pg.tabs
+          Seg { required property string modelData; objectName: "timeTab"; text: modelData; h: 28; pad: 12; on: CcState.timeTab === modelData; focused: on && CcState.pane === "tabs"; onColor: Theme.color.outlineVariant; onClicked: CcState.timeTab = modelData }
+        }
+      }
+      DText {
+        objectName: "timeStamp"
+        visible: pg.sub !== "today"
+        text: pg.stampAge < 0 ? "" : (pg.stampAge > (pg.sub === "agents" ? AM.STALE_SEC : M.STALE_SEC) ? "stale, updated " : "updated ") + M.ago(pg.stampAge)
+        role: "caption"
+        font.capitalization: Font.MixedCase
+        font.letterSpacing: 0
+        color: pg.stampAge > (pg.sub === "agents" ? AM.STALE_SEC : M.STALE_SEC) ? Theme.color.waiting : Theme.color.fgDim
       }
     }
 
@@ -151,6 +283,7 @@ Item {
               implicitHeight: 0
               pad: 16
               clip: true
+              FocusRing { kind: "pane"; focused: pg.inList && pg.sub === "today"; radius: Theme.radius.card }
               Column {
                 id: whereHead
                 width: parent.width
@@ -249,150 +382,79 @@ Item {
       }
     }
 
-    // ---- Week ----
-    ColumnLayout {
-      objectName: "timeWeek"
-      visible: CcState.timeTab === "Week"
-      Layout.fillWidth: true
-      Layout.fillHeight: true
-      Layout.minimumHeight: 0
-      spacing: 16
-      RowLayout {
-        Layout.fillWidth: true
-        spacing: 16
-        Stat { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.minimumWidth: 0; Layout.alignment: Qt.AlignTop; label: "Week"; icon: "calendar-blank"; value: Q.hm(pg.buckets ? pg.buckets.week.workedSec : 0); note: (pg.buckets ? pg.buckets.week.tasksDone : 0) + " tasks done" }
-        Stat { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.minimumWidth: 0; Layout.alignment: Qt.AlignTop; label: "Month"; icon: "calendar-dots"; value: Q.hm(pg.buckets ? pg.buckets.month.workedSec : 0); note: (pg.buckets ? pg.buckets.month.tasksDone : 0) + " tasks done" }
-        Stat { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.minimumWidth: 0; Layout.alignment: Qt.AlignTop; label: "Quarter"; icon: "calendar-check"; value: Q.hm(pg.buckets ? pg.buckets.quarter.workedSec : 0); note: (pg.buckets ? pg.buckets.quarter.tasksDone : 0) + " tasks done" }
-      }
-      // the two lists share the card; each scrolls on its own
-      Card {
-        objectName: "weekCard"
-        Layout.fillWidth: true
-        Layout.fillHeight: true
-        Layout.minimumHeight: 0
-        implicitHeight: 0
-        clip: true
-        Item {
-          id: weekProj
-          anchors.left: parent.left
-          anchors.top: parent.top
-          anchors.bottom: parent.bottom
-          width: (parent.width - 32) / 2
-          Cap { id: wpCap; text: "BY PROJECT" }
-          Flickable {
-            id: wpScroll
-            objectName: "weekScroll"
-            anchors.top: wpCap.bottom
-            anchors.topMargin: 8
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            clip: true
-            contentWidth: width
-            contentHeight: wpCol.height
-            boundsBehavior: Flickable.StopAtBounds
-            Column {
-              id: wpCol
-              width: wpScroll.width
-              spacing: 8
-              Repeater { model: pg.weekRows; TimeRow { required property var modelData; width: wpCol.width; n: modelData.n; v: modelData.v } }
-              DText { visible: pg.weekRows.length === 0; text: "Nothing recorded yet."; role: "bodyS"; dim: true }
-            }
-          }
-        }
-        Item {
-          id: weekItem
-          anchors.right: parent.right
-          anchors.top: parent.top
-          anchors.bottom: parent.bottom
-          width: (parent.width - 32) / 2
-          Cap { id: wiCap; text: "BY ITEM" }
-          Flickable {
-            id: wiScroll
-            objectName: "weekScroll"
-            anchors.top: wiCap.bottom
-            anchors.topMargin: 8
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            clip: true
-            contentWidth: width
-            contentHeight: wiCol.height
-            boundsBehavior: Flickable.StopAtBounds
-            Column {
-              id: wiCol
-              width: wiScroll.width
-              spacing: 8
-              Repeater { model: pg.weekItems; TimeRow { required property var modelData; width: wiCol.width; n: modelData.n; v: modelData.v } }
-              DText { visible: pg.weekItems.length === 0; text: "Nothing recorded yet."; role: "bodyS"; dim: true }
-            }
-          }
-        }
-      }
+    WeekTab {
+      id: weekTab
+      visible: pg.sub === "week"
+      Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 0; Layout.maximumHeight: 100000
+      parsed: pg.parsed; ks: pg.ks; inList: pg.inList
+      legacyProjects: pg.weekRows; legacyItems: pg.weekItems
+      onPick: function (row, c) { pg.setKs({ row: row, col: c }) }
+    }
+    DaysTab {
+      visible: pg.sub === "days"
+      Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 0; Layout.maximumHeight: 100000
+      parsed: pg.parsed; ks: pg.ks; inList: pg.inList; inDetail: pg.inDetail
+      onPick: function (row, c) { pg.setKs({ row: row, col: c }) }
+      onOpen: { pg.setKs({ detail: true, scroll: 0 }); CcState.pane = "detail" }
+    }
+    HeatTab {
+      id: heatTab
+      visible: pg.sub === "heatmap"
+      Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 0; Layout.maximumHeight: 100000
+      parsed: pg.parsed; ks: pg.ks; inList: pg.inList
+      legacyDays: Feed.heatDoc ? Feed.heatDoc.days : []
+      loaded: pg.metricsTried
+      legacy: pg.heat
+      onPick: function (row, c) { pg.setKs({ row: row, col: c }) }
+    }
+    ZonesTab {
+      visible: pg.sub === "zones"
+      Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 0; Layout.maximumHeight: 100000
+      parsed: pg.parsed; ks: pg.ks; inList: pg.inList
+      onPick: function (row, c) { pg.setKs({ row: row, col: c }) }
+      onWindowPicked: function (p) { pg.setKs({ period: p, row: 0 }) }
+    }
+    ProgressTab {
+      visible: pg.sub === "progress"
+      Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 0; Layout.maximumHeight: 100000
+      parsed: pg.parsed; ks: pg.ks; inList: pg.inList
+      onPick: function (row, c) { pg.setKs({ row: row, col: c }) }
+      onPeriodPicked: function (p) { pg.setKs({ period: p }) }
+    }
+    ReportTab {
+      id: reportTab
+      visible: pg.sub === "report"
+      Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 0; Layout.maximumHeight: 100000
+      parsed: pg.parsed; ks: pg.ks; inList: pg.inList
+      onPeriodPicked: function (p) { pg.setKs({ period: p }) }
+    }
+    ScreenTab {
+      id: screenTab
+      visible: pg.sub === "screen"
+      Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 0; Layout.maximumHeight: 100000
+      parsed: pg.parsed; ks: pg.ks; inList: pg.inList
+    }
+    AgentsTab {
+      id: agentsTab
+      visible: pg.sub === "agents"
+      Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 0; Layout.maximumHeight: 100000
+      parsed: CcState.agentMetrics; ks: pg.ks; inList: pg.inList; titles: CcState.refTitles; liveRows: CcState.agents
+      onPick: function (row, c) { pg.setKs({ row: row, col: c }) }
+      onPeriodPicked: function (p) { pg.setKs({ period: p, row: 0 }) }
+      onJumpAsked: function (live) { pg.agentJump(live) }
+    }
+    RemindersTab {
+      visible: pg.sub === "reminders"
+      Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 0; Layout.maximumHeight: 100000
+      parsed: pg.parsed; ks: pg.ks; inList: pg.inList; hidden: pg.hiddenRem; now: pg.docNow; status: pg.remStatus
+      onPick: function (row, c) { pg.setKs({ row: row, col: c }) }
     }
 
-    // ---- Heatmap ----
-    Card {
-      id: heatCard
-      objectName: "timeHeat"
-      visible: CcState.timeTab === "Heatmap"
+    HintBar {
+      objectName: "timeHints"
       Layout.fillWidth: true
-      Layout.alignment: Qt.AlignTop
-      clip: true
-      Column {
-        id: heatCol
-        width: parent.width
-        spacing: 16
-        Cap { text: "LAST 119 DAYS" }
-        // cells follow the card's width: 17 columns, the label column and the gaps taken off
-        Ov.Heatmap {
-          objectName: "heatGrid"
-          gap: 4
-          labels: true
-          cellSize: Math.max(8, Math.min(28, Math.floor((heatCol.width - 56 - 16 * 4) / 17)))
-          days: Feed.heatDoc ? Feed.heatDoc.days : []
-        }
-        Flow {
-          width: parent.width
-          spacing: 40
-          Column { Cap { text: "TOTAL" } DText { text: Q.hm(pg.heat.totalSec); role: "headline" } }
-          Column { Cap { text: "DAYS WORKED" } DText { text: String(pg.heat.daysWorked); role: "headline" } }
-          Column { Cap { text: "DAILY AVERAGE" } DText { text: Q.hm(pg.heat.avgSec); role: "headline" } }
-          Column { Cap { text: "BEST DAY" } DText { text: pg.heat.best ? Q.hm(pg.heat.best.sec) + ", " + pg.heat.best.d : "-"; role: "headline" } }
-        }
-      }
+      Layout.preferredHeight: 22
+      hints: M.hints(pg.sub, CcState.pane)
     }
-
-    // ---- Report ----
-    Card {
-      objectName: "timeReport"
-      visible: CcState.timeTab === "Report"
-      Layout.fillWidth: true
-      Layout.alignment: Qt.AlignTop
-      Column {
-        width: parent.width
-        spacing: 12
-        Head { text: "Report"; icon: "list-bullets" }
-        DText { text: "Builds today's report with the local tracker. Nothing is sent."; role: "bodyS"; dim: true; width: parent.width; wrapMode: Text.Wrap }
-        Btn { objectName: "runReport"; text: "Run report"; icon: "list-plus"; onClicked: Actions.report() }
-      }
-    }
-
-    // ---- everything else ----
-    Card {
-      objectName: "timeNoData"
-      visible: !pg.implemented
-      Layout.fillWidth: true
-      Layout.alignment: Qt.AlignTop
-      Column {
-        width: parent.width
-        spacing: 8
-        Head { text: CcState.timeTab; icon: "clock" }
-        DText { text: "No data source yet. The overview files do not carry this view."; role: "bodyS"; dim: true; width: parent.width; wrapMode: Text.Wrap }
-      }
-    }
-
-    // sub-tabs that fit their card sit at the top; the rest of the page stays empty
-    Item { visible: CcState.timeTab !== "Today" && CcState.timeTab !== "Week"; Layout.fillHeight: true }
   }
 }

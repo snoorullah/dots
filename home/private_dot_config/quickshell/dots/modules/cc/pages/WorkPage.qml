@@ -36,6 +36,12 @@ Item {
   function itemLabel(it) { return Q.label(it.ticket, it.ref, it.title) || "Untitled" }
   function itemTicket(it) { return it.ticket || Q.humanRef(it.ref, it.title) }
   readonly property string taskLabel: task ? (Q.label(task.ticket, task.ref, task.desc) || "Untitled") : ""
+  // keep the keyboard row inside its scroll viewport
+  function reveal(fl, row) {
+    var y = row.mapToItem(fl.contentItem, 0, 0).y
+    if (y < fl.contentY) fl.contentY = Math.max(0, y - 8)
+    else if (y + row.height > fl.contentY + fl.height) fl.contentY = y + row.height - fl.height + 8
+  }
   function dueText(u) { return u === "critical" ? "Now" : (u === "time" ? "Due" : (u === "active" ? "Today" : "")) }
 
   // Header, NOW card and sub-tabs are fixed. The page never scrolls: only the long lists
@@ -52,7 +58,7 @@ Item {
       DText { text: "Tasks"; role: "headline"; Layout.rightMargin: 12 }
       Repeater {
         model: [["Today", "calendar-check"], ["Board", "kanban"], ["All", "list-bullets"]]
-        Seg { required property var modelData; objectName: "taskView"; text: modelData[0]; icon: modelData[1]; h: 28; on: CcState.taskView === modelData[0]; onClicked: CcState.taskView = modelData[0] }
+        Seg { required property var modelData; objectName: "taskView"; text: modelData[0]; icon: modelData[1]; h: 28; on: CcState.taskView === modelData[0]; focused: on && CcState.chipFocus; onClicked: CcState.taskView = modelData[0] }
       }
       Item { Layout.fillWidth: true }
       DText { text: "Your feed, as one list. Duplicates merged."; role: "bodyS"; dim: true; elide: Text.ElideRight; Layout.maximumWidth: 360 }
@@ -132,15 +138,19 @@ Item {
             id: todayCol
             width: todayScroll.width
             Repeater {
-              model: CcState.nextTasks
+              model: CcState.tasksShown
               Item {
                 id: tr
                 required property var modelData
                 required property int index
                 objectName: "todayRow"
+                readonly property bool current: CcState.taskCur === index
+                onCurrentChanged: if (current) pg.reveal(todayScroll, tr)
                 width: todayCol.width
                 height: 56
+                Rectangle { anchors.fill: parent; radius: Theme.radius.row; color: Theme.color.surfaceContainer; visible: tr.current }
                 Rectangle { width: parent.width; height: 1; color: Theme.color.outlineVariant }
+                FocusRing { focused: tr.current; anchors.margins: 0; radius: Theme.radius.row }
                 RowLayout {
                   anchors.fill: parent
                   anchors.leftMargin: 4
@@ -158,7 +168,7 @@ Item {
                 }
               }
             }
-            DText { visible: CcState.nextTasks.length === 0; text: "Nothing picked for today."; role: "bodyS"; dim: true; topPadding: 8 }
+            DText { visible: CcState.tasksShown.length === 0; text: CcState.nextTasks.length === 0 ? "Nothing picked for today." : "Nothing matches the filter."; role: "bodyS"; dim: true; topPadding: 8 }
           }
         }
       }
@@ -236,7 +246,7 @@ Item {
       spacing: 12
       Repeater {
         model: [
-          { name: "Next", items: CcState.nextTasks.map(function (t) { return pg.itemLabel(t) }) },
+          { name: "Next", items: CcState.tasksShown.map(function (t) { return pg.itemLabel(t) }) },
           { name: "Doing", items: pg.task ? [pg.taskLabel] : [] },
           { name: "With an agent", items: CcState.agents.filter(function (a) { return a.tone === "" }).map(function (a) { return a.name }) },
           { name: "Waiting", items: pg.waitingItems.map(function (t) { return pg.itemLabel(t) }) }
@@ -279,11 +289,16 @@ Item {
               Repeater {
                 model: bc.modelData.items
                 Rectangle {
+                  id: bcard
                   required property string modelData
+                  required property int index
+                  readonly property bool current: bc.modelData.name === "Next" && CcState.taskCur === index
+                  onCurrentChanged: if (current) pg.reveal(bscroll, bcard)
                   width: bcol.width
                   height: ct.implicitHeight + 20
                   radius: Theme.radius.row
                   color: Theme.color.surfaceContainer
+                  FocusRing { focused: bcard.current; anchors.margins: 0 }
                   DText { id: ct; x: 10; y: 10; width: parent.width - 20; text: parent.modelData; role: "bodyS"; wrapMode: Text.Wrap }
                 }
               }
@@ -325,14 +340,19 @@ Item {
           id: allCol
           width: allScroll.width
           Repeater {
-            model: CcState.nextTasks
+            model: CcState.tasksShown
             Item {
               id: ar
               required property var modelData
+              required property int index
               objectName: "allRow"
+              readonly property bool current: CcState.taskCur === index
+              onCurrentChanged: if (current) pg.reveal(allScroll, ar)
               width: allCol.width
               height: 49
+              Rectangle { anchors.fill: parent; radius: Theme.radius.row; color: Theme.color.surfaceContainer; visible: ar.current }
               Rectangle { width: parent.width; height: 1; color: Theme.color.outlineVariant }
+              FocusRing { focused: ar.current; anchors.margins: 0; radius: Theme.radius.row }
               RowLayout {
                 anchors.fill: parent
                 anchors.topMargin: 1
@@ -345,7 +365,7 @@ Item {
               }
             }
           }
-          DText { visible: CcState.nextTasks.length === 0; text: "No tasks in the feed."; role: "title"; font.weight: Font.Normal; dim: true; topPadding: 16 }
+          DText { visible: CcState.tasksShown.length === 0; text: "No tasks in the feed."; role: "title"; font.weight: Font.Normal; dim: true; topPadding: 16 }
         }
       }
     }

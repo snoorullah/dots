@@ -97,14 +97,53 @@ ShellRoot {
                    flicks: find("timeToday").length ? (function () { var n = []; walk(find("timeToday")[0], function (x) { if (x.contentHeight !== undefined && x.flickableDirection !== undefined) n.push(x.objectName) }); return n })() : [],
                    barSegs: (function () { var b = find("todayBar").filter(vis)[0]; if (!b) return null; var r = []; walk(b, function (x) { if (x.radius === 4 && x !== b) r.push({ x: Math.round(x.x), w: Math.round(x.width) }) }); return r })() }
         m.work = measureWork("workPage", ["nowCard", "todayListCard", "untickCard", "boardCol", "allScroll"])
-        m.timePg = measureWork("timePage", ["todayCard", "whereTime", "doneCard", "weekCard", "timeHeat", "heatGrid", "timeReport", "timeNoData", "todayBar"])
+        m.timePg = measureWork("timePage", ["todayCard", "whereTime", "doneCard", "weekCard", "weekSide", "daysCard", "dayDetail", "timeHeat", "heatGrid", "monthsCard",
+                                            "zoneRank", "zoneWeeks", "zoneProjects", "zoneDays", "progressScroll", "reportCard", "reportAbout", "screenCard", "healthCard", "remindersCard", "salahCard",
+                                            "timeReport", "timeNoData", "todayBar", "agentTables", "agentKinds", "agentDaily", "agentSubLive"])
+        m.agPg = measureWork("agentsPage", ["awayCard", "metricsCard"])
+        m.tm = measureTime()
+        m.ag = measureAgents()
         m.stats = find("statValue").filter(vis).map(function (t) { return t.text })
         m.heatCells = find("cell").filter(vis).length
         m.staleMark = find("staleMark").filter(vis).length
         m.closes = sc.closes
+        m.k = measureKeys()
         m.hidden = Object.keys(CcState.hidden).sort().join(",")
         m.sel = CcState.effId
         return m
+    }
+
+    // Time > Agents and the Agents page cards: what is on screen, by object name
+    function measureAgents() {
+        var cnt = function (n) { return find(n).filter(vis).length }
+        var tx = function (n) { return find(n).filter(vis).map(function (t) { return t.text }) }
+        var tab = find("timeAgents")[0]
+        return {
+            tab: tab ? vis(tab) : false, kpi: cnt("agentKpi"), kpiValues: tx("kpiValue"), kpiNotes: tx("kpiNote"), deltas: cnt("delta"), tblRows: cnt("agentTblRow"),
+            kindSegs: cnt("kindSeg"), legend: cnt("kindLegend"), dailyTokens: cnt("dailyTokens"), dailyCost: cnt("dailyCost"), subShare: tx("subShare")[0] || "",
+            live: { working: tx("liveWorking")[0] || "", needs: tx("liveNeeds")[0] || "", idle: tx("liveIdle")[0] || "", shown: cnt("liveCounts") },
+            periodSegs: find("agentPeriodSeg").filter(vis).map(function (b) { return { t: b.text, on: b.on } }), jumpBtn: cnt("agentTblJump"),
+            ks: tab ? tab.ks : null, noData: tab ? cnt("timeNoData") : 0,
+            awayRows: cnt("awayRow"), awayEmpty: cnt("awayEmpty"), awaySummary: tx("awaySummary")[0] || "", metricRuns: tx("metricRuns")[0] || "", metricTokens: tx("metricTokens")[0] || "",
+            metricCost: tx("metricCost")[0] || "", openLink: cnt("openTimeAgents"),
+            sideScroll: find("agentSideScroll").filter(vis).map(function (f) { return { clip: f.clip, h: Math.round(f.height), contentH: Math.round(f.contentHeight) } }),
+            tableScroll: find("agentTableScroll").filter(vis).map(function (f) { return { clip: f.clip, h: Math.round(f.height), contentH: Math.round(f.contentHeight), y: Math.round(f.contentY) } })
+        }
+    }
+
+    // Time sub-tabs fed by metrics.json: what is on screen, by object name
+    function measureTime() {
+        var cnt = function (n) { return find(n).filter(vis).length }
+        var firstText = function (c) { var t = ""; walk(c, function (x) { if (x.text !== undefined && x.role === "bodyS" && t === "") t = x.text }); return t }
+        var tp = find("timePage")[0]
+        return {
+            state: tp ? tp.parsed.state : "", weekChart: cnt("weekChart"), weekBars: cnt("weekBar"), targetLine: cnt("targetLine"),
+            kpi: cnt("kpiCard"), kpiValues: find("kpiValue").filter(vis).map(function (t) { return t.text }), sparks: cnt("spark"), deltas: cnt("delta"),
+            dayRows: cnt("dayRow"), dayDetail: cnt("dayDetail"), cells: cnt("cell"), readout: texts("heatReadout")[0] || "",
+            zoneRank: cnt("zoneRank"), zoneWeeks: cnt("zoneWeeks"), zoneDays: cnt("zoneDays"), remRows: cnt("remRow"), screenCard: cnt("screenCard"), healthCard: cnt("healthCard"),
+            report: texts("reportStatus")[0] || "", hints: texts("timeStamp")[0] || "", stamp: texts("timeStamp")[0] || "", hintBar: cnt("timeHints"),
+            noData: find("timeNoData").filter(vis).map(firstText), weekScrolls: cnt("weekScroll")
+        }
     }
 
     // Tasks page: is the page a Flickable, which Flickables exist and clip, and does any visible
@@ -118,7 +157,13 @@ ShellRoot {
             if (isFlick(x) && vis(x)) w.flicks.push({ name: x.objectName, clip: x.clip, box: box(x), contentH: Math.round(x.contentHeight) })
         })
         colNames.forEach(function (n) {
-            find(n).filter(vis).forEach(function (c) { var b = box(c); b.name = n; w.cols.push(b) })
+            find(n).filter(vis).forEach(function (c) {
+                var b = box(c)
+                b.name = n
+                b.inFlick = false     // content of a scroll area may run below it; that is what scrolling is
+                for (var p = c.parent; p && p !== pg; p = p.parent) if (p.contentItem !== undefined && isFlick(p)) b.inFlick = true
+                w.cols.push(b)
+            })
         })
         walk(pg, function (x) {
             if (x.text === undefined || x.contentWidth === undefined || !vis(x) || x.text === "") return
@@ -141,6 +186,56 @@ ShellRoot {
         return w
     }
 
+    // keyboard state after the key steps: the focus model, the filter, the help overlay and the rings
+    function measureKeys() {
+        var rings = find("focusRing").filter(vis)
+        var ov = find("helpOverlay")[0]
+        var fb = find("filterBar")[0]
+        return { page: CcState.pageId, zone: CcState.zone, pane: CcState.pane, mode: CcState.mode, kind: CcState.kindNow,
+                 pending: CcState.pending, help: ov ? vis(ov) : false, helpRows: find("helpRow").filter(vis).map(function (r) { return r.modelData.keys + "|" + r.modelData.label }),
+                 filter: CcState.filterText, filterBar: fb ? vis(fb) : false, snooze: CcState.snoozeIdx, agent: CcState.agentCur, task: CcState.taskCur,
+                 src: CcState.src, taskView: CcState.taskView, timeTab: CcState.timeTab, keyboard: CcState.keyboard, chipFocus: CcState.chipFocus,
+                 rings: rings.length, ringKinds: rings.map(function (r) { return r.kind + ":" + r.spec.width + ":" + r.spec.offset }),
+                 hint: (find("keyHint")[0] || { text: "" }).text, rowsShown: find("queueRow").filter(vis).length,
+                 agentsShown: CcState.agentsShown.length, tasksShown: CcState.tasksShown.length, status: CcState.status,
+                 view: CcState.view, group: CcState.group, grant: CcState.grant, timeBy: CcState.timeBy, viewFocus: CcState.viewFocus, groupFocus: CcState.groupFocus,
+                 tks: (find("timePage")[0] || { ks: null }).ks, rem: Object.keys((find("timePage")[0] || { hiddenRem: {} }).hiddenRem).length }
+    }
+    readonly property var keyNames: ({ Esc: 0x01000000, Tab: 0x01000001, Backtab: 0x01000002, Enter: 0x01000004, Home: 0x01000010, End: 0x01000011,
+                                       Left: 0x01000012, Up: 0x01000013, Right: 0x01000014, Down: 0x01000015, PageUp: 0x01000016, PageDown: 0x01000017 })
+    // one synthetic key press through CcView.handle: the same path a real press takes. `tok` is
+    // Esc, Enter, Tab, Down, Ctrl+d, Ctrl+Enter, or one printable character.
+    function press(tok) {
+        var ctrl = tok.indexOf("Ctrl+") === 0
+        var base = ctrl ? tok.substring(5) : tok
+        var named = sc.keyNames[base]
+        var key = named !== undefined ? named : base.toUpperCase().charCodeAt(0)
+        var text = named !== undefined ? "" : base
+        var mods = (ctrl ? Qt.ControlModifier : 0) | ((named === undefined && base !== base.toLowerCase()) ? Qt.ShiftModifier : 0)
+        var e = { key: key, text: ctrl ? "" : text, modifiers: mods, accepted: false }
+        var view = find("ccView")[0]
+        var handled = view.handle(e)
+        // typing into the filter field has no real TextInput under offscreen: do what it would
+        if (!handled && CcState.zone === "filter" && named === undefined && !ctrl) CcState.filterText = CcState.filterText + text
+        return handled
+    }
+
+    // The Time sub-tabs read metrics.json. A scene whose state dir has none gets the full fixture
+    // (METRICS=name picks another, METRICS=none keeps the state dir), so every time scene has data.
+    function useAgents() {
+        var name = Quickshell.env("AGENTM") || "agents"
+        if (name === "none") return
+        CcState.agentMetricsPath = Quickshell.shellPath("modules/cc/tst/fixtures/" + name + "/agent-metrics.json")
+        CcState.awayPath = Quickshell.shellPath("modules/cc/tst/fixtures/" + name + "/away.json")
+    }
+    function useMetrics() {
+        var name = Quickshell.env("METRICS") || ""
+        var tp = find("timePage")[0]
+        if (!tp || name === "none") return
+        if (name === "" && tp.metricsText !== "") return
+        tp.metricsPath = Quickshell.shellPath("modules/cc/tst/fixtures/" + (name || "metrics") + "/metrics.json")
+    }
+
     function runStep(s) {
         var i = s.indexOf(":"), op = i < 0 ? s : s.substring(0, i), arg = i < 0 ? "" : s.substring(i + 1)
         if (op === "pick") CcState.pick(arg)
@@ -154,6 +249,7 @@ ShellRoot {
         else if (op === "mode") CcState.mode = arg
         else if (op === "snooze") CcState.snooze(arg)
         else if (op === "jumprow") { var jr = find("agentJump").filter(vis)[Number(arg)]; if (jr) jr.clicked(); else console.log("NOJUMP " + arg) }
+        else if (op === "keys") arg.split(".").forEach(function (t) { if (t !== "") sc.press(t === "Dot" ? "." : t) })
         else if (op === "back") find("backBtn")[0].clicked()
         else if (op === "click") { var b = find(arg)[0]; if (b) b.clicked(); else console.log("NOBUTTON " + arg) }
         else console.log("BADSTEP " + s)
@@ -171,7 +267,7 @@ ShellRoot {
 
     Component.onCompleted: {
         Ui.cc = true
-        Ui.ccTab = Quickshell.env("TAB") || "queue"
+        CcState.setTab(Quickshell.env("TAB") || "queue")   // the real path: Time opens on its sub-tab strip
         CcState.src = Quickshell.env("SRC") || "All"
         CcState.group = Quickshell.env("GROUP") || "Urgency"
         CcState.view = Quickshell.env("VIEW") || ""
@@ -205,5 +301,6 @@ ShellRoot {
             settle.start()
         }
     }
+    Timer { interval: 300; running: true; onTriggered: { sc.useMetrics(); sc.useAgents() } }
     Timer { id: settle; interval: 400; onTriggered: sc.shoot() }
 }

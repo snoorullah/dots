@@ -187,7 +187,110 @@ scene time-screen-short board TAB=time TIMETAB="Screen and health" WIN_H=640
 scene time-reminders board TAB=time TIMETAB="Reminders"
 scene time-reminders-wide board TAB=time TIMETAB="Reminders" WIN_W=1920 WIN_H=1080
 scene time-reminders-short board TAB=time TIMETAB="Reminders" WIN_H=640
-check extra; check queue; check groups; check inbox; check compose; check empty; check stale; check agents; check work; check work-layout; check time; check time-layout
+scene time-agents extra TAB=time TIMETAB="Agents"
+scene time-agents-wide extra TAB=time TIMETAB="Agents" WIN_W=1920 WIN_H=1080
+scene time-agents-short extra TAB=time TIMETAB="Agents" WIN_H=640
+scene time-agents-partial extra TAB=time TIMETAB="Agents" AGENTM=agents-partial
+scene time-agents-partial-wide extra TAB=time TIMETAB="Agents" AGENTM=agents-partial WIN_W=1920 WIN_H=1080
+scene time-agents-nofile extra TAB=time TIMETAB="Agents" AGENTM=none
+scene agents-metrics extra TAB=agents
+scene agents-metrics-wide extra TAB=agents WIN_W=1920 WIN_H=1080
+scene agents-metrics-none extra TAB=agents AGENTM=none
+scene agents-metrics-partial extra TAB=agents AGENTM=agents-partial
+scene time-nofile-week board TAB=time TIMETAB="Week" METRICS=none
+scene time-empty-days metrics-empty TAB=time TIMETAB="Days"
+scene time-partial-screen metrics-partial TAB=time TIMETAB="Screen and health"
+scene time-partial-zones metrics-partial TAB=time TIMETAB="Focus zones"
+scene time-partial-reminders metrics-partial TAB=time TIMETAB="Reminders"
+scene time-days-detail metrics TAB=time TIMETAB="Days" STEPS=keys:Tab.j.Enter
+scene time-heat-keys metrics TAB=time TIMETAB="Heatmap" STEPS=keys:Tab.k
+scene time-report-save metrics TAB=time TIMETAB="Report" STEPS=keys:Tab.Enter
+# ---- 4b. keyboard: key sequences through CcView.handle (no mouse) ---------------------------
+scene keys-digits board STEPS=keys:2
+scene keys-tab-agents board STEPS=keys:3
+scene keys-tab-tasks board STEPS=keys:4
+scene keys-tab-time board STEPS=keys:5
+scene keys-move board STEPS=keys:j.j
+scene keys-ne board STEPS=keys:n.n.e
+scene keys-bottom board STEPS=keys:G
+scene keys-gg board STEPS=keys:G.g.g
+scene keys-g board STEPS=keys:g
+scene keys-page board STEPS=keys:Ctrl+d
+scene keys-detail board STEPS=keys:Enter
+scene keys-tab-pane board STEPS=keys:Tab
+scene keys-detail-back board STEPS=keys:Enter.h
+scene keys-esc-detail board STEPS=keys:Enter.Esc
+scene keys-esc-close board STEPS=keys:Esc
+scene keys-ring board STEPS=keys:j
+scene keys-snooze board STEPS=keys:j.Enter.s.3 VIEW=
+scene keys-snooze-nav board STEPS=keys:Enter.s.j.j.Enter VIEW=
+scene keys-snooze-open board STEPS=keys:Enter.s
+scene keys-snooze-esc board STEPS=keys:Enter.s.Esc
+scene keys-reply board STEPS=keys:j.j.Enter.r
+scene keys-reply-submit board STEPS=keys:j.j.Enter.r.x.Ctrl+Enter
+scene keys-reply-esc board STEPS=keys:j.j.Enter.r.Esc
+scene keys-filter board STEPS=keys:/.m.a.i.l.Enter
+scene keys-filter-typing board STEPS=keys:/.j.g
+scene keys-filter-esc board STEPS=keys:/.m.a.i.l.Esc
+scene keys-filter-clear board STEPS=keys:/.m.a.i.l.Esc.Esc
+scene keys-filter-ctrlu board STEPS=keys:/.m.a.Ctrl+u
+scene keys-help board STEPS=keys:'?'
+scene keys-help-swallow board STEPS=keys:'?'.3.j
+scene keys-help-esc board STEPS=keys:'?'.Esc
+scene keys-chip board STEPS=keys:']'.']'
+scene keys-chip-back board STEPS=keys:']'.']'.'['
+scene keys-agent-open extra STEPS=keys:Enter.o
+scene keys-stub board STEPS=keys:Enter.a
+scene keys-agents-page extra TAB=agents STEPS=keys:j.j
+scene keys-agents-open extra TAB=agents STEPS=keys:j.j.o
+scene keys-agents-filter extra TAB=agents STEPS=keys:/.t.i.d.y.Enter
+scene keys-tasks board TAB=work STEPS=keys:']'
+scene keys-tasks-move board TAB=work STEPS=keys:']'.']'.j.j
+scene keys-tasks-break board TAB=work STEPS=keys:b
+scene keys-tasks-filter board TAB=work STEPS=keys:/.c.v.e.Enter
+scene keys-time-sub board TAB=time STEPS=keys:']'
+scene keys-time-strip board TAB=time STEPS=keys:l.l
+scene keys-time-help board TAB=time STEPS=keys:'?'
+scene keys-hint board STEPS=keys:j
+scene keys-inbox board TAB=inbox STEPS=keys:Enter
+
+# keyboard: every mouse-only control has a key; Time is driven from the keys alone
+scene keys-undo board STEPS=pick:b1,key:q,keys:u
+scene keys-undo-none board STEPS=keys:u
+scene keys-view board STEPS=keys:'}'.'}'
+scene keys-view-back board STEPS=keys:'}'.'{'
+scene keys-group board STEPS=keys:=
+scene keys-group-wrap board STEPS=keys:=.=.=
+scene keys-grant board SELECT=b1 MODE=agent STEPS=keys:Ctrl+g
+scene keys-grant-twice board SELECT=b1 MODE=agent STEPS=keys:Ctrl+g.Ctrl+g
+scene keys-time-esc metrics TAB=time STEPS=keys:Tab.Esc
+scene keys-time-esc-out metrics TAB=time STEPS=keys:Esc
+scene keys-time-ring metrics TAB=time STEPS=keys:l
+scene keys-time-body metrics TAB=time STEPS=keys:Tab
+scene keys-time-today-by metrics TAB=time STEPS=keys:Tab.p
+scene keys-time-today-by-back metrics TAB=time STEPS=keys:Tab.P
+scene keys-time-focus metrics TAB=time STEPS=keys:Tab.s
+scene keys-time-break metrics TAB=time STEPS=keys:Tab.b
+scene keys-time-week metrics TAB=time TIMETAB=Week STEPS=keys:Tab.l.l.P
+scene keys-time-week-rows metrics TAB=time TIMETAB=Week STEPS=keys:Tab.j.j
+scene keys-time-days metrics TAB=time TIMETAB=Days STEPS=keys:Tab.j.j.Enter
+scene keys-time-days-back metrics TAB=time TIMETAB=Days STEPS=keys:Tab.j.Enter.Esc
+scene keys-time-heat metrics TAB=time TIMETAB=Heatmap STEPS=keys:Tab.Enter
+scene keys-time-zones metrics TAB=time TIMETAB="Focus zones" STEPS=keys:Tab.j.p
+scene keys-time-progress metrics TAB=time TIMETAB=Progress STEPS=keys:Tab.l.j.p
+scene keys-time-report metrics TAB=time TIMETAB=Report STEPS=keys:Tab.p.c
+scene keys-time-reminders metrics TAB=time TIMETAB=Reminders STEPS=keys:Tab.d
+scene keys-time-reminders-snooze metrics TAB=time TIMETAB=Reminders STEPS=keys:Tab.j.s
+scene keys-time-agents-period extra TAB=time TIMETAB=Agents STEPS=keys:Tab.p
+scene keys-time-agents-today extra TAB=time TIMETAB=Agents STEPS=keys:Tab.P
+scene keys-time-agents-rows extra TAB=time TIMETAB=Agents STEPS=keys:Tab.j.j
+scene keys-time-agents-jump extra TAB=time TIMETAB=Agents STEPS=keys:Tab.Enter
+scene keys-time-agents-nojump extra TAB=time TIMETAB=Agents STEPS=keys:Tab.G.Enter
+scene keys-time-agents-o extra TAB=time TIMETAB=Agents STEPS=keys:Tab.o
+scene keys-time-agents-help extra TAB=time TIMETAB=Agents STEPS=keys:Tab.'?'
+scene keys-time-agents-sub extra TAB=time STEPS=keys:'['
+scene keys-agents-time extra TAB=agents STEPS=keys:t
+check extra; check queue; check groups; check inbox; check compose; check empty; check stale; check agents; check work; check work-layout; check time; check time-layout; check agents-time; check keys
 
 # ---- 5. actions: argv only, stubs do nothing -----------------------------------------------
 scene act-local board STEPS=pick:a1,act:"Open pane",pick:b1,"act:Open review","act:Break down & start"

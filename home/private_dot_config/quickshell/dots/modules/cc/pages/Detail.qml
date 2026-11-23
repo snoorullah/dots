@@ -14,6 +14,7 @@ Rectangle {
   color: Qt.alpha(Theme.color.surface, 0.5)
 
   Rectangle { width: 1; height: parent.height; color: Theme.color.outlineVariant }
+  FocusRing { kind: "pane"; focused: CcState.zone === "detail" }
 
   readonly property var it: CcState.sel
   readonly property var composeLabel: !it ? "" : (it.kind === "msg" ? "Reply to " + it.who
@@ -21,12 +22,22 @@ Rectangle {
   readonly property string sendLabel: !it ? "Send" : (it.kind === "ticket" ? "Post comment" : (it.kind === "mail" ? "Save draft" : "Send"))
 
   Flickable {
+    id: dfl
     anchors.fill: parent
     anchors.leftMargin: 1
     contentWidth: width
     contentHeight: col.height + 40
     clip: true
     boundsBehavior: Flickable.StopAtBounds
+    Connections {
+      target: CcState
+      function onDetailScrolled(dy) { dfl.contentY = Math.max(0, Math.min(Math.max(0, dfl.contentHeight - dfl.height), dfl.contentY + dy)) }
+      function onZoneChanged() {
+        if (CcState.zone !== "panel") return
+        if (CcState.mode === "reply") replyEdit.forceActiveFocus()
+        else if (CcState.mode === "agent") agentEdit.forceActiveFocus()
+      }
+    }
 
     ColumnLayout {
       id: col
@@ -85,6 +96,7 @@ Rectangle {
             icon: modelData.icon
             keyHint: modelData.key
             primary: modelData.primary
+            focused: modelData.primary && CcState.zone === "detail"
             stub: modelData.effect === "stub"
             blocked: modelData.effect !== "stub" && !Q.canRun(modelData, CcState.sel)
             onClicked: CcState.run(modelData)
@@ -107,6 +119,7 @@ Rectangle {
           border.width: 1
           border.color: Theme.color.outline
           TextEdit {
+            id: replyEdit
             anchors.fill: parent
             anchors.margins: 10
             color: Theme.color.fg
@@ -114,14 +127,14 @@ Rectangle {
             font.pixelSize: Theme.font.size.bodyS
             wrapMode: TextEdit.Wrap
             selectByMouse: true
-            Keys.onEscapePressed: CcState.mode = ""
+            Keys.onPressed: function (e) { e.accepted = CcState.handleKey(e, null) }
             DText { visible: parent.text === ""; text: "Type here. Only you can press Send."; role: "bodyS"; dim: true; opacity: 0.7 }
           }
         }
         Row {
           spacing: 8
           Btn { objectName: "sendBtn"; text: d.sendLabel; icon: "paper-plane-tilt"; primary: true; stub: true }
-          Btn { text: "Cancel"; onClicked: CcState.mode = "" }
+          Btn { text: "Cancel"; keyHint: "Esc"; onClicked: CcState.mode = "" }
         }
       }
 
@@ -140,6 +153,7 @@ Rectangle {
           border.width: 1
           border.color: Theme.color.outline
           TextEdit {
+            id: agentEdit
             anchors.fill: parent
             anchors.margins: 10
             color: Theme.color.fg
@@ -148,7 +162,7 @@ Rectangle {
             wrapMode: TextEdit.Wrap
             text: "Get this done, then answer all their questions."
             selectByMouse: true
-            Keys.onEscapePressed: CcState.mode = ""
+            Keys.onPressed: function (e) { e.accepted = CcState.handleKey(e, null) }
           }
         }
         Rectangle {
@@ -176,7 +190,7 @@ Rectangle {
             ColumnLayout {
               Layout.fillWidth: true
               spacing: 0
-              DText { text: "May reply once to " + (d.it ? d.it.who : ""); role: "bodyS"; font.weight: Font.Medium }
+              DText { text: "May reply once to " + (d.it ? d.it.who : "") + "  (Ctrl+g)"; role: "bodyS"; font.weight: Font.Medium }
               DText { Layout.fillWidth: true; text: "This thread only, then the permission ends. Logged under Agents. Anything else it tries is refused outside the AI."; role: "bodyS"; dim: true; wrapMode: Text.Wrap }
             }
           }
@@ -184,7 +198,7 @@ Rectangle {
         Row {
           spacing: 8
           Btn { objectName: "handBtn"; text: "Hand to agent"; icon: "paper-plane-tilt"; primary: true; stub: true }
-          Btn { text: "Cancel"; onClicked: CcState.mode = "" }
+          Btn { text: "Cancel"; keyHint: "Esc"; onClicked: CcState.mode = "" }
         }
       }
 
@@ -194,8 +208,8 @@ Rectangle {
         Layout.fillWidth: true
         spacing: 8
         Repeater {
-          model: ["30 minutes", "After this task", "Tonight", "Tomorrow"]
-          Btn { required property string modelData; text: modelData; onClicked: CcState.snooze(modelData) }
+          model: CcState.snoozeLabels
+          Btn { required property string modelData; required property int index; objectName: "snoozeOpt"; text: modelData; focused: CcState.snoozeIdx === index; keyHint: String(index + 1); onClicked: CcState.snooze(modelData) }
         }
       }
     }

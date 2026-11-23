@@ -1,0 +1,36 @@
+{
+ "sources": {
+  "days": {
+   "reason": "the source could not be opened",
+   "state": "missing"
+  },
+  "health": {
+   "reason": "the source could not be opened",
+   "state": "missing"
+  },
+  "improve": {
+   "reason": "the source could not be opened",
+   "state": "missing"
+  },
+  "periods": {
+   "reason": "the source could not be opened",
+   "state": "missing"
+  },
+  "reminders": {
+   "reason": "the source could not be opened",
+   "state": "missing"
+  },
+  "screen": {
+   "reason": "the source could not be opened",
+   "state": "missing"
+  },
+  "zones": {
+   "reason": "the source could not be opened",
+   "state": "missing"
+  }
+ },
+ "today": "2025-10-30",
+ "ts": 1761846000,
+ "tz": "UTC",
+ "v": 1
+}

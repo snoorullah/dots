@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dots-overview away",
+  "description": "Away gaps of the last 7 days (docs/shell/specs/cc-agent-metrics.md).",
+  "type": "object",
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "ts": {
+      "type": "integer"
+    },
+    "spanDays": {
+      "type": "integer"
+    },
+    "count": {
+      "type": "integer"
+    },
+    "answered": {
+      "type": "integer"
+    },
+    "unanswered": {
+      "type": "integer"
+    },
+    "totalMin": {
+      "type": "number"
+    },
+    "byCategory": {
+      "type": "object"
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "startTs": {
+            "type": "integer"
+          },
+          "endTs": {
+            "type": "integer"
+          },
+          "minutes": {
+            "type": "number"
+          },
+          "day": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "answered": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "startTs",
+          "endTs",
+          "minutes",
+          "label",
+          "answered"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "v",
+    "ts",
+    "spanDays",
+    "count",
+    "answered",
+    "unanswered",
+    "gaps"
+  ],
+  "additionalProperties": true
+}

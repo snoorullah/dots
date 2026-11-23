@@ -1,0 +1,41 @@
+{
+ "agent": {
+  "cwd": "infra/ingress",
+  "name": "ingress-upgrade",
+  "pane": "p3",
+  "sess": "s3",
+  "status": "Working",
+  "tab": null,
+  "workspace": "w1"
+ },
+ "clock": {
+  "awayReason": "",
+  "sinceTs": 1761596400,
+  "loginTs": 1761596400,
+  "state": "in"
+ },
+ "focus": {
+  "elapsedSec": 360,
+  "endsAt": null,
+  "startedAt": 1761599640,
+  "state": "running",
+  "targetSec": 1500,
+  "zone": "infra"
+ },
+ "task": {
+  "agent": null,
+  "desc": "Rotate deploy keys",
+  "id": 4,
+  "pane": null,
+  "project": "infra",
+  "ref": "HD 4412",
+  "sess": null,
+  "src": "erp",
+  "startedAt": 1761593880,
+  "tags": [],
+  "uuid": "u-1",
+  "workspace": null
+ },
+ "ts": 1761599990,
+ "v": 1
+}

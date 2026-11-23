@@ -1,0 +1,255 @@
+{
+ "counts": {
+  "failed": 1,
+  "total": 3,
+  "waiting": 2
+ },
+ "items": [
+  {
+   "actor": "billing-api",
+   "ageSec": 720,
+   "canBreakdown": false,
+   "id": "a1",
+   "jump": {
+    "pane": "p1",
+    "sess": "s1",
+    "workspace": "w1"
+   },
+   "kind": "blocker",
+   "ref": "INFRA-88",
+   "src": "herdr",
+   "startedAt": null,
+   "title": "Permission: terraform plan on staging",
+   "urgency": "critical",
+   "url": "https://example.invalid/a1",
+   "waiting": true
+  },
+  {
+   "actor": "Priya N.",
+   "ageSec": 540,
+   "canBreakdown": false,
+   "id": "a2",
+   "jump": null,
+   "kind": "dm",
+   "ref": "HD 4398",
+   "src": "notif",
+   "startedAt": null,
+   "title": "Can you add two vCPUs to db-02 tonight?",
+   "urgency": "time",
+   "url": "https://example.invalid/a2",
+   "waiting": true
+  },
+  {
+   "actor": "monitoring",
+   "ageSec": 120,
+   "canBreakdown": false,
+   "id": "a3",
+   "jump": null,
+   "kind": "alert",
+   "ref": "ops:node-7",
+   "src": "ops",
+   "startedAt": null,
+   "title": "New: DiskPressure on node-7",
+   "urgency": "critical",
+   "url": "https://example.invalid/a3",
+   "waiting": false
+  },
+  {
+   "actor": "Marcus T.",
+   "ageSec": 1200,
+   "canBreakdown": true,
+   "id": "b1",
+   "jump": {
+    "pane": "p1",
+    "sess": "s1",
+    "workspace": "w1"
+   },
+   "kind": "review",
+   "ref": "gh:acme/charts#2291",
+   "src": "gh",
+   "startedAt": null,
+   "title": "Review: move tenant-app to its own chart",
+   "urgency": "active",
+   "url": "https://example.invalid/b1",
+   "waiting": false
+  },
+  {
+   "actor": "Sam R.",
+   "ageSec": 2700,
+   "canBreakdown": false,
+   "id": "b2",
+   "jump": null,
+   "kind": "erp",
+   "ref": "HD 4390",
+   "src": "erp",
+   "startedAt": null,
+   "title": "HD 4390 Back up the repo metadata",
+   "urgency": "time",
+   "url": "https://example.invalid/b2",
+   "waiting": false
+  },
+  {
+   "actor": "Marcus T.",
+   "ageSec": 7200,
+   "canBreakdown": false,
+   "id": "c1",
+   "jump": null,
+   "kind": "dm",
+   "ref": "",
+   "src": "notif",
+   "startedAt": null,
+   "title": "Replied to your question on the chart split",
+   "urgency": "passive",
+   "url": "https://example.invalid/c1",
+   "waiting": false
+  },
+  {
+   "actor": "docs-sync",
+   "ageSec": 10800,
+   "canBreakdown": false,
+   "id": "c2",
+   "jump": {
+    "pane": "p1",
+    "sess": "s1",
+    "workspace": "w1"
+   },
+   "kind": "blocker",
+   "ref": "gh:acme/docs#2310",
+   "src": "herdr",
+   "startedAt": null,
+   "title": "Finished: opened draft PR #2310",
+   "urgency": "passive",
+   "url": "https://example.invalid/c2",
+   "waiting": false
+  },
+  {
+   "actor": null,
+   "ageSec": 90000,
+   "canBreakdown": false,
+   "id": "d1",
+   "jump": null,
+   "kind": "untracked",
+   "ref": null,
+   "src": "timetrack",
+   "startedAt": null,
+   "title": "Ask Sam about ballooning on db-03",
+   "urgency": "passive",
+   "url": null,
+   "waiting": false
+  },
+  {
+   "actor": "Security vendor",
+   "ageSec": 18000,
+   "canBreakdown": false,
+   "id": "m1",
+   "jump": null,
+   "kind": "mail",
+   "ref": "",
+   "src": "mail",
+   "startedAt": null,
+   "title": "CVE advisory for the ingress controller",
+   "urgency": "active",
+   "url": null,
+   "waiting": false
+  },
+  {
+   "actor": "You",
+   "ageSec": 600,
+   "canBreakdown": true,
+   "id": "t1",
+   "jump": null,
+   "kind": "task",
+   "ref": "HD 4398",
+   "src": "erp",
+   "startedAt": null,
+   "title": "Add vCPUs to db-02",
+   "urgency": "time",
+   "url": "https://example.invalid/t1",
+   "waiting": false
+  },
+  {
+   "actor": "You",
+   "ageSec": 600,
+   "canBreakdown": true,
+   "id": "t2",
+   "jump": null,
+   "kind": "task",
+   "ref": "HD 4390",
+   "src": "erp",
+   "startedAt": null,
+   "title": "Back up the repo metadata",
+   "urgency": "critical",
+   "url": "https://example.invalid/t2",
+   "waiting": false
+  },
+  {
+   "actor": "You",
+   "ageSec": 600,
+   "canBreakdown": false,
+   "id": "t3",
+   "jump": null,
+   "kind": "task",
+   "ref": "gh:acme/charts#2291",
+   "src": "gh",
+   "startedAt": null,
+   "title": "Review tenant-app chart",
+   "urgency": "active",
+   "url": "https://example.invalid/t3",
+   "waiting": false
+  },
+  {
+   "actor": "You",
+   "ageSec": 600,
+   "canBreakdown": false,
+   "id": "t4",
+   "jump": null,
+   "kind": "task",
+   "ref": "",
+   "src": "gh",
+   "startedAt": null,
+   "title": "CVE advisory for ingress",
+   "urgency": "passive",
+   "url": "https://example.invalid/t4",
+   "waiting": false
+  }
+ ],
+ "sources": {
+  "erp": {
+   "detail": "",
+   "state": "off",
+   "ts": 1761599990
+  },
+  "gh": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "herdr": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "mail": {
+   "detail": "no local store",
+   "state": "unavailable",
+   "ts": 1761599990
+  },
+  "notif": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "ops": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  },
+  "task": {
+   "detail": "",
+   "state": "ok",
+   "ts": 1761599990
+  }
+ },
+ "ts": 1761599990,
+ "v": 1
+}

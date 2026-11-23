@@ -128,6 +128,7 @@ FocusScope {
           readonly property bool on: CcState.view === modelData[0]
           width: parent.width
           height: 28
+          FocusRing { focused: sv.on && CcState.viewFocus; radius: Theme.radius.chip + 4 }
           Rectangle { anchors.fill: parent; radius: Theme.radius.chip + 2; color: sv.on ? Theme.color.surfaceContainer : (sma.containsMouse ? Qt.alpha(Theme.color.fg, Theme.alpha.hover) : "transparent") }
           Row {
             x: 10
@@ -186,7 +187,7 @@ FocusScope {
     QueuePage { anchors.fill: parent; visible: v.listTab; dim: v.dim }
     AgentsPage { anchors.fill: parent; visible: CcState.tab === "agents"; dim: v.dim }
     WorkPage { anchors.fill: parent; visible: CcState.tab === "work"; dim: v.dim }
-    TimePage { anchors.fill: parent; visible: CcState.tab === "time"; dim: v.dim }
+    TimePage { id: timePg; anchors.fill: parent; visible: CcState.tab === "time"; dim: v.dim }
   }
 
   // ---- footer -----------------------------------------------------------------
@@ -202,25 +203,52 @@ FocusScope {
       anchors.leftMargin: 24
       anchors.rightMargin: 24
       spacing: 20
-      DText { objectName: "statusLine"; Layout.fillWidth: true; text: CcState.status; role: "bodyS"; dim: true; elide: Text.ElideRight }
-      Btn { objectName: "undoBtn"; visible: CcState.canUndo; small: true; text: "Undo"; icon: "arrow-counter-clockwise"; onClicked: CcState.undo() }
-      DText { text: "n/e move · r reply · g agent · q queue · s snooze · c comment · o open"; role: "caption"; font.capitalization: Font.MixedCase; font.letterSpacing: 0 }
+      DText { objectName: "statusLine"; Layout.fillWidth: !filterBar.visible; visible: !filterBar.visible; text: CcState.status; role: "bodyS"; dim: true; elide: Text.ElideRight }
+      // the / filter: typing lives here, Esc leaves the field and keeps the text
+      Row {
+        id: filterBar
+        objectName: "filterBar"
+        Layout.fillWidth: true
+        visible: CcState.filterFocus || CcState.filterText !== ""
+        spacing: 8
+        Icon { name: "magnifying-glass"; size: 16; color: Theme.color.fgDim; anchors.verticalCenter: parent.verticalCenter }
+        TextInput {
+          id: filterInput
+          objectName: "filterInput"
+          width: 320
+          anchors.verticalCenter: parent.verticalCenter
+          color: Theme.color.fg
+          font.family: Theme.font.mono
+          font.pixelSize: Theme.font.size.bodyS
+          text: CcState.filterText
+          onTextEdited: CcState.filterText = text
+          Keys.onPressed: function (e) { e.accepted = CcState.handleKey(e, null) }
+        }
+        DText { text: CcState.filterFocus ? "Esc leaves, Ctrl+u clears" : "filtered, / to edit, Esc clears"; role: "caption"; dim: true; anchors.verticalCenter: parent.verticalCenter; font.capitalization: Font.MixedCase; font.letterSpacing: 0 }
+      }
+      Btn { objectName: "undoBtn"; visible: CcState.canUndo; small: true; keyHint: "u"; text: "Undo"; icon: "arrow-counter-clockwise"; onClicked: CcState.undo() }
+      DText { objectName: "keyHint"; text: CcState.hint; role: "caption"; font.capitalization: Font.MixedCase; font.letterSpacing: 0 }
     }
   }
 
+  // ---- help ---------------------------------------------------------------------
+  HelpOverlay { anchors.fill: parent }
+
   // ---- keys -------------------------------------------------------------------
+  // One handler for the whole control centre (docs/shell/specs/cc-keys.md). CcState.handleKey
+  // resolves the key with js/Keys.js and applies it; the active Time page sees the resolved
+  // action first through its own handleKey(res, state), when it defines one.
   focus: true
-  Keys.onPressed: function (e) {
-    if (e.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) return
-    if (e.key === Qt.Key_Escape) {
-      if (CcState.mode !== "") CcState.mode = ""
-      else v.closeRequested()
-      e.accepted = true
-      return
+  function handle(e) { return CcState.handleKey(e, CcState.tab === "time" ? timePg : null) }
+  Keys.onPressed: function (e) { if (v.handle(e)) e.accepted = true }
+  Connections { target: CcState; function onCloseAsked() { v.closeRequested() } }
+  Connections {
+    target: CcState
+    function onZoneChanged() {
+      if (CcState.zone === "filter") filterInput.forceActiveFocus()
+      else if (CcState.zone !== "panel") v.forceActiveFocus()
     }
-    if (!v.listTab) return
-    if (e.key === Qt.Key_Down || e.text === "n") { CcState.step(1); e.accepted = true }
-    else if (e.key === Qt.Key_Up || e.text === "e") { CcState.step(-1); e.accepted = true }
-    else if (e.text.length === 1 && CcState.runKey(e.text)) e.accepted = true
   }
+  // a mouse press drops the focus rings; the next key press brings them back
+  TapHandler { acceptedButtons: Qt.AllButtons; onPressedChanged: if (pressed) CcState.keyboard = false }
 }
