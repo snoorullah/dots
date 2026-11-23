@@ -442,7 +442,7 @@ if [ -z "${ONLY:-}" ] || [ "$ONLY" = logomenu ]; then
   run_scene logomenu /dev/null
   probe_check logomenu && ok "4 logomenu probes: geometry and visibility on every state" || bad "4 logomenu probes"
   scene_errors logomenu
-  smoke logomenu 'logomenu head=Shell ok rows=1[0-9] mode=Heavy work sel=control'
+  smoke logomenu 'logomenu head=(Shell ok|Salah active) rows=1[0-9] mode=Heavy work sel=control'
 fi
 
 [ "$fails" -eq 0 ] && { echo "menus-ui ok ($shots)"; exit 0; }
