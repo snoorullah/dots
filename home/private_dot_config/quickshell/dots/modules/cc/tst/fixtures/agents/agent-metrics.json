@@ -1,0 +1,1518 @@
+{
+ "costIsEstimate": true,
+ "days": [
+  {
+   "activeMin": 50.4,
+   "costUsd": 55.4446,
+   "day": "2025-10-01",
+   "prompts": 47,
+   "runs": 7,
+   "subagentShare": 0.215,
+   "tokens": {
+    "cacheRead": 70696149,
+    "cacheWrite": 2248126,
+    "in": 890,
+    "msgs": 292,
+    "out": 241653,
+    "total": 73186818
+   },
+   "waitingMin": 181.8
+  },
+  {
+   "activeMin": 80.2,
+   "costUsd": 42.2811,
+   "day": "2025-10-02",
+   "prompts": 70,
+   "runs": 3,
+   "subagentShare": 0.5791,
+   "tokens": {
+    "cacheRead": 53223164,
+    "cacheWrite": 2022990,
+    "in": 1258,
+    "msgs": 221,
+    "out": 120781,
+    "total": 55368193
+   },
+   "waitingMin": 210.6
+  },
+  {
+   "activeMin": 66.0,
+   "costUsd": 103.1663,
+   "day": "2025-10-03",
+   "prompts": 36,
+   "runs": 6,
+   "subagentShare": 0.3234,
+   "tokens": {
+    "cacheRead": 122034686,
+    "cacheWrite": 4730534,
+    "in": 1450,
+    "msgs": 509,
+    "out": 503034,
+    "total": 127269704
+   },
+   "waitingMin": 88.3
+  },
+  {
+   "activeMin": 50.7,
+   "costUsd": 1.6658,
+   "day": "2025-10-04",
+   "prompts": 46,
+   "runs": 3,
+   "subagentShare": 0.4722,
+   "tokens": {
+    "cacheRead": 2195683,
+    "cacheWrite": 62171,
+    "in": 66,
+    "msgs": 9,
+    "out": 7164,
+    "total": 2265084
+   },
+   "waitingMin": 109.4
+  },
+  {
+   "activeMin": 0.0,
+   "costUsd": null,
+   "day": "2025-10-05",
+   "prompts": 0,
+   "runs": 0,
+   "subagentShare": 0.0,
+   "tokens": {
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "in": 0,
+    "msgs": 0,
+    "out": 0,
+    "total": 0
+   },
+   "waitingMin": 0.0
+  },
+  {
+   "activeMin": 143.4,
+   "costUsd": 131.2848,
+   "day": "2025-10-06",
+   "prompts": 15,
+   "runs": 5,
+   "subagentShare": 0.5501,
+   "tokens": {
+    "cacheRead": 162271068,
+    "cacheWrite": 6058672,
+    "in": 3206,
+    "msgs": 675,
+    "out": 490663,
+    "total": 168823609
+   },
+   "waitingMin": 186.0
+  },
+  {
+   "activeMin": 208.0,
+   "costUsd": 78.5611,
+   "day": "2025-10-07",
+   "prompts": 19,
+   "runs": 7,
+   "subagentShare": 0.5848,
+   "tokens": {
+    "cacheRead": 100004467,
+    "cacheWrite": 2931155,
+    "in": 1399,
+    "msgs": 413,
+    "out": 409287,
+    "total": 103346308
+   },
+   "waitingMin": 161.2
+  },
+  {
+   "activeMin": 183.4,
+   "costUsd": 4.8566,
+   "day": "2025-10-08",
+   "prompts": 47,
+   "runs": 9,
+   "subagentShare": 0.2374,
+   "tokens": {
+    "cacheRead": 6323642,
+    "cacheWrite": 176162,
+    "in": 131,
+    "msgs": 26,
+    "out": 23724,
+    "total": 6523659
+   },
+   "waitingMin": 76.5
+  },
+  {
+   "activeMin": 169.0,
+   "costUsd": 135.9117,
+   "day": "2025-10-09",
+   "prompts": 28,
+   "runs": 9,
+   "subagentShare": 0.3388,
+   "tokens": {
+    "cacheRead": 187867015,
+    "cacheWrite": 5064232,
+    "in": 6174,
+    "msgs": 773,
+    "out": 411833,
+    "total": 193349254
+   },
+   "waitingMin": 272.9
+  },
+  {
+   "activeMin": 172.9,
+   "costUsd": 85.0039,
+   "day": "2025-10-10",
+   "prompts": 18,
+   "runs": 6,
+   "subagentShare": 0.5667,
+   "tokens": {
+    "cacheRead": 114938450,
+    "cacheWrite": 2879894,
+    "in": 2932,
+    "msgs": 472,
+    "out": 380828,
+    "total": 118202104
+   },
+   "waitingMin": 155.5
+  },
+  {
+   "activeMin": 0.0,
+   "costUsd": null,
+   "day": "2025-10-11",
+   "prompts": 0,
+   "runs": 0,
+   "subagentShare": 0.0,
+   "tokens": {
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "in": 0,
+    "msgs": 0,
+    "out": 0,
+    "total": 0
+   },
+   "waitingMin": 0.0
+  },
+  {
+   "activeMin": 0.0,
+   "costUsd": null,
+   "day": "2025-10-12",
+   "prompts": 0,
+   "runs": 0,
+   "subagentShare": 0.0,
+   "tokens": {
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "in": 0,
+    "msgs": 0,
+    "out": 0,
+    "total": 0
+   },
+   "waitingMin": 0.0
+  },
+  {
+   "activeMin": 162.9,
+   "costUsd": 74.2343,
+   "day": "2025-10-13",
+   "prompts": 32,
+   "runs": 8,
+   "subagentShare": 0.2923,
+   "tokens": {
+    "cacheRead": 97757043,
+    "cacheWrite": 3135306,
+    "in": 2317,
+    "msgs": 404,
+    "out": 229942,
+    "total": 101124608
+   },
+   "waitingMin": 151.3
+  },
+  {
+   "activeMin": 0.0,
+   "costUsd": null,
+   "day": "2025-10-14",
+   "prompts": 0,
+   "runs": 0,
+   "subagentShare": 0.0,
+   "tokens": {
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "in": 0,
+    "msgs": 0,
+    "out": 0,
+    "total": 0
+   },
+   "waitingMin": 0.0
+  },
+  {
+   "activeMin": 136.2,
+   "costUsd": 31.4451,
+   "day": "2025-10-15",
+   "prompts": 36,
+   "runs": 4,
+   "subagentShare": 0.3274,
+   "tokens": {
+    "cacheRead": 41403422,
+    "cacheWrite": 1093586,
+    "in": 659,
+    "msgs": 170,
+    "out": 156206,
+    "total": 42653873
+   },
+   "waitingMin": 206.4
+  },
+  {
+   "activeMin": 196.8,
+   "costUsd": 182.2507,
+   "day": "2025-10-16",
+   "prompts": 67,
+   "runs": 9,
+   "subagentShare": 0.4722,
+   "tokens": {
+    "cacheRead": 220155277,
+    "cacheWrite": 7969064,
+    "in": 6790,
+    "msgs": 916,
+    "out": 893297,
+    "total": 229024428
+   },
+   "waitingMin": 288.5
+  },
+  {
+   "activeMin": 217.2,
+   "costUsd": 93.0627,
+   "day": "2025-10-17",
+   "prompts": 14,
+   "runs": 5,
+   "subagentShare": 0.244,
+   "tokens": {
+    "cacheRead": 123643252,
+    "cacheWrite": 3573238,
+    "in": 3118,
+    "msgs": 510,
+    "out": 355710,
+    "total": 127575318
+   },
+   "waitingMin": 165.8
+  },
+  {
+   "activeMin": 197.4,
+   "costUsd": 1.3751,
+   "day": "2025-10-18",
+   "prompts": 14,
+   "runs": 2,
+   "subagentShare": 0.2594,
+   "tokens": {
+    "cacheRead": 1644321,
+    "cacheWrite": 66913,
+    "in": 44,
+    "msgs": 6,
+    "out": 5379,
+    "total": 1716657
+   },
+   "waitingMin": 207.4
+  },
+  {
+   "activeMin": 0.0,
+   "costUsd": null,
+   "day": "2025-10-19",
+   "prompts": 0,
+   "runs": 0,
+   "subagentShare": 0.0,
+   "tokens": {
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "in": 0,
+    "msgs": 0,
+    "out": 0,
+    "total": 0
+   },
+   "waitingMin": 0.0
+  },
+  {
+   "activeMin": 127.1,
+   "costUsd": 94.2172,
+   "day": "2025-10-20",
+   "prompts": 40,
+   "runs": 9,
+   "subagentShare": 0.2409,
+   "tokens": {
+    "cacheRead": 115053886,
+    "cacheWrite": 4788068,
+    "in": 4260,
+    "msgs": 480,
+    "out": 269742,
+    "total": 120115956
+   },
+   "waitingMin": 80.6
+  },
+  {
+   "activeMin": 164.2,
+   "costUsd": 69.4934,
+   "day": "2025-10-21",
+   "prompts": 19,
+   "runs": 7,
+   "subagentShare": 0.5033,
+   "tokens": {
+    "cacheRead": 95875390,
+    "cacheWrite": 2010311,
+    "in": 1458,
+    "msgs": 392,
+    "out": 359357,
+    "total": 98246516
+   },
+   "waitingMin": 279.4
+  },
+  {
+   "activeMin": 178.9,
+   "costUsd": 132.1321,
+   "day": "2025-10-22",
+   "prompts": 32,
+   "runs": 4,
+   "subagentShare": 0.5116,
+   "tokens": {
+    "cacheRead": 175529421,
+    "cacheWrite": 5510011,
+    "in": 6416,
+    "msgs": 725,
+    "out": 395909,
+    "total": 181441757
+   },
+   "waitingMin": 187.8
+  },
+  {
+   "activeMin": 112.1,
+   "costUsd": 71.433,
+   "day": "2025-10-23",
+   "prompts": 62,
+   "runs": 5,
+   "subagentShare": 0.28,
+   "tokens": {
+    "cacheRead": 85442705,
+    "cacheWrite": 3300242,
+    "in": 3522,
+    "msgs": 356,
+    "out": 322699,
+    "total": 89069168
+   },
+   "waitingMin": 252.8
+  },
+  {
+   "activeMin": 148.9,
+   "costUsd": 154.0195,
+   "day": "2025-10-24",
+   "prompts": 54,
+   "runs": 5,
+   "subagentShare": 0.5234,
+   "tokens": {
+    "cacheRead": 194101873,
+    "cacheWrite": 5913130,
+    "in": 6768,
+    "msgs": 803,
+    "out": 799107,
+    "total": 200820878
+   },
+   "waitingMin": 142.6
+  },
+  {
+   "activeMin": 100.8,
+   "costUsd": 2.4938,
+   "day": "2025-10-25",
+   "prompts": 22,
+   "runs": 9,
+   "subagentShare": 0.5941,
+   "tokens": {
+    "cacheRead": 3357011,
+    "cacheWrite": 75974,
+    "in": 42,
+    "msgs": 13,
+    "out": 13610,
+    "total": 3446637
+   },
+   "waitingMin": 175.8
+  },
+  {
+   "activeMin": 109.9,
+   "costUsd": 0.793,
+   "day": "2025-10-26",
+   "prompts": 68,
+   "runs": 3,
+   "subagentShare": 0.2797,
+   "tokens": {
+    "cacheRead": 976168,
+    "cacheWrite": 33301,
+    "in": 20,
+    "msgs": 4,
+    "out": 3869,
+    "total": 1013358
+   },
+   "waitingMin": 230.8
+  },
+  {
+   "activeMin": 112.2,
+   "costUsd": 108.9156,
+   "day": "2025-10-27",
+   "prompts": 39,
+   "runs": 8,
+   "subagentShare": 0.4899,
+   "tokens": {
+    "cacheRead": 129745928,
+    "cacheWrite": 5272688,
+    "in": 1707,
+    "msgs": 541,
+    "out": 443193,
+    "total": 135463516
+   },
+   "waitingMin": 287.2
+  },
+  {
+   "activeMin": 188.8,
+   "costUsd": 51.9344,
+   "day": "2025-10-28",
+   "prompts": 49,
+   "runs": 4,
+   "subagentShare": 0.4629,
+   "tokens": {
+    "cacheRead": 65334501,
+    "cacheWrite": 2454979,
+    "in": 2523,
+    "msgs": 271,
+    "out": 156437,
+    "total": 67948440
+   },
+   "waitingMin": 295.3
+  },
+  {
+   "activeMin": 174.9,
+   "costUsd": 125.6903,
+   "day": "2025-10-29",
+   "prompts": 43,
+   "runs": 3,
+   "subagentShare": 0.5946,
+   "tokens": {
+    "cacheRead": 154005379,
+    "cacheWrite": 6334646,
+    "in": 1675,
+    "msgs": 642,
+    "out": 363509,
+    "total": 160705209
+   },
+   "waitingMin": 93.4
+  },
+  {
+   "activeMin": 138.0,
+   "costUsd": 167.942,
+   "day": "2025-10-30",
+   "prompts": 26,
+   "runs": 7,
+   "subagentShare": 0.2244,
+   "tokens": {
+    "cacheRead": 224804998,
+    "cacheWrite": 6973182,
+    "in": 3805,
+    "msgs": 929,
+    "out": 477522,
+    "total": 232259507
+   },
+   "waitingMin": 260.2
+  }
+ ],
+ "live": {
+  "agents": 5,
+  "byStatus": {
+   "blocked": 1,
+   "idle": 2,
+   "working": 2
+  },
+  "needsYou": 1
+ },
+ "periods": {
+  "month": {
+   "activeMin": 3590.3,
+   "byAgent": [
+    {
+     "activeMin": 885.1,
+     "costUsd": 492.9351,
+     "key": "Atlas",
+     "models": [
+      "claude-opus-5",
+      "claude-sonnet-5-5"
+     ],
+     "prompts": 98,
+     "runs": 36,
+     "subagentShare": 0.6399,
+     "tokens": {
+      "cacheRead": 627475325,
+      "cacheWrite": 21164592,
+      "in": 6788,
+      "msgs": 2604,
+      "out": 2391900,
+      "total": 651038605
+     },
+     "waitingMin": 1770.1
+    },
+    {
+     "activeMin": 814.8,
+     "costUsd": 453.7912,
+     "key": "Vega",
+     "models": [
+      "claude-opus-5",
+      "claude-sonnet-5-5"
+     ],
+     "prompts": 90,
+     "runs": 33,
+     "subagentShare": 0.3904,
+     "tokens": {
+      "cacheRead": 577656999,
+      "cacheWrite": 19960742,
+      "in": 6989,
+      "msgs": 2397,
+      "out": 1714999,
+      "total": 599339729
+     },
+     "waitingMin": 1629.6
+    },
+    {
+     "activeMin": 672.1,
+     "costUsd": 374.3162,
+     "key": "billing-api",
+     "models": [
+      "claude-opus-5",
+      "claude-sonnet-5-5"
+     ],
+     "prompts": 74,
+     "runs": 28,
+     "subagentShare": 0.5463,
+     "tokens": {
+      "cacheRead": 477057808,
+      "cacheWrite": 15807890,
+      "in": 19343,
+      "msgs": 1977,
+      "out": 1488998,
+      "total": 494374039
+     },
+     "waitingMin": 1344.2
+    },
+    {
+     "activeMin": 510.2,
+     "costUsd": 284.1659,
+     "key": "docs-sync",
+     "models": [
+      "claude-opus-5",
+      "claude-sonnet-5-5"
+     ],
+     "prompts": 56,
+     "runs": 21,
+     "subagentShare": 0.2018,
+     "tokens": {
+      "cacheRead": 364992950,
+      "cacheWrite": 9525617,
+      "in": 5840,
+      "msgs": 1501,
+      "out": 784574,
+      "total": 375308981
+     },
+     "waitingMin": 1020.4
+    },
+    {
+     "activeMin": 421.2,
+     "costUsd": 234.5765,
+     "key": "Orion",
+     "models": [
+      "claude-opus-5",
+      "claude-sonnet-5-5"
+     ],
+     "prompts": 46,
+     "runs": 17,
+     "subagentShare": 0.3618,
+     "tokens": {
+      "cacheRead": 296663832,
+      "cacheWrite": 12299079,
+      "in": 6155,
+      "msgs": 1239,
+      "out": 845261,
+      "total": 309814327
+     },
+     "waitingMin": 842.4
+    },
+    {
+     "activeMin": 287.0,
+     "costUsd": 159.8233,
+     "key": "Lyra",
+     "models": [
+      "claude-opus-5",
+      "claude-sonnet-5-5"
+     ],
+     "prompts": 31,
+     "runs": 12,
+     "subagentShare": 0.2915,
+     "tokens": {
+      "cacheRead": 205499004,
+      "cacheWrite": 5141461,
+      "in": 7698,
+      "msgs": 844,
+      "out": 436712,
+      "total": 211084875
+     },
+     "waitingMin": 573.9
+    }
+   ],
+   "byModel": [
+    {
+     "costUsd": 1314.9955,
+     "key": "claude-opus-5",
+     "priced": true,
+     "subagentShare": 0.5764,
+     "tokens": {
+      "cacheRead": 1569238915,
+      "cacheWrite": 62544830,
+      "in": 41207,
+      "msgs": 6549,
+      "out": 5570594,
+      "total": 1637395546
+     }
+    },
+    {
+     "costUsd": 142.5271,
+     "key": "claude-sonnet-5-5",
+     "priced": true,
+     "subagentShare": 0.5432,
+     "tokens": {
+      "cacheRead": 773674989,
+      "cacheWrite": 16100559,
+      "in": 27244,
+      "msgs": 3169,
+      "out": 2485375,
+      "total": 792288167
+     }
+    },
+    {
+     "costUsd": 27.4893,
+     "key": "claude-haiku-5",
+     "priced": true,
+     "subagentShare": 0.5214,
+     "tokens": {
+      "cacheRead": 202245009,
+      "cacheWrite": 8265478,
+      "in": 6620,
+      "msgs": 845,
+      "out": 759737,
+      "total": 211276844
+     }
+    }
+   ],
+   "byTicket": [
+    {
+     "activeMin": 920.0,
+     "costUsd": 512.4118,
+     "key": "HD 4398",
+     "prompts": 102,
+     "runs": 38,
+     "subagentShare": 0.4934,
+     "tokens": {
+      "cacheRead": 659779990,
+      "cacheWrite": 15482496,
+      "in": 23355,
+      "msgs": 2707,
+      "out": 1476494,
+      "total": 676762335
+     },
+     "waitingMin": 1840.1
+    },
+    {
+     "activeMin": 771.0,
+     "costUsd": 429.4083,
+     "key": "HD 4390",
+     "prompts": 85,
+     "runs": 32,
+     "subagentShare": 0.2422,
+     "tokens": {
+      "cacheRead": 547059447,
+      "cacheWrite": 18484897,
+      "in": 10769,
+      "msgs": 2268,
+      "out": 1581151,
+      "total": 567136264
+     },
+     "waitingMin": 1542.0
+    },
+    {
+     "activeMin": 658.6,
+     "costUsd": 366.8207,
+     "key": "gh:acme/charts#2291",
+     "prompts": 73,
+     "runs": 27,
+     "subagentShare": 0.6464,
+     "tokens": {
+      "cacheRead": 471366580,
+      "cacheWrite": 11193803,
+      "in": 17246,
+      "msgs": 1937,
+      "out": 1896850,
+      "total": 484474479
+     },
+     "waitingMin": 1317.3
+    },
+    {
+     "activeMin": 551.0,
+     "costUsd": 306.8892,
+     "key": "TASK-2026-00111",
+     "prompts": 61,
+     "runs": 23,
+     "subagentShare": 0.5603,
+     "tokens": {
+      "cacheRead": 389560747,
+      "cacheWrite": 14302231,
+      "in": 11307,
+      "msgs": 1621,
+      "out": 1446216,
+      "total": 405320501
+     },
+     "waitingMin": 1102.0
+    },
+    {
+     "activeMin": 401.2,
+     "costUsd": 223.4633,
+     "key": "local:ab12",
+     "prompts": 44,
+     "runs": 16,
+     "subagentShare": 0.2724,
+     "tokens": {
+      "cacheRead": 284694516,
+      "cacheWrite": 9554799,
+      "in": 5467,
+      "msgs": 1180,
+      "out": 881981,
+      "total": 295136763
+     },
+     "waitingMin": 802.5
+    },
+    {
+     "activeMin": 288.4,
+     "costUsd": 160.6148,
+     "key": "HD 4378",
+     "prompts": 32,
+     "runs": 12,
+     "subagentShare": 0.4146,
+     "tokens": {
+      "cacheRead": 204930350,
+      "cacheWrite": 6418980,
+      "in": 6671,
+      "msgs": 848,
+      "out": 774214,
+      "total": 212130215
+     },
+     "waitingMin": 576.8
+    }
+   ],
+   "costUsd": 1999.6081,
+   "delta": {
+    "activeMin": 590.3,
+    "costUsd": 499.6081,
+    "prompts": 43,
+    "runs": 27,
+    "tokens": -1359039441,
+    "waitingMin": -4252.5
+   },
+   "first": "2025-10-01",
+   "last": "2025-10-30",
+   "prev": {
+    "activeMin": 3000.0,
+    "costUsd": 1500.0,
+    "first": "2025-09-01",
+    "last": "2025-09-30",
+    "prompts": 900,
+    "runs": 120,
+    "tokens": {
+     "cacheRead": 3860304654,
+     "cacheWrite": 130969590,
+     "in": 45023,
+     "msgs": 16000,
+     "out": 8680733,
+     "total": 4000000000
+    },
+    "waitingMin": 9000.0
+   },
+   "prompts": 943,
+   "runs": 147,
+   "subagentShare": 0.3303,
+   "tokens": {
+    "cacheRead": 2548384899,
+    "cacheWrite": 84678575,
+    "in": 62630,
+    "msgs": 10552,
+    "out": 7834455,
+    "total": 2640960559
+   },
+   "unpricedTokens": 0,
+   "waitingMin": 4747.5
+  },
+  "today": {
+   "activeMin": 138.0,
+   "byAgent": [
+    {
+     "activeMin": 35.8,
+     "costUsd": 43.6211,
+     "key": "Atlas",
+     "models": [
+      "claude-opus-5",
+      "claude-sonnet-5-5"
+     ],
+     "prompts": 103,
+     "runs": 2,
+     "subagentShare": 0.6364,
+     "tokens": {
+      "cacheRead": 58366977,
+      "cacheWrite": 1822529,
+      "in": 878,
+      "msgs": 241,
+      "out": 136430,
+      "total": 60326814
+     },
+     "waitingMin": 71.7
+    },
+    {
+     "activeMin": 30.1,
+     "costUsd": 36.6654,
+     "key": "Vega",
+     "models": [
+      "claude-opus-5",
+      "claude-sonnet-5-5"
+     ],
+     "prompts": 87,
+     "runs": 2,
+     "subagentShare": 0.2749,
+     "tokens": {
+      "cacheRead": 48724586,
+      "cacheWrite": 1801164,
+      "in": 1432,
+      "msgs": 202,
+      "out": 180163,
+      "total": 50707345
+     },
+     "waitingMin": 60.3
+    },
+    {
+     "activeMin": 25.6,
+     "costUsd": 31.1575,
+     "key": "billing-api",
+     "models": [
+      "claude-opus-5",
+      "claude-sonnet-5-5"
+     ],
+     "prompts": 74,
+     "runs": 1,
+     "subagentShare": 0.2309,
+     "tokens": {
+      "cacheRead": 42024899,
+      "cacheWrite": 965506,
+      "in": 1231,
+      "msgs": 172,
+      "out": 98379,
+      "total": 43090015
+     },
+     "waitingMin": 51.2
+    },
+    {
+     "activeMin": 20.0,
+     "costUsd": 24.3733,
+     "key": "docs-sync",
+     "models": [
+      "claude-opus-5",
+      "claude-sonnet-5-5"
+     ],
+     "prompts": 58,
+     "runs": 1,
+     "subagentShare": 0.5882,
+     "tokens": {
+      "cacheRead": 32593922,
+      "cacheWrite": 999422,
+      "in": 873,
+      "msgs": 134,
+      "out": 113414,
+      "total": 33707631
+     },
+     "waitingMin": 40.1
+    },
+    {
+     "activeMin": 15.7,
+     "costUsd": 19.063,
+     "key": "Orion",
+     "models": [
+      "claude-opus-5",
+      "claude-sonnet-5-5"
+     ],
+     "prompts": 45,
+     "runs": 1,
+     "subagentShare": 0.2211,
+     "tokens": {
+      "cacheRead": 25635910,
+      "cacheWrite": 628143,
+      "in": 308,
+      "msgs": 105,
+      "out": 99297,
+      "total": 26363658
+     },
+     "waitingMin": 31.3
+    },
+    {
+     "activeMin": 10.7,
+     "costUsd": 13.0617,
+     "key": "Lyra",
+     "models": [
+      "claude-opus-5",
+      "claude-sonnet-5-5"
+     ],
+     "prompts": 31,
+     "runs": 1,
+     "subagentShare": 0.647,
+     "tokens": {
+      "cacheRead": 17652609,
+      "cacheWrite": 371348,
+      "in": 425,
+      "msgs": 72,
+      "out": 39659,
+      "total": 18064041
+     },
+     "waitingMin": 21.5
+    }
+   ],
+   "byModel": [
+    {
+     "costUsd": 108.9658,
+     "key": "claude-opus-5",
+     "priced": true,
+     "subagentShare": 0.2471,
+     "tokens": {
+      "cacheRead": 138639428,
+      "cacheWrite": 5030475,
+      "in": 3460,
+      "msgs": 576,
+      "out": 327531,
+      "total": 144000894
+     }
+    },
+    {
+     "costUsd": 15.1484,
+     "key": "claude-sonnet-5-5",
+     "priced": true,
+     "subagentShare": 0.3119,
+     "tokens": {
+      "cacheRead": 67089919,
+      "cacheWrite": 2324220,
+      "in": 1037,
+      "msgs": 278,
+      "out": 262676,
+      "total": 69677852
+     }
+    },
+    {
+     "costUsd": 2.2155,
+     "key": "claude-haiku-5",
+     "priced": true,
+     "subagentShare": 0.4106,
+     "tokens": {
+      "cacheRead": 17994935,
+      "cacheWrite": 521677,
+      "in": 739,
+      "msgs": 74,
+      "out": 63409,
+      "total": 18580760
+     }
+    }
+   ],
+   "byTicket": [
+    {
+     "activeMin": 34.2,
+     "costUsd": 41.5906,
+     "key": "HD 4398",
+     "prompts": 99,
+     "runs": 2,
+     "subagentShare": 0.3238,
+     "tokens": {
+      "cacheRead": 55608828,
+      "cacheWrite": 1734480,
+      "in": 1968,
+      "msgs": 230,
+      "out": 173494,
+      "total": 57518770
+     },
+     "waitingMin": 68.4
+    },
+    {
+     "activeMin": 30.2,
+     "costUsd": 36.7488,
+     "key": "HD 4390",
+     "prompts": 87,
+     "runs": 2,
+     "subagentShare": 0.6614,
+     "tokens": {
+      "cacheRead": 48706399,
+      "cacheWrite": 1959525,
+      "in": 1843,
+      "msgs": 203,
+      "out": 154826,
+      "total": 50822593
+     },
+     "waitingMin": 60.4
+    },
+    {
+     "activeMin": 26.9,
+     "costUsd": 32.7947,
+     "key": "gh:acme/charts#2291",
+     "prompts": 78,
+     "runs": 1,
+     "subagentShare": 0.4083,
+     "tokens": {
+      "cacheRead": 43868725,
+      "cacheWrite": 1313028,
+      "in": 729,
+      "msgs": 181,
+      "out": 171688,
+      "total": 45354170
+     },
+     "waitingMin": 53.9
+    },
+    {
+     "activeMin": 20.9,
+     "costUsd": 25.4916,
+     "key": "TASK-2026-00111",
+     "prompts": 60,
+     "runs": 1,
+     "subagentShare": 0.4142,
+     "tokens": {
+      "cacheRead": 33977117,
+      "cacheWrite": 1178307,
+      "in": 686,
+      "msgs": 141,
+      "out": 98173,
+      "total": 35254283
+     },
+     "waitingMin": 41.9
+    },
+    {
+     "activeMin": 15.3,
+     "costUsd": 18.5602,
+     "key": "local:ab12",
+     "prompts": 44,
+     "runs": 1,
+     "subagentShare": 0.5885,
+     "tokens": {
+      "cacheRead": 25029338,
+      "cacheWrite": 576175,
+      "in": 489,
+      "msgs": 102,
+      "out": 62255,
+      "total": 25668257
+     },
+     "waitingMin": 30.5
+    },
+    {
+     "activeMin": 10.5,
+     "costUsd": 12.7562,
+     "key": "HD 4378",
+     "prompts": 30,
+     "runs": 1,
+     "subagentShare": 0.3266,
+     "tokens": {
+      "cacheRead": 17090455,
+      "cacheWrite": 482028,
+      "in": 516,
+      "msgs": 70,
+      "out": 68431,
+      "total": 17641430
+     },
+     "waitingMin": 21.0
+    }
+   ],
+   "costUsd": 167.942,
+   "delta": {
+    "activeMin": -36.9,
+    "costUsd": 42.2517,
+    "prompts": -17,
+    "runs": 4,
+    "tokens": 71554298,
+    "waitingMin": 166.8
+   },
+   "first": "2025-10-30",
+   "last": "2025-10-30",
+   "prev": {
+    "activeMin": 174.9,
+    "costUsd": 125.6903,
+    "first": "2025-10-29",
+    "last": "2025-10-29",
+    "prompts": 43,
+    "runs": 3,
+    "tokens": {
+     "cacheRead": 154005379,
+     "cacheWrite": 6334646,
+     "in": 1675,
+     "msgs": 642,
+     "out": 363509,
+     "total": 160705209
+    },
+    "waitingMin": 93.4
+   },
+   "prompts": 26,
+   "runs": 7,
+   "subagentShare": 0.509,
+   "tokens": {
+    "cacheRead": 224804998,
+    "cacheWrite": 6973182,
+    "in": 3805,
+    "msgs": 929,
+    "out": 477522,
+    "total": 232259507
+   },
+   "unpricedTokens": 0,
+   "waitingMin": 260.2
+  },
+  "week": {
+   "activeMin": 973.5,
+   "byAgent": [
+    {
+     "activeMin": 247.7,
+     "costUsd": 155.6881,
+     "key": "Atlas",
+     "models": [
+      "claude-opus-5",
+      "claude-sonnet-5-5"
+     ],
+     "prompts": 101,
+     "runs": 10,
+     "subagentShare": 0.6593,
+     "tokens": {
+      "cacheRead": 198928985,
+      "cacheWrite": 4540561,
+      "in": 7920,
+      "msgs": 816,
+      "out": 528560,
+      "total": 204006026
+     },
+     "waitingMin": 495.5
+    },
+    {
+     "activeMin": 212.4,
+     "costUsd": 133.5122,
+     "key": "Vega",
+     "models": [
+      "claude-opus-5",
+      "claude-sonnet-5-5"
+     ],
+     "prompts": 87,
+     "runs": 9,
+     "subagentShare": 0.336,
+     "tokens": {
+      "cacheRead": 170718450,
+      "cacheWrite": 3793081,
+      "in": 6349,
+      "msgs": 699,
+      "out": 429865,
+      "total": 174947745
+     },
+     "waitingMin": 424.9
+    },
+    {
+     "activeMin": 180.0,
+     "costUsd": 113.1489,
+     "key": "billing-api",
+     "models": [
+      "claude-opus-5",
+      "claude-sonnet-5-5"
+     ],
+     "prompts": 73,
+     "runs": 7,
+     "subagentShare": 0.6099,
+     "tokens": {
+      "cacheRead": 142490889,
+      "cacheWrite": 5206394,
+      "in": 2290,
+      "msgs": 593,
+      "out": 565155,
+      "total": 148264728
+     },
+     "waitingMin": 360.1
+    },
+    {
+     "activeMin": 148.6,
+     "costUsd": 93.3854,
+     "key": "docs-sync",
+     "models": [
+      "claude-opus-5",
+      "claude-sonnet-5-5"
+     ],
+     "prompts": 61,
+     "runs": 6,
+     "subagentShare": 0.403,
+     "tokens": {
+      "cacheRead": 117148646,
+      "cacheWrite": 4762549,
+      "in": 3705,
+      "msgs": 489,
+      "out": 452659,
+      "total": 122367559
+     },
+     "waitingMin": 297.2
+    },
+    {
+     "activeMin": 109.2,
+     "costUsd": 68.6305,
+     "key": "Orion",
+     "models": [
+      "claude-opus-5",
+      "claude-sonnet-5-5"
+     ],
+     "prompts": 44,
+     "runs": 4,
+     "subagentShare": 0.3635,
+     "tokens": {
+      "cacheRead": 86963118,
+      "cacheWrite": 2688208,
+      "in": 2288,
+      "msgs": 359,
+      "out": 276372,
+      "total": 89929986
+     },
+     "waitingMin": 218.4
+    },
+    {
+     "activeMin": 75.5,
+     "costUsd": 47.4236,
+     "key": "Lyra",
+     "models": [
+      "claude-opus-5",
+      "claude-sonnet-5-5"
+     ],
+     "prompts": 31,
+     "runs": 3,
+     "subagentShare": 0.6476,
+     "tokens": {
+      "cacheRead": 60509725,
+      "cacheWrite": 1470695,
+      "in": 2112,
+      "msgs": 248,
+      "out": 158965,
+      "total": 62141497
+     },
+     "waitingMin": 150.9
+    }
+   ],
+   "byModel": [
+    {
+     "costUsd": 371.822,
+     "key": "claude-opus-5",
+     "priced": true,
+     "subagentShare": 0.3228,
+     "tokens": {
+      "cacheRead": 480459088,
+      "cacheWrite": 15052333,
+      "in": 19553,
+      "msgs": 1988,
+      "out": 1496703,
+      "total": 497027677
+     }
+    },
+    {
+     "costUsd": 50.0026,
+     "key": "claude-sonnet-5-5",
+     "priced": true,
+     "subagentShare": 0.5283,
+     "tokens": {
+      "cacheRead": 231857165,
+      "cacheWrite": 7936919,
+      "in": 7154,
+      "msgs": 961,
+      "out": 696025,
+      "total": 240497263
+     }
+    },
+    {
+     "costUsd": 8.2346,
+     "key": "claude-haiku-5",
+     "priced": true,
+     "subagentShare": 0.3539,
+     "tokens": {
+      "cacheRead": 61404742,
+      "cacheWrite": 2527225,
+      "in": 2351,
+      "msgs": 256,
+      "out": 198285,
+      "total": 64132603
+     }
+    }
+   ],
+   "byTicket": [
+    {
+     "activeMin": 251.0,
+     "costUsd": 157.7641,
+     "key": "HD 4398",
+     "prompts": 103,
+     "runs": 10,
+     "subagentShare": 0.6972,
+     "tokens": {
+      "cacheRead": 202018426,
+      "cacheWrite": 4182264,
+      "in": 2821,
+      "msgs": 826,
+      "out": 522790,
+      "total": 206726301
+     },
+     "waitingMin": 502.1
+    },
+    {
+     "activeMin": 210.3,
+     "costUsd": 132.1759,
+     "key": "HD 4390",
+     "prompts": 86,
+     "runs": 8,
+     "subagentShare": 0.2216,
+     "tokens": {
+      "cacheRead": 167081734,
+      "cacheWrite": 5617477,
+      "in": 6488,
+      "msgs": 692,
+      "out": 491103,
+      "total": 173196802
+     },
+     "waitingMin": 420.6
+    },
+    {
+     "activeMin": 177.4,
+     "costUsd": 111.493,
+     "key": "gh:acme/charts#2291",
+     "prompts": 72,
+     "runs": 7,
+     "subagentShare": 0.3309,
+     "tokens": {
+      "cacheRead": 139836022,
+      "cacheWrite": 5753840,
+      "in": 5572,
+      "msgs": 584,
+      "out": 499509,
+      "total": 146094943
+     },
+     "waitingMin": 354.8
+    },
+    {
+     "activeMin": 145.5,
+     "costUsd": 91.4248,
+     "key": "TASK-2026-00111",
+     "prompts": 59,
+     "runs": 6,
+     "subagentShare": 0.4655,
+     "tokens": {
+      "cacheRead": 115608710,
+      "cacheWrite": 3902247,
+      "in": 4548,
+      "msgs": 479,
+      "out": 282999,
+      "total": 119798504
+     },
+     "waitingMin": 291.0
+    },
+    {
+     "activeMin": 114.3,
+     "costUsd": 71.8269,
+     "key": "local:ab12",
+     "prompts": 46,
+     "runs": 5,
+     "subagentShare": 0.3353,
+     "tokens": {
+      "cacheRead": 90741602,
+      "cacheWrite": 3147615,
+      "in": 2199,
+      "msgs": 376,
+      "out": 226989,
+      "total": 94118405
+     },
+     "waitingMin": 228.6
+    },
+    {
+     "activeMin": 75.0,
+     "costUsd": 47.1039,
+     "key": "HD 4378",
+     "prompts": 30,
+     "runs": 3,
+     "subagentShare": 0.2092,
+     "tokens": {
+      "cacheRead": 60217411,
+      "cacheWrite": 1280063,
+      "in": 2458,
+      "msgs": 246,
+      "out": 222655,
+      "total": 61722587
+     },
+     "waitingMin": 149.9
+    }
+   ],
+   "costUsd": 611.7886,
+   "delta": {
+    "activeMin": -23.4,
+    "costUsd": 150.0751,
+    "prompts": 120,
+    "runs": 7,
+    "tokens": 183492173,
+    "waitingMin": 311.5
+   },
+   "first": "2025-10-24",
+   "last": "2025-10-30",
+   "prev": {
+    "activeMin": 996.9,
+    "costUsd": 461.7135,
+    "first": "2025-10-17",
+    "last": "2025-10-23",
+    "prompts": 181,
+    "runs": 32,
+    "tokens": {
+     "cacheRead": 597188975,
+     "cacheWrite": 19248783,
+     "in": 18818,
+     "msgs": 2469,
+     "out": 1708796,
+     "total": 618165372
+    },
+    "waitingMin": 1173.8
+   },
+   "prompts": 301,
+   "runs": 39,
+   "subagentShare": 0.2823,
+   "tokens": {
+    "cacheRead": 772325858,
+    "cacheWrite": 27057900,
+    "in": 16540,
+    "msgs": 3203,
+    "out": 2257247,
+    "total": 801657545
+   },
+   "unpricedTokens": 0,
+   "waitingMin": 1485.3
+  }
+ },
+ "prices": [
+  {
+   "match": "claude-opus-5",
+   "perMTok": {
+    "cacheRead": 0.5,
+    "cacheWrite": 6.25,
+    "in": 5.0,
+    "out": 25.0
+   }
+  },
+  {
+   "match": "claude-sonnet-5-5",
+   "perMTok": {
+    "cacheRead": 0.1,
+    "cacheWrite": 2.5,
+    "in": 2.0,
+    "out": 10.0
+   }
+  },
+  {
+   "match": "claude-haiku-5",
+   "perMTok": {
+    "cacheRead": 0.08,
+    "cacheWrite": 1.0,
+    "in": 0.8,
+    "out": 4.0
+   }
+  }
+ ],
+ "today": "2025-10-30",
+ "ts": 1761846000,
+ "v": 1
+}

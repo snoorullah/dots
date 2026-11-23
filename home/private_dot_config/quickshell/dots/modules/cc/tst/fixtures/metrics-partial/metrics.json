@@ -1,0 +1,3277 @@
+{
+ "days": [
+  {
+   "agentOnlyMin": 87,
+   "breaks": {
+    "call": 9,
+    "lunch": 45,
+    "walk": 15
+   },
+   "commits": 9,
+   "contextSwitches": 52,
+   "day": "2025-07-03",
+   "deductionMin": 69,
+   "deepWorkMin": 178,
+   "focusMin": 339,
+   "humanMin": 415,
+   "interruptions": 3,
+   "kind": "working",
+   "loginTs": 1751533020,
+   "logoutTs": 1751567280,
+   "prsMerged": 3,
+   "prsReviewed": 3,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 571,
+   "targetMin": 480,
+   "tasksDone": 4,
+   "ticketsClosed": 1,
+   "workedMin": 502
+  },
+  {
+   "agentOnlyMin": 72,
+   "breaks": {
+    "salah": 15,
+    "walk": 12
+   },
+   "commits": 11,
+   "contextSwitches": 60,
+   "day": "2025-07-04",
+   "deductionMin": 27,
+   "deepWorkMin": 73,
+   "focusMin": 232,
+   "humanMin": 277,
+   "interruptions": 4,
+   "kind": "working",
+   "loginTs": 1751617380,
+   "logoutTs": 1751639940,
+   "prsMerged": 2,
+   "prsReviewed": 3,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 376,
+   "targetMin": 480,
+   "tasksDone": 3,
+   "ticketsClosed": 0,
+   "workedMin": 349
+  },
+  {
+   "day": "2025-07-05",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-07-06",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "agentOnlyMin": 84,
+   "breaks": {
+    "lunch": 10,
+    "salah": 5,
+    "walk": 5
+   },
+   "commits": 1,
+   "contextSwitches": 43,
+   "day": "2025-07-07",
+   "deductionMin": 20,
+   "deepWorkMin": 165,
+   "focusMin": 288,
+   "humanMin": 432,
+   "interruptions": 15,
+   "kind": "working",
+   "loginTs": 1751875320,
+   "logoutTs": 1751907480,
+   "prsMerged": 1,
+   "prsReviewed": 2,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 536,
+   "targetMin": 480,
+   "tasksDone": 0,
+   "ticketsClosed": 2,
+   "workedMin": 516
+  },
+  {
+   "agentOnlyMin": 91,
+   "breaks": {
+    "lunch": 10,
+    "salah": 5
+   },
+   "commits": 1,
+   "contextSwitches": 50,
+   "day": "2025-07-08",
+   "deductionMin": 15,
+   "deepWorkMin": 128,
+   "focusMin": 243,
+   "humanMin": 380,
+   "interruptions": 8,
+   "kind": "working",
+   "loginTs": 1751962440,
+   "logoutTs": 1751991600,
+   "prsMerged": 1,
+   "prsReviewed": 3,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 486,
+   "targetMin": 480,
+   "tasksDone": 5,
+   "ticketsClosed": 3,
+   "workedMin": 471
+  },
+  {
+   "agentOnlyMin": 107,
+   "breaks": {
+    "call": 20,
+    "lunch": 45,
+    "walk": 15
+   },
+   "commits": 1,
+   "contextSwitches": 57,
+   "day": "2025-07-09",
+   "deductionMin": 80,
+   "deepWorkMin": 166,
+   "focusMin": 279,
+   "humanMin": 423,
+   "interruptions": 12,
+   "kind": "working",
+   "loginTs": 1752049980,
+   "logoutTs": 1752086580,
+   "prsMerged": 2,
+   "prsReviewed": 3,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 610,
+   "targetMin": 480,
+   "tasksDone": 6,
+   "ticketsClosed": 0,
+   "workedMin": 530
+  },
+  {
+   "agentOnlyMin": 78,
+   "breaks": {
+    "call": 20,
+    "lunch": 15,
+    "salah": 15
+   },
+   "commits": 10,
+   "contextSwitches": 32,
+   "day": "2025-07-10",
+   "deductionMin": 50,
+   "deepWorkMin": 69,
+   "focusMin": 233,
+   "humanMin": 241,
+   "interruptions": 9,
+   "kind": "working",
+   "loginTs": 1752134400,
+   "logoutTs": 1752156540,
+   "prsMerged": 1,
+   "prsReviewed": 1,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 369,
+   "targetMin": 480,
+   "tasksDone": 5,
+   "ticketsClosed": 1,
+   "workedMin": 319
+  },
+  {
+   "agentOnlyMin": 174,
+   "breaks": {
+    "call": 20,
+    "lunch": 30,
+    "salah": 12
+   },
+   "commits": 1,
+   "contextSwitches": 48,
+   "day": "2025-07-11",
+   "deductionMin": 62,
+   "deepWorkMin": 125,
+   "focusMin": 291,
+   "humanMin": 283,
+   "interruptions": 4,
+   "kind": "working",
+   "loginTs": 1752223920,
+   "logoutTs": 1752255060,
+   "prsMerged": 1,
+   "prsReviewed": 1,
+   "salahOnTime": 3,
+   "salahTotal": 5,
+   "spanMin": 519,
+   "targetMin": 480,
+   "tasksDone": 2,
+   "ticketsClosed": 0,
+   "workedMin": 457
+  },
+  {
+   "day": "2025-07-12",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-07-13",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "agentOnlyMin": 106,
+   "breaks": {
+    "call": 20,
+    "salah": 12
+   },
+   "commits": 14,
+   "contextSwitches": 60,
+   "day": "2025-07-14",
+   "deductionMin": 32,
+   "deepWorkMin": 86,
+   "focusMin": 291,
+   "humanMin": 335,
+   "interruptions": 18,
+   "kind": "working",
+   "loginTs": 1752480300,
+   "logoutTs": 1752508680,
+   "prsMerged": 1,
+   "prsReviewed": 4,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 473,
+   "targetMin": 480,
+   "tasksDone": 4,
+   "ticketsClosed": 0,
+   "workedMin": 441
+  },
+  {
+   "agentOnlyMin": 170,
+   "breaks": {
+    "lunch": 15,
+    "salah": 5,
+    "walk": 12
+   },
+   "commits": 12,
+   "contextSwitches": 39,
+   "day": "2025-07-15",
+   "deductionMin": 32,
+   "deepWorkMin": 117,
+   "focusMin": 266,
+   "humanMin": 341,
+   "interruptions": 13,
+   "kind": "working",
+   "loginTs": 1752566520,
+   "logoutTs": 1752599100,
+   "prsMerged": 3,
+   "prsReviewed": 0,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 543,
+   "targetMin": 480,
+   "tasksDone": 0,
+   "ticketsClosed": 3,
+   "workedMin": 511
+  },
+  {
+   "agentOnlyMin": 95,
+   "breaks": {
+    "call": 20,
+    "lunch": 10,
+    "walk": 5
+   },
+   "commits": 8,
+   "contextSwitches": 42,
+   "day": "2025-07-16",
+   "deductionMin": 35,
+   "deepWorkMin": 67,
+   "focusMin": 233,
+   "humanMin": 349,
+   "interruptions": 16,
+   "kind": "working",
+   "loginTs": 1752657420,
+   "logoutTs": 1752686160,
+   "prsMerged": 3,
+   "prsReviewed": 4,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 479,
+   "targetMin": 480,
+   "tasksDone": 3,
+   "ticketsClosed": 0,
+   "workedMin": 444
+  },
+  {
+   "agentOnlyMin": 104,
+   "breaks": {
+    "call": 15,
+    "lunch": 20
+   },
+   "commits": 5,
+   "contextSwitches": 28,
+   "day": "2025-07-17",
+   "deductionMin": 35,
+   "deepWorkMin": 159,
+   "focusMin": 420,
+   "humanMin": 456,
+   "interruptions": 12,
+   "kind": "working",
+   "loginTs": 1752742740,
+   "logoutTs": 1752778440,
+   "prsMerged": 3,
+   "prsReviewed": 3,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 595,
+   "targetMin": 480,
+   "tasksDone": 5,
+   "ticketsClosed": 1,
+   "workedMin": 560
+  },
+  {
+   "agentOnlyMin": 107,
+   "breaks": {
+    "call": 20,
+    "walk": 12
+   },
+   "commits": 14,
+   "contextSwitches": 35,
+   "day": "2025-07-18",
+   "deductionMin": 32,
+   "deepWorkMin": 75,
+   "focusMin": 253,
+   "humanMin": 347,
+   "interruptions": 7,
+   "kind": "working",
+   "loginTs": 1752826980,
+   "logoutTs": 1752856140,
+   "prsMerged": 3,
+   "prsReviewed": 3,
+   "salahOnTime": 3,
+   "salahTotal": 5,
+   "spanMin": 486,
+   "targetMin": 480,
+   "tasksDone": 0,
+   "ticketsClosed": 2,
+   "workedMin": 454
+  },
+  {
+   "day": "2025-07-19",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-07-20",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "agentOnlyMin": 93,
+   "breaks": {
+    "call": 5,
+    "lunch": 20,
+    "walk": 20
+   },
+   "commits": 3,
+   "contextSwitches": 26,
+   "day": "2025-07-21",
+   "deductionMin": 45,
+   "deepWorkMin": 94,
+   "focusMin": 271,
+   "humanMin": 301,
+   "interruptions": 14,
+   "kind": "working",
+   "loginTs": 1753089840,
+   "logoutTs": 1753116180,
+   "prsMerged": 1,
+   "prsReviewed": 0,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 439,
+   "targetMin": 480,
+   "tasksDone": 3,
+   "ticketsClosed": 2,
+   "workedMin": 394
+  },
+  {
+   "agentOnlyMin": 174,
+   "breaks": {
+    "lunch": 15,
+    "walk": 9
+   },
+   "commits": 6,
+   "contextSwitches": 20,
+   "day": "2025-07-22",
+   "deductionMin": 24,
+   "deepWorkMin": 131,
+   "focusMin": 388,
+   "humanMin": 358,
+   "interruptions": 7,
+   "kind": "working",
+   "loginTs": 1753174500,
+   "logoutTs": 1753207860,
+   "prsMerged": 2,
+   "prsReviewed": 2,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 556,
+   "targetMin": 480,
+   "tasksDone": 1,
+   "ticketsClosed": 1,
+   "workedMin": 532
+  },
+  {
+   "agentOnlyMin": 106,
+   "breaks": {
+    "call": 20,
+    "lunch": 45
+   },
+   "commits": 4,
+   "contextSwitches": 70,
+   "day": "2025-07-23",
+   "deductionMin": 65,
+   "deepWorkMin": 168,
+   "focusMin": 290,
+   "humanMin": 296,
+   "interruptions": 5,
+   "kind": "working",
+   "loginTs": 1753258380,
+   "logoutTs": 1753286400,
+   "prsMerged": 1,
+   "prsReviewed": 3,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 467,
+   "targetMin": 480,
+   "tasksDone": 1,
+   "ticketsClosed": 0,
+   "workedMin": 402
+  },
+  {
+   "agentOnlyMin": 170,
+   "breaks": {
+    "salah": 20,
+    "walk": 12
+   },
+   "commits": 10,
+   "contextSwitches": 22,
+   "day": "2025-07-24",
+   "deductionMin": 32,
+   "deepWorkMin": 95,
+   "focusMin": 276,
+   "humanMin": 278,
+   "interruptions": 15,
+   "kind": "working",
+   "loginTs": 1753346460,
+   "logoutTs": 1753375260,
+   "prsMerged": 0,
+   "prsReviewed": 1,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 480,
+   "targetMin": 480,
+   "tasksDone": 6,
+   "ticketsClosed": 2,
+   "workedMin": 448
+  },
+  {
+   "agentOnlyMin": 69,
+   "breaks": {
+    "call": 20,
+    "lunch": 20
+   },
+   "commits": 4,
+   "contextSwitches": 53,
+   "day": "2025-07-25",
+   "deductionMin": 40,
+   "deepWorkMin": 118,
+   "focusMin": 265,
+   "humanMin": 294,
+   "interruptions": 10,
+   "kind": "working",
+   "loginTs": 1753434000,
+   "logoutTs": 1753458180,
+   "prsMerged": 3,
+   "prsReviewed": 4,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 403,
+   "targetMin": 480,
+   "tasksDone": 2,
+   "ticketsClosed": 1,
+   "workedMin": 363
+  },
+  {
+   "day": "2025-07-26",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-07-27",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "agentOnlyMin": 150,
+   "breaks": {
+    "call": 5,
+    "lunch": 30,
+    "walk": 20
+   },
+   "commits": 14,
+   "contextSwitches": 54,
+   "day": "2025-07-28",
+   "deductionMin": 55,
+   "deepWorkMin": 68,
+   "focusMin": 258,
+   "humanMin": 248,
+   "interruptions": 5,
+   "kind": "working",
+   "loginTs": 1753690920,
+   "logoutTs": 1753718100,
+   "prsMerged": 0,
+   "prsReviewed": 1,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 453,
+   "targetMin": 480,
+   "tasksDone": 3,
+   "ticketsClosed": 0,
+   "workedMin": 398
+  },
+  {
+   "agentOnlyMin": 80,
+   "breaks": {
+    "call": 5,
+    "lunch": 30,
+    "salah": 9
+   },
+   "commits": 3,
+   "contextSwitches": 27,
+   "day": "2025-07-29",
+   "deductionMin": 44,
+   "deepWorkMin": 169,
+   "focusMin": 296,
+   "humanMin": 360,
+   "interruptions": 9,
+   "kind": "working",
+   "loginTs": 1753777860,
+   "logoutTs": 1753806900,
+   "prsMerged": 2,
+   "prsReviewed": 2,
+   "salahOnTime": 3,
+   "salahTotal": 5,
+   "spanMin": 484,
+   "targetMin": 480,
+   "tasksDone": 0,
+   "ticketsClosed": 2,
+   "workedMin": 440
+  },
+  {
+   "agentOnlyMin": 155,
+   "breaks": {
+    "call": 20,
+    "lunch": 15
+   },
+   "commits": 13,
+   "contextSwitches": 52,
+   "day": "2025-07-30",
+   "deductionMin": 35,
+   "deepWorkMin": 96,
+   "focusMin": 375,
+   "humanMin": 348,
+   "interruptions": 8,
+   "kind": "working",
+   "loginTs": 1753866660,
+   "logoutTs": 1753898940,
+   "prsMerged": 1,
+   "prsReviewed": 4,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 538,
+   "targetMin": 480,
+   "tasksDone": 6,
+   "ticketsClosed": 1,
+   "workedMin": 503
+  },
+  {
+   "agentOnlyMin": 72,
+   "breaks": {
+    "salah": 5,
+    "walk": 9
+   },
+   "commits": 3,
+   "contextSwitches": 44,
+   "day": "2025-07-31",
+   "deductionMin": 14,
+   "deepWorkMin": 93,
+   "focusMin": 314,
+   "humanMin": 348,
+   "interruptions": 6,
+   "kind": "working",
+   "loginTs": 1753950000,
+   "logoutTs": 1753976040,
+   "prsMerged": 3,
+   "prsReviewed": 0,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 434,
+   "targetMin": 480,
+   "tasksDone": 1,
+   "ticketsClosed": 0,
+   "workedMin": 420
+  },
+  {
+   "agentOnlyMin": 181,
+   "breaks": {
+    "call": 5,
+    "salah": 5,
+    "walk": 5
+   },
+   "commits": 14,
+   "contextSwitches": 29,
+   "day": "2025-08-01",
+   "deductionMin": 15,
+   "deepWorkMin": 159,
+   "focusMin": 344,
+   "humanMin": 302,
+   "interruptions": 5,
+   "kind": "working",
+   "loginTs": 1754040420,
+   "logoutTs": 1754070300,
+   "prsMerged": 1,
+   "prsReviewed": 1,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 498,
+   "targetMin": 480,
+   "tasksDone": 1,
+   "ticketsClosed": 2,
+   "workedMin": 483
+  },
+  {
+   "day": "2025-08-02",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-08-03",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "agentOnlyMin": 71,
+   "breaks": {
+    "call": 15,
+    "lunch": 15,
+    "salah": 20
+   },
+   "commits": 9,
+   "contextSwitches": 47,
+   "day": "2025-08-04",
+   "deductionMin": 50,
+   "deepWorkMin": 126,
+   "focusMin": 268,
+   "humanMin": 374,
+   "interruptions": 13,
+   "kind": "working",
+   "loginTs": 1754294700,
+   "logoutTs": 1754324400,
+   "prsMerged": 2,
+   "prsReviewed": 3,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 495,
+   "targetMin": 480,
+   "tasksDone": 5,
+   "ticketsClosed": 1,
+   "workedMin": 445
+  },
+  {
+   "agentOnlyMin": 137,
+   "breaks": {
+    "call": 20,
+    "lunch": 15
+   },
+   "commits": 14,
+   "contextSwitches": 25,
+   "day": "2025-08-05",
+   "deductionMin": 35,
+   "deepWorkMin": 149,
+   "focusMin": 251,
+   "humanMin": 255,
+   "interruptions": 7,
+   "kind": "working",
+   "loginTs": 1754383020,
+   "logoutTs": 1754408640,
+   "prsMerged": 3,
+   "prsReviewed": 1,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 427,
+   "targetMin": 480,
+   "tasksDone": 6,
+   "ticketsClosed": 2,
+   "workedMin": 392
+  },
+  {
+   "agentOnlyMin": 175,
+   "breaks": {
+    "lunch": 10,
+    "salah": 12,
+    "walk": 20
+   },
+   "commits": 6,
+   "contextSwitches": 60,
+   "day": "2025-08-06",
+   "deductionMin": 42,
+   "deepWorkMin": 79,
+   "focusMin": 231,
+   "humanMin": 275,
+   "interruptions": 14,
+   "kind": "working",
+   "loginTs": 1754470020,
+   "logoutTs": 1754499540,
+   "prsMerged": 1,
+   "prsReviewed": 4,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 492,
+   "targetMin": 480,
+   "tasksDone": 4,
+   "ticketsClosed": 0,
+   "workedMin": 450
+  },
+  {
+   "agentOnlyMin": 101,
+   "breaks": {
+    "call": 5,
+    "lunch": 10
+   },
+   "commits": 4,
+   "contextSwitches": 66,
+   "day": "2025-08-07",
+   "deductionMin": 15,
+   "deepWorkMin": 162,
+   "focusMin": 319,
+   "humanMin": 374,
+   "interruptions": 8,
+   "kind": "working",
+   "loginTs": 1754558700,
+   "logoutTs": 1754588100,
+   "prsMerged": 3,
+   "prsReviewed": 0,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 490,
+   "targetMin": 480,
+   "tasksDone": 5,
+   "ticketsClosed": 0,
+   "workedMin": 475
+  },
+  {
+   "agentOnlyMin": 76,
+   "breaks": {
+    "call": 15,
+    "lunch": 15,
+    "walk": 15
+   },
+   "commits": 9,
+   "contextSwitches": 45,
+   "day": "2025-08-08",
+   "deductionMin": 45,
+   "deepWorkMin": 54,
+   "focusMin": 175,
+   "humanMin": 202,
+   "interruptions": 17,
+   "kind": "working",
+   "loginTs": 1754643720,
+   "logoutTs": 1754663100,
+   "prsMerged": 2,
+   "prsReviewed": 4,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 323,
+   "targetMin": 480,
+   "tasksDone": 3,
+   "ticketsClosed": 3,
+   "workedMin": 278
+  },
+  {
+   "day": "2025-08-09",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-08-10",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "agentOnlyMin": 92,
+   "breaks": {
+    "call": 5,
+    "lunch": 10,
+    "salah": 9
+   },
+   "commits": 6,
+   "contextSwitches": 38,
+   "day": "2025-08-11",
+   "deductionMin": 24,
+   "deepWorkMin": 115,
+   "focusMin": 244,
+   "humanMin": 276,
+   "interruptions": 14,
+   "kind": "working",
+   "loginTs": 1754902620,
+   "logoutTs": 1754926140,
+   "prsMerged": 2,
+   "prsReviewed": 0,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 392,
+   "targetMin": 480,
+   "tasksDone": 0,
+   "ticketsClosed": 1,
+   "workedMin": 368
+  },
+  {
+   "agentOnlyMin": 85,
+   "breaks": {
+    "lunch": 30,
+    "salah": 5,
+    "walk": 20
+   },
+   "commits": 10,
+   "contextSwitches": 41,
+   "day": "2025-08-12",
+   "deductionMin": 55,
+   "deepWorkMin": 105,
+   "focusMin": 329,
+   "humanMin": 440,
+   "interruptions": 16,
+   "kind": "working",
+   "loginTs": 1754989260,
+   "logoutTs": 1755024060,
+   "prsMerged": 3,
+   "prsReviewed": 3,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 580,
+   "targetMin": 480,
+   "tasksDone": 1,
+   "ticketsClosed": 2,
+   "workedMin": 525
+  },
+  {
+   "agentOnlyMin": 153,
+   "breaks": {
+    "call": 20,
+    "salah": 5
+   },
+   "commits": 3,
+   "contextSwitches": 57,
+   "day": "2025-08-13",
+   "deductionMin": 25,
+   "deepWorkMin": 196,
+   "focusMin": 375,
+   "humanMin": 348,
+   "interruptions": 8,
+   "kind": "working",
+   "loginTs": 1755073920,
+   "logoutTs": 1755105480,
+   "prsMerged": 2,
+   "prsReviewed": 1,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 526,
+   "targetMin": 480,
+   "tasksDone": 5,
+   "ticketsClosed": 1,
+   "workedMin": 501
+  },
+  {
+   "agentOnlyMin": 183,
+   "breaks": {
+    "call": 20,
+    "lunch": 15,
+    "walk": 5
+   },
+   "commits": 5,
+   "contextSwitches": 58,
+   "day": "2025-08-14",
+   "deductionMin": 40,
+   "deepWorkMin": 143,
+   "focusMin": 279,
+   "humanMin": 301,
+   "interruptions": 13,
+   "kind": "working",
+   "loginTs": 1755162900,
+   "logoutTs": 1755194340,
+   "prsMerged": 3,
+   "prsReviewed": 2,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 524,
+   "targetMin": 480,
+   "tasksDone": 3,
+   "ticketsClosed": 1,
+   "workedMin": 484
+  },
+  {
+   "agentOnlyMin": 162,
+   "breaks": {
+    "call": 9,
+    "lunch": 30
+   },
+   "commits": 9,
+   "contextSwitches": 56,
+   "day": "2025-08-15",
+   "deductionMin": 39,
+   "deepWorkMin": 96,
+   "focusMin": 284,
+   "humanMin": 298,
+   "interruptions": 12,
+   "kind": "working",
+   "loginTs": 1755245040,
+   "logoutTs": 1755274980,
+   "prsMerged": 1,
+   "prsReviewed": 3,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 499,
+   "targetMin": 480,
+   "tasksDone": 2,
+   "ticketsClosed": 2,
+   "workedMin": 460
+  },
+  {
+   "day": "2025-08-16",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-08-17",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "agentOnlyMin": 163,
+   "breaks": {
+    "call": 5,
+    "salah": 12,
+    "walk": 9
+   },
+   "commits": 10,
+   "contextSwitches": 62,
+   "day": "2025-08-18",
+   "deductionMin": 26,
+   "deepWorkMin": 176,
+   "focusMin": 382,
+   "humanMin": 343,
+   "interruptions": 12,
+   "kind": "working",
+   "loginTs": 1755507840,
+   "logoutTs": 1755539760,
+   "prsMerged": 1,
+   "prsReviewed": 1,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 532,
+   "targetMin": 480,
+   "tasksDone": 2,
+   "ticketsClosed": 2,
+   "workedMin": 506
+  },
+  {
+   "agentOnlyMin": 179,
+   "breaks": {
+    "call": 9,
+    "lunch": 30,
+    "salah": 12
+   },
+   "commits": 12,
+   "contextSwitches": 41,
+   "day": "2025-08-19",
+   "deductionMin": 51,
+   "deepWorkMin": 169,
+   "focusMin": 294,
+   "humanMin": 302,
+   "interruptions": 2,
+   "kind": "working",
+   "loginTs": 1755595500,
+   "logoutTs": 1755627420,
+   "prsMerged": 3,
+   "prsReviewed": 4,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 532,
+   "targetMin": 480,
+   "tasksDone": 2,
+   "ticketsClosed": 3,
+   "workedMin": 481
+  },
+  {
+   "agentOnlyMin": 64,
+   "breaks": {
+    "call": 20,
+    "lunch": 45,
+    "walk": 5
+   },
+   "commits": 4,
+   "contextSwitches": 52,
+   "day": "2025-08-20",
+   "deductionMin": 70,
+   "deepWorkMin": 79,
+   "focusMin": 225,
+   "humanMin": 350,
+   "interruptions": 11,
+   "kind": "working",
+   "loginTs": 1755681000,
+   "logoutTs": 1755710040,
+   "prsMerged": 0,
+   "prsReviewed": 2,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 484,
+   "targetMin": 480,
+   "tasksDone": 6,
+   "ticketsClosed": 0,
+   "workedMin": 414
+  },
+  {
+   "day": "2025-08-21",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "leave_paid",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-08-22",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "leave_paid",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-08-23",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-08-24",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "agentOnlyMin": 163,
+   "breaks": {
+    "lunch": 15,
+    "walk": 15
+   },
+   "commits": 7,
+   "contextSwitches": 43,
+   "day": "2025-08-25",
+   "deductionMin": 30,
+   "deepWorkMin": 127,
+   "focusMin": 303,
+   "humanMin": 271,
+   "interruptions": 13,
+   "kind": "working",
+   "loginTs": 1756113300,
+   "logoutTs": 1756141140,
+   "prsMerged": 2,
+   "prsReviewed": 1,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 464,
+   "targetMin": 480,
+   "tasksDone": 2,
+   "ticketsClosed": 3,
+   "workedMin": 434
+  },
+  {
+   "agentOnlyMin": 159,
+   "breaks": {
+    "call": 5,
+    "salah": 20,
+    "walk": 15
+   },
+   "commits": 5,
+   "contextSwitches": 27,
+   "day": "2025-08-26",
+   "deductionMin": 40,
+   "deepWorkMin": 146,
+   "focusMin": 294,
+   "humanMin": 296,
+   "interruptions": 9,
+   "kind": "working",
+   "loginTs": 1756197960,
+   "logoutTs": 1756227660,
+   "prsMerged": 1,
+   "prsReviewed": 3,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 495,
+   "targetMin": 480,
+   "tasksDone": 5,
+   "ticketsClosed": 1,
+   "workedMin": 455
+  },
+  {
+   "agentOnlyMin": 56,
+   "breaks": {
+    "call": 5,
+    "salah": 12
+   },
+   "commits": 3,
+   "contextSwitches": 19,
+   "day": "2025-08-27",
+   "deductionMin": 17,
+   "deepWorkMin": 102,
+   "focusMin": 196,
+   "humanMin": 232,
+   "interruptions": 17,
+   "kind": "working",
+   "loginTs": 1756283340,
+   "logoutTs": 1756301640,
+   "prsMerged": 0,
+   "prsReviewed": 2,
+   "salahOnTime": 3,
+   "salahTotal": 5,
+   "spanMin": 305,
+   "targetMin": 480,
+   "tasksDone": 6,
+   "ticketsClosed": 0,
+   "workedMin": 288
+  },
+  {
+   "agentOnlyMin": 98,
+   "breaks": {
+    "call": 12,
+    "walk": 15
+   },
+   "commits": 14,
+   "contextSwitches": 53,
+   "day": "2025-08-28",
+   "deductionMin": 27,
+   "deepWorkMin": 122,
+   "focusMin": 237,
+   "humanMin": 335,
+   "interruptions": 17,
+   "kind": "working",
+   "loginTs": 1756372200,
+   "logoutTs": 1756399800,
+   "prsMerged": 2,
+   "prsReviewed": 3,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 460,
+   "targetMin": 480,
+   "tasksDone": 6,
+   "ticketsClosed": 3,
+   "workedMin": 433
+  },
+  {
+   "agentOnlyMin": 130,
+   "breaks": {
+    "salah": 15,
+    "walk": 20
+   },
+   "commits": 12,
+   "contextSwitches": 33,
+   "day": "2025-08-29",
+   "deductionMin": 35,
+   "deepWorkMin": 141,
+   "focusMin": 271,
+   "humanMin": 246,
+   "interruptions": 2,
+   "kind": "working",
+   "loginTs": 1756457100,
+   "logoutTs": 1756481760,
+   "prsMerged": 3,
+   "prsReviewed": 2,
+   "salahOnTime": 3,
+   "salahTotal": 5,
+   "spanMin": 411,
+   "targetMin": 480,
+   "tasksDone": 6,
+   "ticketsClosed": 3,
+   "workedMin": 376
+  },
+  {
+   "day": "2025-08-30",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-08-31",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "agentOnlyMin": 71,
+   "breaks": {
+    "call": 5,
+    "lunch": 45,
+    "salah": 20
+   },
+   "commits": 1,
+   "contextSwitches": 23,
+   "day": "2025-09-01",
+   "deductionMin": 70,
+   "deepWorkMin": 134,
+   "focusMin": 258,
+   "humanMin": 405,
+   "interruptions": 13,
+   "kind": "working",
+   "loginTs": 1756716360,
+   "logoutTs": 1756749120,
+   "prsMerged": 0,
+   "prsReviewed": 3,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 546,
+   "targetMin": 480,
+   "tasksDone": 2,
+   "ticketsClosed": 3,
+   "workedMin": 476
+  },
+  {
+   "agentOnlyMin": 92,
+   "breaks": {
+    "salah": 5,
+    "walk": 9
+   },
+   "commits": 5,
+   "contextSwitches": 43,
+   "day": "2025-09-02",
+   "deductionMin": 14,
+   "deepWorkMin": 138,
+   "focusMin": 319,
+   "humanMin": 398,
+   "interruptions": 4,
+   "kind": "working",
+   "loginTs": 1756802760,
+   "logoutTs": 1756833000,
+   "prsMerged": 2,
+   "prsReviewed": 3,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 504,
+   "targetMin": 480,
+   "tasksDone": 4,
+   "ticketsClosed": 0,
+   "workedMin": 490
+  },
+  {
+   "agentOnlyMin": 82,
+   "breaks": {
+    "call": 15,
+    "walk": 15
+   },
+   "commits": 14,
+   "contextSwitches": 69,
+   "day": "2025-09-03",
+   "deductionMin": 30,
+   "deepWorkMin": 78,
+   "focusMin": 176,
+   "humanMin": 229,
+   "interruptions": 8,
+   "kind": "working",
+   "loginTs": 1756891140,
+   "logoutTs": 1756911600,
+   "prsMerged": 1,
+   "prsReviewed": 2,
+   "salahOnTime": 3,
+   "salahTotal": 5,
+   "spanMin": 341,
+   "targetMin": 480,
+   "tasksDone": 4,
+   "ticketsClosed": 3,
+   "workedMin": 311
+  },
+  {
+   "agentOnlyMin": 187,
+   "breaks": {
+    "lunch": 15,
+    "walk": 15
+   },
+   "commits": 2,
+   "contextSwitches": 58,
+   "day": "2025-09-04",
+   "deductionMin": 30,
+   "deepWorkMin": 124,
+   "focusMin": 341,
+   "humanMin": 298,
+   "interruptions": 12,
+   "kind": "working",
+   "loginTs": 1756976640,
+   "logoutTs": 1757007540,
+   "prsMerged": 3,
+   "prsReviewed": 0,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 515,
+   "targetMin": 480,
+   "tasksDone": 3,
+   "ticketsClosed": 0,
+   "workedMin": 485
+  },
+  {
+   "agentOnlyMin": 107,
+   "breaks": {
+    "call": 9,
+    "lunch": 10,
+    "walk": 5
+   },
+   "commits": 5,
+   "contextSwitches": 26,
+   "day": "2025-09-05",
+   "deductionMin": 24,
+   "deepWorkMin": 147,
+   "focusMin": 283,
+   "humanMin": 349,
+   "interruptions": 8,
+   "kind": "working",
+   "loginTs": 1757060160,
+   "logoutTs": 1757088960,
+   "prsMerged": 1,
+   "prsReviewed": 3,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 480,
+   "targetMin": 480,
+   "tasksDone": 6,
+   "ticketsClosed": 3,
+   "workedMin": 456
+  },
+  {
+   "day": "2025-09-06",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-09-07",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "agentOnlyMin": 82,
+   "breaks": {
+    "lunch": 20,
+    "salah": 12,
+    "walk": 9
+   },
+   "commits": 4,
+   "contextSwitches": 39,
+   "day": "2025-09-08",
+   "deductionMin": 41,
+   "deepWorkMin": 132,
+   "focusMin": 277,
+   "humanMin": 384,
+   "interruptions": 11,
+   "kind": "working",
+   "loginTs": 1757322660,
+   "logoutTs": 1757353080,
+   "prsMerged": 0,
+   "prsReviewed": 4,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 507,
+   "targetMin": 480,
+   "tasksDone": 6,
+   "ticketsClosed": 1,
+   "workedMin": 466
+  },
+  {
+   "agentOnlyMin": 108,
+   "breaks": {
+    "lunch": 15,
+    "salah": 5
+   },
+   "commits": 14,
+   "contextSwitches": 39,
+   "day": "2025-09-09",
+   "deductionMin": 20,
+   "deepWorkMin": 85,
+   "focusMin": 288,
+   "humanMin": 294,
+   "interruptions": 4,
+   "kind": "working",
+   "loginTs": 1757407080,
+   "logoutTs": 1757432400,
+   "prsMerged": 2,
+   "prsReviewed": 2,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 422,
+   "targetMin": 480,
+   "tasksDone": 6,
+   "ticketsClosed": 3,
+   "workedMin": 402
+  },
+  {
+   "agentOnlyMin": 61,
+   "breaks": {
+    "lunch": 20,
+    "walk": 20
+   },
+   "commits": 7,
+   "contextSwitches": 54,
+   "day": "2025-09-10",
+   "deductionMin": 40,
+   "deepWorkMin": 127,
+   "focusMin": 221,
+   "humanMin": 349,
+   "interruptions": 13,
+   "kind": "working",
+   "loginTs": 1757492580,
+   "logoutTs": 1757519580,
+   "prsMerged": 1,
+   "prsReviewed": 1,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 450,
+   "targetMin": 480,
+   "tasksDone": 6,
+   "ticketsClosed": 0,
+   "workedMin": 410
+  },
+  {
+   "agentOnlyMin": 133,
+   "breaks": {
+    "call": 15,
+    "lunch": 10,
+    "walk": 15
+   },
+   "commits": 11,
+   "contextSwitches": 26,
+   "day": "2025-09-11",
+   "deductionMin": 40,
+   "deepWorkMin": 94,
+   "focusMin": 246,
+   "humanMin": 324,
+   "interruptions": 10,
+   "kind": "working",
+   "loginTs": 1757579460,
+   "logoutTs": 1757609280,
+   "prsMerged": 2,
+   "prsReviewed": 0,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 497,
+   "targetMin": 480,
+   "tasksDone": 1,
+   "ticketsClosed": 0,
+   "workedMin": 457
+  },
+  {
+   "agentOnlyMin": 87,
+   "breaks": {
+    "call": 12,
+    "lunch": 30,
+    "salah": 15
+   },
+   "commits": 5,
+   "contextSwitches": 25,
+   "day": "2025-09-12",
+   "deductionMin": 57,
+   "deepWorkMin": 139,
+   "focusMin": 254,
+   "humanMin": 260,
+   "interruptions": 18,
+   "kind": "working",
+   "loginTs": 1757667120,
+   "logoutTs": 1757691360,
+   "prsMerged": 3,
+   "prsReviewed": 3,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 404,
+   "targetMin": 480,
+   "tasksDone": 2,
+   "ticketsClosed": 0,
+   "workedMin": 347
+  },
+  {
+   "day": "2025-09-13",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-09-14",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-09-15",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "holiday",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "agentOnlyMin": 102,
+   "breaks": {
+    "call": 9,
+    "lunch": 45,
+    "walk": 15
+   },
+   "commits": 14,
+   "contextSwitches": 33,
+   "day": "2025-09-16",
+   "deductionMin": 69,
+   "deepWorkMin": 166,
+   "focusMin": 282,
+   "humanMin": 278,
+   "interruptions": 11,
+   "kind": "working",
+   "loginTs": 1758012000,
+   "logoutTs": 1758038940,
+   "prsMerged": 3,
+   "prsReviewed": 1,
+   "salahOnTime": 3,
+   "salahTotal": 5,
+   "spanMin": 449,
+   "targetMin": 480,
+   "tasksDone": 5,
+   "ticketsClosed": 0,
+   "workedMin": 380
+  },
+  {
+   "agentOnlyMin": 105,
+   "breaks": {
+    "call": 9,
+    "lunch": 10,
+    "walk": 20
+   },
+   "commits": 14,
+   "contextSwitches": 37,
+   "day": "2025-09-17",
+   "deductionMin": 39,
+   "deepWorkMin": 135,
+   "focusMin": 300,
+   "humanMin": 297,
+   "interruptions": 2,
+   "kind": "working",
+   "loginTs": 1758097200,
+   "logoutTs": 1758123660,
+   "prsMerged": 1,
+   "prsReviewed": 0,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 441,
+   "targetMin": 480,
+   "tasksDone": 2,
+   "ticketsClosed": 3,
+   "workedMin": 402
+  },
+  {
+   "agentOnlyMin": 173,
+   "breaks": {
+    "call": 12,
+    "salah": 12
+   },
+   "commits": 13,
+   "contextSwitches": 30,
+   "day": "2025-09-18",
+   "deductionMin": 24,
+   "deepWorkMin": 162,
+   "focusMin": 282,
+   "humanMin": 268,
+   "interruptions": 11,
+   "kind": "working",
+   "loginTs": 1758187200,
+   "logoutTs": 1758215100,
+   "prsMerged": 0,
+   "prsReviewed": 1,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 465,
+   "targetMin": 480,
+   "tasksDone": 6,
+   "ticketsClosed": 2,
+   "workedMin": 441
+  },
+  {
+   "agentOnlyMin": 174,
+   "breaks": {
+    "salah": 5,
+    "walk": 5
+   },
+   "commits": 2,
+   "contextSwitches": 63,
+   "day": "2025-09-19",
+   "deductionMin": 10,
+   "deepWorkMin": 139,
+   "focusMin": 261,
+   "humanMin": 273,
+   "interruptions": 6,
+   "kind": "working",
+   "loginTs": 1758273180,
+   "logoutTs": 1758300600,
+   "prsMerged": 3,
+   "prsReviewed": 3,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 457,
+   "targetMin": 480,
+   "tasksDone": 2,
+   "ticketsClosed": 0,
+   "workedMin": 447
+  },
+  {
+   "day": "2025-09-20",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-09-21",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "agentOnlyMin": 92,
+   "breaks": {
+    "lunch": 45,
+    "salah": 20,
+    "walk": 9
+   },
+   "commits": 8,
+   "contextSwitches": 58,
+   "day": "2025-09-22",
+   "deductionMin": 74,
+   "deepWorkMin": 206,
+   "focusMin": 366,
+   "humanMin": 382,
+   "interruptions": 4,
+   "kind": "working",
+   "loginTs": 1758529500,
+   "logoutTs": 1758562380,
+   "prsMerged": 0,
+   "prsReviewed": 3,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 548,
+   "targetMin": 480,
+   "tasksDone": 3,
+   "ticketsClosed": 0,
+   "workedMin": 474
+  },
+  {
+   "agentOnlyMin": 141,
+   "breaks": {
+    "call": 9,
+    "lunch": 20,
+    "walk": 9
+   },
+   "commits": 0,
+   "contextSwitches": 27,
+   "day": "2025-09-23",
+   "deductionMin": 38,
+   "deepWorkMin": 97,
+   "focusMin": 281,
+   "humanMin": 353,
+   "interruptions": 3,
+   "kind": "working",
+   "loginTs": 1758617940,
+   "logoutTs": 1758649860,
+   "prsMerged": 3,
+   "prsReviewed": 4,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 532,
+   "targetMin": 480,
+   "tasksDone": 4,
+   "ticketsClosed": 3,
+   "workedMin": 494
+  },
+  {
+   "agentOnlyMin": 91,
+   "breaks": {
+    "call": 20,
+    "salah": 20,
+    "walk": 20
+   },
+   "commits": 7,
+   "contextSwitches": 60,
+   "day": "2025-09-24",
+   "deductionMin": 60,
+   "deepWorkMin": 136,
+   "focusMin": 262,
+   "humanMin": 387,
+   "interruptions": 16,
+   "kind": "working",
+   "loginTs": 1758704520,
+   "logoutTs": 1758736800,
+   "prsMerged": 2,
+   "prsReviewed": 1,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 538,
+   "targetMin": 480,
+   "tasksDone": 4,
+   "ticketsClosed": 2,
+   "workedMin": 478
+  },
+  {
+   "agentOnlyMin": 78,
+   "breaks": {
+    "lunch": 45,
+    "salah": 5
+   },
+   "commits": 1,
+   "contextSwitches": 49,
+   "day": "2025-09-25",
+   "deductionMin": 50,
+   "deepWorkMin": 118,
+   "focusMin": 212,
+   "humanMin": 261,
+   "interruptions": 15,
+   "kind": "working",
+   "loginTs": 1758788640,
+   "logoutTs": 1758811980,
+   "prsMerged": 3,
+   "prsReviewed": 2,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 389,
+   "targetMin": 480,
+   "tasksDone": 4,
+   "ticketsClosed": 0,
+   "workedMin": 339
+  },
+  {
+   "agentOnlyMin": 152,
+   "breaks": {
+    "call": 12,
+    "lunch": 45
+   },
+   "commits": 0,
+   "contextSwitches": 34,
+   "day": "2025-09-26",
+   "deductionMin": 57,
+   "deepWorkMin": 147,
+   "focusMin": 347,
+   "humanMin": 335,
+   "interruptions": 9,
+   "kind": "working",
+   "loginTs": 1758877800,
+   "logoutTs": 1758910440,
+   "prsMerged": 3,
+   "prsReviewed": 4,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 544,
+   "targetMin": 480,
+   "tasksDone": 1,
+   "ticketsClosed": 3,
+   "workedMin": 487
+  },
+  {
+   "day": "2025-09-27",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-09-28",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "agentOnlyMin": 131,
+   "breaks": {
+    "call": 20,
+    "walk": 15
+   },
+   "commits": 7,
+   "contextSwitches": 44,
+   "day": "2025-09-29",
+   "deductionMin": 35,
+   "deepWorkMin": 115,
+   "focusMin": 385,
+   "humanMin": 366,
+   "interruptions": 18,
+   "kind": "working",
+   "loginTs": 1759137600,
+   "logoutTs": 1759169520,
+   "prsMerged": 0,
+   "prsReviewed": 3,
+   "salahOnTime": 3,
+   "salahTotal": 5,
+   "spanMin": 532,
+   "targetMin": 480,
+   "tasksDone": 1,
+   "ticketsClosed": 2,
+   "workedMin": 497
+  },
+  {
+   "agentOnlyMin": 181,
+   "breaks": {
+    "call": 5,
+    "salah": 9
+   },
+   "commits": 7,
+   "contextSwitches": 28,
+   "day": "2025-09-30",
+   "deductionMin": 14,
+   "deepWorkMin": 101,
+   "focusMin": 275,
+   "humanMin": 277,
+   "interruptions": 14,
+   "kind": "working",
+   "loginTs": 1759220880,
+   "logoutTs": 1759249200,
+   "prsMerged": 0,
+   "prsReviewed": 2,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 472,
+   "targetMin": 480,
+   "tasksDone": 4,
+   "ticketsClosed": 1,
+   "workedMin": 458
+  },
+  {
+   "agentOnlyMin": 142,
+   "breaks": {
+    "call": 9,
+    "salah": 9
+   },
+   "commits": 13,
+   "contextSwitches": 47,
+   "day": "2025-10-01",
+   "deductionMin": 18,
+   "deepWorkMin": 203,
+   "focusMin": 382,
+   "humanMin": 387,
+   "interruptions": 11,
+   "kind": "working",
+   "loginTs": 1759305360,
+   "logoutTs": 1759338180,
+   "prsMerged": 3,
+   "prsReviewed": 3,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 547,
+   "targetMin": 480,
+   "tasksDone": 3,
+   "ticketsClosed": 1,
+   "workedMin": 529
+  },
+  {
+   "day": "2025-10-02",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "holiday",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "agentOnlyMin": 167,
+   "breaks": {
+    "call": 9,
+    "lunch": 45,
+    "walk": 12
+   },
+   "commits": 11,
+   "contextSwitches": 41,
+   "day": "2025-10-03",
+   "deductionMin": 66,
+   "deepWorkMin": 154,
+   "focusMin": 344,
+   "humanMin": 369,
+   "interruptions": 3,
+   "kind": "working",
+   "loginTs": 1759480980,
+   "logoutTs": 1759517100,
+   "prsMerged": 2,
+   "prsReviewed": 1,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 602,
+   "targetMin": 480,
+   "tasksDone": 1,
+   "ticketsClosed": 1,
+   "workedMin": 536
+  },
+  {
+   "day": "2025-10-04",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-10-05",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "agentOnlyMin": 150,
+   "breaks": {
+    "call": 12,
+    "salah": 20
+   },
+   "commits": 4,
+   "contextSwitches": 27,
+   "day": "2025-10-06",
+   "deductionMin": 32,
+   "deepWorkMin": 122,
+   "focusMin": 343,
+   "humanMin": 349,
+   "interruptions": 18,
+   "kind": "working",
+   "loginTs": 1759740420,
+   "logoutTs": 1759772280,
+   "prsMerged": 1,
+   "prsReviewed": 0,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 531,
+   "targetMin": 480,
+   "tasksDone": 4,
+   "ticketsClosed": 1,
+   "workedMin": 499
+  },
+  {
+   "agentOnlyMin": 164,
+   "breaks": {
+    "call": 12,
+    "lunch": 30,
+    "walk": 20
+   },
+   "commits": 13,
+   "contextSwitches": 41,
+   "day": "2025-10-07",
+   "deductionMin": 62,
+   "deepWorkMin": 106,
+   "focusMin": 276,
+   "humanMin": 286,
+   "interruptions": 13,
+   "kind": "working",
+   "loginTs": 1759827360,
+   "logoutTs": 1759858080,
+   "prsMerged": 1,
+   "prsReviewed": 1,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 512,
+   "targetMin": 480,
+   "tasksDone": 4,
+   "ticketsClosed": 0,
+   "workedMin": 450
+  },
+  {
+   "agentOnlyMin": 87,
+   "breaks": {
+    "lunch": 10,
+    "salah": 12
+   },
+   "commits": 6,
+   "contextSwitches": 45,
+   "day": "2025-10-08",
+   "deductionMin": 22,
+   "deepWorkMin": 178,
+   "focusMin": 323,
+   "humanMin": 334,
+   "interruptions": 5,
+   "kind": "working",
+   "loginTs": 1759912080,
+   "logoutTs": 1759938660,
+   "prsMerged": 3,
+   "prsReviewed": 0,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 443,
+   "targetMin": 480,
+   "tasksDone": 3,
+   "ticketsClosed": 3,
+   "workedMin": 421
+  },
+  {
+   "agentOnlyMin": 132,
+   "breaks": {
+    "call": 5,
+    "salah": 20,
+    "walk": 12
+   },
+   "commits": 5,
+   "contextSwitches": 53,
+   "day": "2025-10-09",
+   "deductionMin": 37,
+   "deepWorkMin": 197,
+   "focusMin": 371,
+   "humanMin": 361,
+   "interruptions": 11,
+   "kind": "working",
+   "loginTs": 1759997880,
+   "logoutTs": 1760029680,
+   "prsMerged": 0,
+   "prsReviewed": 3,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 530,
+   "targetMin": 480,
+   "tasksDone": 5,
+   "ticketsClosed": 0,
+   "workedMin": 493
+  },
+  {
+   "agentOnlyMin": 124,
+   "breaks": {
+    "call": 5,
+    "lunch": 20,
+    "salah": 5
+   },
+   "commits": 14,
+   "contextSwitches": 60,
+   "day": "2025-10-10",
+   "deductionMin": 30,
+   "deepWorkMin": 94,
+   "focusMin": 260,
+   "humanMin": 386,
+   "interruptions": 7,
+   "kind": "working",
+   "loginTs": 1760085480,
+   "logoutTs": 1760117880,
+   "prsMerged": 3,
+   "prsReviewed": 3,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 540,
+   "targetMin": 480,
+   "tasksDone": 5,
+   "ticketsClosed": 2,
+   "workedMin": 510
+  },
+  {
+   "day": "2025-10-11",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-10-12",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "agentOnlyMin": 65,
+   "breaks": {
+    "call": 5,
+    "salah": 15,
+    "walk": 15
+   },
+   "commits": 2,
+   "contextSwitches": 35,
+   "day": "2025-10-13",
+   "deductionMin": 35,
+   "deepWorkMin": 140,
+   "focusMin": 248,
+   "humanMin": 345,
+   "interruptions": 11,
+   "kind": "working",
+   "loginTs": 1760342280,
+   "logoutTs": 1760368980,
+   "prsMerged": 2,
+   "prsReviewed": 3,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 445,
+   "targetMin": 480,
+   "tasksDone": 3,
+   "ticketsClosed": 0,
+   "workedMin": 410
+  },
+  {
+   "agentOnlyMin": 117,
+   "breaks": {
+    "lunch": 45,
+    "salah": 5
+   },
+   "commits": 5,
+   "contextSwitches": 70,
+   "day": "2025-10-14",
+   "deductionMin": 50,
+   "deepWorkMin": 79,
+   "focusMin": 316,
+   "humanMin": 292,
+   "interruptions": 12,
+   "kind": "working",
+   "loginTs": 1760430120,
+   "logoutTs": 1760457660,
+   "prsMerged": 2,
+   "prsReviewed": 0,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 459,
+   "targetMin": 480,
+   "tasksDone": 2,
+   "ticketsClosed": 0,
+   "workedMin": 409
+  },
+  {
+   "agentOnlyMin": 115,
+   "breaks": {
+    "call": 20,
+    "lunch": 20,
+    "salah": 12
+   },
+   "commits": 1,
+   "contextSwitches": 65,
+   "day": "2025-10-15",
+   "deductionMin": 52,
+   "deepWorkMin": 145,
+   "focusMin": 306,
+   "humanMin": 364,
+   "interruptions": 6,
+   "kind": "working",
+   "loginTs": 1760515980,
+   "logoutTs": 1760547840,
+   "prsMerged": 0,
+   "prsReviewed": 0,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 531,
+   "targetMin": 480,
+   "tasksDone": 0,
+   "ticketsClosed": 2,
+   "workedMin": 479
+  },
+  {
+   "agentOnlyMin": 92,
+   "breaks": {
+    "call": 12,
+    "salah": 20,
+    "walk": 15
+   },
+   "commits": 9,
+   "contextSwitches": 61,
+   "day": "2025-10-16",
+   "deductionMin": 47,
+   "deepWorkMin": 151,
+   "focusMin": 308,
+   "humanMin": 344,
+   "interruptions": 12,
+   "kind": "working",
+   "loginTs": 1760605680,
+   "logoutTs": 1760634660,
+   "prsMerged": 2,
+   "prsReviewed": 1,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 483,
+   "targetMin": 480,
+   "tasksDone": 1,
+   "ticketsClosed": 1,
+   "workedMin": 436
+  },
+  {
+   "agentOnlyMin": 192,
+   "breaks": {
+    "lunch": 30,
+    "salah": 5,
+    "walk": 20
+   },
+   "commits": 0,
+   "contextSwitches": 44,
+   "day": "2025-10-17",
+   "deductionMin": 55,
+   "deepWorkMin": 183,
+   "focusMin": 349,
+   "humanMin": 311,
+   "interruptions": 10,
+   "kind": "working",
+   "loginTs": 1760688540,
+   "logoutTs": 1760722020,
+   "prsMerged": 3,
+   "prsReviewed": 3,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 558,
+   "targetMin": 480,
+   "tasksDone": 5,
+   "ticketsClosed": 1,
+   "workedMin": 503
+  },
+  {
+   "day": "2025-10-18",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-10-19",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "agentOnlyMin": 130,
+   "breaks": {
+    "lunch": 30,
+    "salah": 20,
+    "walk": 5
+   },
+   "commits": 10,
+   "contextSwitches": 64,
+   "day": "2025-10-20",
+   "deductionMin": 55,
+   "deepWorkMin": 75,
+   "focusMin": 276,
+   "humanMin": 374,
+   "interruptions": 15,
+   "kind": "working",
+   "loginTs": 1760948700,
+   "logoutTs": 1760982240,
+   "prsMerged": 1,
+   "prsReviewed": 4,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 559,
+   "targetMin": 480,
+   "tasksDone": 6,
+   "ticketsClosed": 3,
+   "workedMin": 504
+  },
+  {
+   "agentOnlyMin": 109,
+   "breaks": {
+    "call": 9,
+    "salah": 12,
+    "walk": 5
+   },
+   "commits": 8,
+   "contextSwitches": 32,
+   "day": "2025-10-21",
+   "deductionMin": 26,
+   "deepWorkMin": 129,
+   "focusMin": 288,
+   "humanMin": 393,
+   "interruptions": 4,
+   "kind": "working",
+   "loginTs": 1761034200,
+   "logoutTs": 1761065880,
+   "prsMerged": 1,
+   "prsReviewed": 2,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 528,
+   "targetMin": 480,
+   "tasksDone": 3,
+   "ticketsClosed": 2,
+   "workedMin": 502
+  },
+  {
+   "agentOnlyMin": 161,
+   "breaks": {
+    "call": 15,
+    "walk": 12
+   },
+   "commits": 3,
+   "contextSwitches": 44,
+   "day": "2025-10-22",
+   "deductionMin": 27,
+   "deepWorkMin": 114,
+   "focusMin": 218,
+   "humanMin": 245,
+   "interruptions": 13,
+   "kind": "working",
+   "loginTs": 1761121620,
+   "logoutTs": 1761147600,
+   "prsMerged": 3,
+   "prsReviewed": 4,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 433,
+   "targetMin": 480,
+   "tasksDone": 6,
+   "ticketsClosed": 0,
+   "workedMin": 406
+  },
+  {
+   "agentOnlyMin": 87,
+   "breaks": {
+    "call": 20,
+    "lunch": 10,
+    "walk": 9
+   },
+   "commits": 0,
+   "contextSwitches": 50,
+   "day": "2025-10-23",
+   "deductionMin": 39,
+   "deepWorkMin": 132,
+   "focusMin": 385,
+   "humanMin": 473,
+   "interruptions": 16,
+   "kind": "working",
+   "loginTs": 1761207900,
+   "logoutTs": 1761243840,
+   "prsMerged": 1,
+   "prsReviewed": 0,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 599,
+   "targetMin": 480,
+   "tasksDone": 0,
+   "ticketsClosed": 2,
+   "workedMin": 560
+  },
+  {
+   "agentOnlyMin": 69,
+   "breaks": {
+    "lunch": 45,
+    "salah": 12,
+    "walk": 15
+   },
+   "commits": 4,
+   "contextSwitches": 50,
+   "day": "2025-10-24",
+   "deductionMin": 72,
+   "deepWorkMin": 76,
+   "focusMin": 169,
+   "humanMin": 266,
+   "interruptions": 10,
+   "kind": "working",
+   "loginTs": 1761295140,
+   "logoutTs": 1761319560,
+   "prsMerged": 2,
+   "prsReviewed": 3,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 407,
+   "targetMin": 480,
+   "tasksDone": 6,
+   "ticketsClosed": 2,
+   "workedMin": 335
+  },
+  {
+   "day": "2025-10-25",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "day": "2025-10-26",
+   "deductionMin": 0,
+   "deepWorkMin": 0,
+   "focusMin": 0,
+   "kind": "weekend",
+   "spanMin": 0,
+   "targetMin": 0,
+   "workedMin": 0
+  },
+  {
+   "agentOnlyMin": 120,
+   "breaks": {
+    "salah": 9,
+    "walk": 20
+   },
+   "commits": 8,
+   "contextSwitches": 40,
+   "day": "2025-10-27",
+   "deductionMin": 29,
+   "deepWorkMin": 95,
+   "focusMin": 298,
+   "humanMin": 390,
+   "interruptions": 7,
+   "kind": "working",
+   "loginTs": 1761555840,
+   "logoutTs": 1761588180,
+   "prsMerged": 0,
+   "prsReviewed": 0,
+   "salahOnTime": 4,
+   "salahTotal": 5,
+   "spanMin": 539,
+   "targetMin": 480,
+   "tasksDone": 3,
+   "ticketsClosed": 3,
+   "workedMin": 510
+  },
+  {
+   "agentOnlyMin": 197,
+   "breaks": {
+    "call": 5,
+    "walk": 12
+   },
+   "commits": 10,
+   "contextSwitches": 32,
+   "day": "2025-10-28",
+   "deductionMin": 17,
+   "deepWorkMin": 101,
+   "focusMin": 353,
+   "humanMin": 300,
+   "interruptions": 17,
+   "kind": "working",
+   "loginTs": 1761641760,
+   "logoutTs": 1761672600,
+   "prsMerged": 1,
+   "prsReviewed": 2,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 514,
+   "targetMin": 480,
+   "tasksDone": 3,
+   "ticketsClosed": 0,
+   "workedMin": 497
+  },
+  {
+   "agentOnlyMin": 90,
+   "breaks": {
+    "call": 15,
+    "salah": 20,
+    "walk": 15
+   },
+   "commits": 6,
+   "contextSwitches": 47,
+   "day": "2025-10-29",
+   "deductionMin": 50,
+   "deepWorkMin": 220,
+   "focusMin": 385,
+   "humanMin": 410,
+   "interruptions": 15,
+   "kind": "working",
+   "loginTs": 1761728100,
+   "logoutTs": 1761761100,
+   "prsMerged": 3,
+   "prsReviewed": 4,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 550,
+   "targetMin": 480,
+   "tasksDone": 6,
+   "ticketsClosed": 1,
+   "workedMin": 500
+  },
+  {
+   "agentOnlyMin": 185,
+   "breaks": {
+    "call": 20,
+    "salah": 5,
+    "walk": 12
+   },
+   "commits": 12,
+   "contextSwitches": 65,
+   "day": "2025-10-30",
+   "deductionMin": 37,
+   "deepWorkMin": 104,
+   "focusMin": 253,
+   "humanMin": 282,
+   "interruptions": 17,
+   "kind": "working",
+   "loginTs": 1761814500,
+   "logoutTs": 1761844740,
+   "prsMerged": 3,
+   "prsReviewed": 0,
+   "salahOnTime": 5,
+   "salahTotal": 5,
+   "spanMin": 504,
+   "targetMin": 480,
+   "tasksDone": 4,
+   "ticketsClosed": 1,
+   "workedMin": 467
+  }
+ ],
+ "improve": {
+  "bestDay": {
+   "day": "2025-10-23",
+   "workedMin": 560
+  },
+  "deepWorkRatioPct": {
+   "d30": 28.6,
+   "d7": 25.7
+  },
+  "interruptionsPerHour": {
+   "d30": 1.4,
+   "d7": 1.74
+  },
+  "punctuality": {
+   "avgLateMin": 2.6,
+   "days": 30,
+   "onTimeDays": 23,
+   "targetLoginMin": 540
+  },
+  "streaks": {
+   "best": {
+    "onTimeLogin": 14,
+    "salahOnTime": 6,
+    "targetMet": 9
+   },
+   "onTimeLogin": 3,
+   "salahOnTime": 3,
+   "targetMet": 0
+  },
+  "timeToFirstFocusMin": {
+   "d30": 41,
+   "d7": 34
+  },
+  "trend30": {
+   "deepWorkRatioPct": -0.24,
+   "dir": "flat",
+   "focusMin": -0.18,
+   "workedMin": 0.46
+  },
+  "trend7": {
+   "deepWorkRatioPct": 0.75,
+   "dir": "up",
+   "focusMin": 10.32,
+   "workedMin": 8.04
+  },
+  "worstDay": {
+   "day": "2025-10-24",
+   "workedMin": 335
+  }
+ },
+ "periods": {
+  "month": {
+   "agentOnlyMin": {
+    "delta": 265,
+    "deltaPct": 10.9,
+    "prev": 2430,
+    "value": 2695
+   },
+   "attainmentPct": {
+    "delta": 7.5,
+    "deltaPct": 8.3,
+    "prev": 91.2,
+    "value": 98.8
+   },
+   "avgLoginMin": {
+    "delta": -16,
+    "deltaPct": -3.0,
+    "prev": 528,
+    "value": 512
+   },
+   "avgLogoutMin": {
+    "delta": 21,
+    "deltaPct": 2.1,
+    "prev": 1006,
+    "value": 1027
+   },
+   "breakMin": {
+    "delta": 22,
+    "deltaPct": 2.6,
+    "prev": 836,
+    "value": 858
+   },
+   "commits": {
+    "delta": 3,
+    "deltaPct": 2.1,
+    "prev": 141,
+    "value": 144
+   },
+   "contextSwitches": {
+    "delta": 148,
+    "deltaPct": 17.1,
+    "prev": 865,
+    "value": 1013
+   },
+   "daysWorked": {
+    "delta": 0,
+    "deltaPct": 0.0,
+    "prev": 21,
+    "value": 21
+   },
+   "deepWorkMin": {
+    "delta": 78,
+    "deltaPct": 2.9,
+    "prev": 2720,
+    "value": 2798
+   },
+   "focusMin": {
+    "delta": 535,
+    "deltaPct": 9.0,
+    "prev": 5916,
+    "value": 6451
+   },
+   "humanMin": {
+    "delta": 494,
+    "deltaPct": 7.3,
+    "prev": 6767,
+    "value": 7261
+   },
+   "interruptions": {
+    "delta": 23,
+    "deltaPct": 11.0,
+    "prev": 210,
+    "value": 233
+   },
+   "prsMerged": {
+    "delta": 4,
+    "deltaPct": 12.1,
+    "prev": 33,
+    "value": 37
+   },
+   "prsReviewed": {
+    "delta": -8,
+    "deltaPct": -17.8,
+    "prev": 45,
+    "value": 37
+   },
+   "salahOnTimePct": {
+    "delta": 2.9,
+    "deltaPct": 3.3,
+    "prev": 86.7,
+    "value": 89.5
+   },
+   "targetMin": {
+    "delta": 0,
+    "deltaPct": 0.0,
+    "prev": 10080,
+    "value": 10080
+   },
+   "tasksDone": {
+    "delta": -3,
+    "deltaPct": -3.9,
+    "prev": 76,
+    "value": 73
+   },
+   "ticketsClosed": {
+    "delta": -3,
+    "deltaPct": -10.3,
+    "prev": 29,
+    "value": 26
+   },
+   "topProjects": [
+    {
+     "min": 1540,
+     "project": "delta-docs"
+    },
+    {
+     "min": 1397,
+     "project": "beta-ui"
+    },
+    {
+     "min": 1269,
+     "project": "gamma-ops"
+    },
+    {
+     "min": 1211,
+     "project": "epsilon-lab"
+    },
+    {
+     "min": 1034,
+     "project": "alpha-api"
+    }
+   ],
+   "workedMin": {
+    "delta": 759,
+    "deltaPct": 8.3,
+    "prev": 9197,
+    "value": 9956
+   }
+  },
+  "quarter": {
+   "agentOnlyMin": {
+    "delta": 423,
+    "deltaPct": 18.6,
+    "prev": 2272,
+    "value": 2695
+   },
+   "attainmentPct": {
+    "delta": 4.7,
+    "deltaPct": 5.0,
+    "prev": 94.1,
+    "value": 98.8
+   },
+   "avgLoginMin": {
+    "delta": -4,
+    "deltaPct": -0.8,
+    "prev": 516,
+    "value": 512
+   },
+   "avgLogoutMin": {
+    "delta": 18,
+    "deltaPct": 1.8,
+    "prev": 1009,
+    "value": 1027
+   },
+   "breakMin": {
+    "delta": 29,
+    "deltaPct": 3.5,
+    "prev": 829,
+    "value": 858
+   },
+   "commits": {
+    "delta": 0,
+    "deltaPct": 0.0,
+    "prev": 144,
+    "value": 144
+   },
+   "contextSwitches": {
+    "delta": 143,
+    "deltaPct": 16.4,
+    "prev": 870,
+    "value": 1013
+   },
+   "daysWorked": {
+    "delta": 1,
+    "deltaPct": 5.0,
+    "prev": 20,
+    "value": 21
+   },
+   "deepWorkMin": {
+    "delta": 451,
+    "deltaPct": 19.2,
+    "prev": 2347,
+    "value": 2798
+   },
+   "focusMin": {
+    "delta": 664,
+    "deltaPct": 11.5,
+    "prev": 5787,
+    "value": 6451
+   },
+   "humanMin": {
+    "delta": 499,
+    "deltaPct": 7.4,
+    "prev": 6762,
+    "value": 7261
+   },
+   "interruptions": {
+    "delta": 39,
+    "deltaPct": 20.1,
+    "prev": 194,
+    "value": 233
+   },
+   "prsMerged": {
+    "delta": 3,
+    "deltaPct": 8.8,
+    "prev": 34,
+    "value": 37
+   },
+   "prsReviewed": {
+    "delta": -10,
+    "deltaPct": -21.3,
+    "prev": 47,
+    "value": 37
+   },
+   "salahOnTimePct": {
+    "delta": 2.5,
+    "deltaPct": 2.9,
+    "prev": 87.0,
+    "value": 89.5
+   },
+   "targetMin": {
+    "delta": 480,
+    "deltaPct": 5.0,
+    "prev": 9600,
+    "value": 10080
+   },
+   "tasksDone": {
+    "delta": 14,
+    "deltaPct": 23.7,
+    "prev": 59,
+    "value": 73
+   },
+   "ticketsClosed": {
+    "delta": 4,
+    "deltaPct": 18.2,
+    "prev": 22,
+    "value": 26
+   },
+   "topProjects": [
+    {
+     "min": 1540,
+     "project": "delta-docs"
+    },
+    {
+     "min": 1397,
+     "project": "beta-ui"
+    },
+    {
+     "min": 1269,
+     "project": "gamma-ops"
+    },
+    {
+     "min": 1211,
+     "project": "epsilon-lab"
+    },
+    {
+     "min": 1034,
+     "project": "alpha-api"
+    }
+   ],
+   "workedMin": {
+    "delta": 922,
+    "deltaPct": 10.2,
+    "prev": 9034,
+    "value": 9956
+   }
+  },
+  "today": {
+   "agentOnlyMin": {
+    "delta": 95,
+    "deltaPct": 105.6,
+    "prev": 90,
+    "value": 185
+   },
+   "attainmentPct": {
+    "delta": -6.9,
+    "deltaPct": -6.6,
+    "prev": 104.2,
+    "value": 97.3
+   },
+   "avgLoginMin": {
+    "delta": 0,
+    "deltaPct": 0.0,
+    "prev": 535,
+    "value": 535
+   },
+   "avgLogoutMin": {
+    "delta": -46,
+    "deltaPct": -4.2,
+    "prev": 1085,
+    "value": 1039
+   },
+   "breakMin": {
+    "delta": -13,
+    "deltaPct": -26.0,
+    "prev": 50,
+    "value": 37
+   },
+   "commits": {
+    "delta": 6,
+    "deltaPct": 100.0,
+    "prev": 6,
+    "value": 12
+   },
+   "contextSwitches": {
+    "delta": 18,
+    "deltaPct": 38.3,
+    "prev": 47,
+    "value": 65
+   },
+   "daysWorked": {
+    "delta": 0,
+    "deltaPct": 0.0,
+    "prev": 1,
+    "value": 1
+   },
+   "deepWorkMin": {
+    "delta": -116,
+    "deltaPct": -52.7,
+    "prev": 220,
+    "value": 104
+   },
+   "focusMin": {
+    "delta": -132,
+    "deltaPct": -34.3,
+    "prev": 385,
+    "value": 253
+   },
+   "humanMin": {
+    "delta": -128,
+    "deltaPct": -31.2,
+    "prev": 410,
+    "value": 282
+   },
+   "interruptions": {
+    "delta": 2,
+    "deltaPct": 13.3,
+    "prev": 15,
+    "value": 17
+   },
+   "prsMerged": {
+    "delta": 0,
+    "deltaPct": 0.0,
+    "prev": 3,
+    "value": 3
+   },
+   "prsReviewed": {
+    "delta": -4,
+    "deltaPct": -100.0,
+    "prev": 4,
+    "value": 0
+   },
+   "salahOnTimePct": {
+    "delta": 0.0,
+    "deltaPct": 0.0,
+    "prev": 100.0,
+    "value": 100.0
+   },
+   "targetMin": {
+    "delta": 0,
+    "deltaPct": 0.0,
+    "prev": 480,
+    "value": 480
+   },
+   "tasksDone": {
+    "delta": -2,
+    "deltaPct": -33.3,
+    "prev": 6,
+    "value": 4
+   },
+   "ticketsClosed": {
+    "delta": 0,
+    "deltaPct": 0.0,
+    "prev": 1,
+    "value": 1
+   },
+   "topProjects": [
+    {
+     "min": 122,
+     "project": "gamma-ops"
+    },
+    {
+     "min": 92,
+     "project": "epsilon-lab"
+    },
+    {
+     "min": 39,
+     "project": "alpha-api"
+    }
+   ],
+   "workedMin": {
+    "delta": -33,
+    "deltaPct": -6.6,
+    "prev": 500,
+    "value": 467
+   }
+  },
+  "week": {
+   "agentOnlyMin": {
+    "delta": 105,
+    "deltaPct": 21.6,
+    "prev": 487,
+    "value": 592
+   },
+   "attainmentPct": {
+    "delta": 0.1,
+    "deltaPct": 0.1,
+    "prev": 102.7,
+    "value": 102.8
+   },
+   "avgLoginMin": {
+    "delta": 36,
+    "deltaPct": 7.2,
+    "prev": 501,
+    "value": 537
+   },
+   "avgLogoutMin": {
+    "delta": 33,
+    "deltaPct": 3.2,
+    "prev": 1031,
+    "value": 1064
+   },
+   "breakMin": {
+    "delta": -14,
+    "deltaPct": -9.5,
+    "prev": 147,
+    "value": 133
+   },
+   "commits": {
+    "delta": 15,
+    "deltaPct": 71.4,
+    "prev": 21,
+    "value": 36
+   },
+   "contextSwitches": {
+    "delta": -6,
+    "deltaPct": -3.2,
+    "prev": 190,
+    "value": 184
+   },
+   "daysWorked": {
+    "delta": 0,
+    "deltaPct": 0.0,
+    "prev": 4,
+    "value": 4
+   },
+   "deepWorkMin": {
+    "delta": 70,
+    "deltaPct": 15.6,
+    "prev": 450,
+    "value": 520
+   },
+   "focusMin": {
+    "delta": 122,
+    "deltaPct": 10.5,
+    "prev": 1167,
+    "value": 1289
+   },
+   "humanMin": {
+    "delta": -103,
+    "deltaPct": -6.9,
+    "prev": 1485,
+    "value": 1382
+   },
+   "interruptions": {
+    "delta": 8,
+    "deltaPct": 16.7,
+    "prev": 48,
+    "value": 56
+   },
+   "prsMerged": {
+    "delta": 1,
+    "deltaPct": 16.7,
+    "prev": 6,
+    "value": 7
+   },
+   "prsReviewed": {
+    "delta": -4,
+    "deltaPct": -40.0,
+    "prev": 10,
+    "value": 6
+   },
+   "salahOnTimePct": {
+    "delta": 0.0,
+    "deltaPct": 0.0,
+    "prev": 95.0,
+    "value": 95.0
+   },
+   "targetMin": {
+    "delta": 0,
+    "deltaPct": 0.0,
+    "prev": 1920,
+    "value": 1920
+   },
+   "tasksDone": {
+    "delta": 1,
+    "deltaPct": 6.7,
+    "prev": 15,
+    "value": 16
+   },
+   "ticketsClosed": {
+    "delta": -2,
+    "deltaPct": -28.6,
+    "prev": 7,
+    "value": 5
+   },
+   "topProjects": [
+    {
+     "min": 464,
+     "project": "delta-docs"
+    },
+    {
+     "min": 357,
+     "project": "beta-ui"
+    },
+    {
+     "min": 337,
+     "project": "gamma-ops"
+    },
+    {
+     "min": 92,
+     "project": "epsilon-lab"
+    },
+    {
+     "min": 39,
+     "project": "alpha-api"
+    }
+   ],
+   "workedMin": {
+    "delta": 2,
+    "deltaPct": 0.1,
+    "prev": 1972,
+    "value": 1974
+   }
+  }
+ },
+ "sources": {
+  "aw": {
+   "reason": "ActivityWatch is not running",
+   "state": "missing"
+  },
+  "days": {
+   "reason": "all sources read",
+   "state": "ok"
+  },
+  "health": {
+   "reason": "no health log yet",
+   "state": "missing"
+  },
+  "improve": {
+   "reason": "all sources read",
+   "state": "ok"
+  },
+  "periods": {
+   "reason": "all sources read",
+   "state": "ok"
+  },
+  "reminders": {
+   "reason": "task is not installed",
+   "state": "missing"
+  },
+  "screen": {
+   "reason": "ActivityWatch is not running",
+   "state": "missing"
+  },
+  "zones": {
+   "reason": "the focus log has no rows",
+   "state": "missing"
+  }
+ },
+ "today": "2025-10-30",
+ "ts": 1761846000,
+ "tz": "UTC",
+ "v": 1
+}

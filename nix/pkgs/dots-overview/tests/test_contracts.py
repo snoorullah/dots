@@ -23,10 +23,10 @@ class Contracts(helpers.Scratch):
         errs = schema.errors(doc, schema.load(name))
         self.assertEqual(errs, [], f"{name}: {errs}")
 
-    def test_all_six_files_validate(self):
+    def test_all_state_files_validate(self):
         cli.cmd_fast(type("A", (), {"apps": "today"}))
         cli._put("mirror", sync.mirror_doc(int(time.time())))
-        for name in ("now", "activity", "attention", "heatmap", "mirror", "meta"):
+        for name in ("now", "activity", "attention", "heatmap", "mirror", "meta", "metrics", "agent-metrics", "away"):
             path = config.STATE_DIR / f"{name}.json"
             self.assertTrue(path.exists(), name)
             self.check(name, json.loads(path.read_text()))

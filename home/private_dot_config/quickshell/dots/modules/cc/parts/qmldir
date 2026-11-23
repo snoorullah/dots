@@ -3,6 +3,8 @@ singleton CcState 1.0 CcState.qml
 Btn 1.0 Btn.qml
 Card 1.0 Card.qml
 Chip 1.0 Chip.qml
+FocusRing 1.0 FocusRing.qml
+HelpOverlay 1.0 HelpOverlay.qml
 Head 1.0 Head.qml
 Meter 1.0 Meter.qml
 Seg 1.0 Seg.qml

@@ -8,6 +8,7 @@ Item {
   property string text: ""
   property string icon: ""
   property bool on: false
+  property bool focused: false
   property int pad: 10
   property int h: 26
   property color onColor: Theme.color.surfaceContainer
@@ -15,6 +16,7 @@ Item {
   implicitHeight: h
   implicitWidth: row.implicitWidth + pad * 2
   Rectangle { anchors.fill: parent; radius: Theme.radius.chip + 2; color: s.on ? s.onColor : (ma.containsMouse ? Qt.alpha(Theme.color.fg, Theme.alpha.hover) : "transparent") }
+  FocusRing { focused: s.focused; radius: Theme.radius.chip + 4 }
   Row {
     id: row
     anchors.centerIn: parent

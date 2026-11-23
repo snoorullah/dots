@@ -8,6 +8,7 @@ Item {
   property string text: ""
   property string icon: ""
   property bool on: false
+  property bool focused: false
   signal clicked()
 
   implicitHeight: 26
@@ -26,6 +27,7 @@ Item {
     color: Qt.alpha(Theme.color.fg, Theme.alpha.hover)
     visible: ma.containsMouse && !c.on
   }
+  FocusRing { focused: c.focused; radius: 18 }
   Row {
     id: row
     anchors.centerIn: parent

@@ -11,11 +11,12 @@ import sqlite3
 import sys
 import time
 
-from . import (activity, atomic, attention, breakdown, config, detect, doctor, gate, heatmap, herdr, ingest, jump,
-               local_tt, names, nowstate, report, sync, task, tw, untracked)
+from . import (activity, agent_metrics, atomic, attention, away_history, breakdown, config, detect, doctor, gate, heatmap, herdr, ingest, jump,
+               local_tt, metrics, names, nowstate, report, sync, task, tw, untracked)
 
 OUT = {"now": "now.json", "activity": "activity.json", "attention": "attention.json",
-       "heatmap": "heatmap.json", "mirror": "mirror.json", "meta": "meta.json"}
+       "heatmap": "heatmap.json", "mirror": "mirror.json", "meta": "meta.json", "metrics": "metrics.json",
+       "agent-metrics": "agent-metrics.json", "away": "away.json"}
 
 
 def _put(name, doc):
@@ -36,7 +37,7 @@ def write_meta(cycle, errors, started):
                   "writer": config.WRITER, "schema": config.VERSION, "cycle": cycle, "errors": errors})
 
 
-def cmd_fast(args, stages=("ingest", "local", "attention")):
+def cmd_fast(args, stages=("ingest", "local", "attention", "metrics")):
     started, errors = time.monotonic(), []
     live = _stage(errors, "herdr", herdr.snapshot)
     pend = _stage(errors, "task", tw.pending, [])
@@ -49,9 +50,43 @@ def cmd_fast(args, stages=("ingest", "local", "attention")):
         done = _stage(errors, "task", activity.completed, [])
         _put("activity", activity.build(done, pend, apps=getattr(args, "apps", "today")))
         _put("heatmap", heatmap.build(done))
+        _stage(errors, "agent-metrics", agent_metrics.run)
+        _stage(errors, "away", away_history.run)
     if "attention" in stages:
         _put("attention", attention.build(pend, live))
+    if "metrics" in stages:
+        doc = _metrics(errors)
+        if doc is not None:
+            _put("metrics", doc)
     write_meta("fast", errors, started)
+    return 0
+
+
+def _metrics(errors):
+    """metrics.json is private (health, screen time) and best effort: whatever goes wrong here costs
+    this one file, never the five that the bar reads."""
+    try:
+        return metrics.build()
+    except Exception as e:      # noqa: BLE001 - every section is already guarded; this is the last net
+        errors.append({"source": "metrics", "msg": f"{type(e).__name__}: {e}"[:140]})
+        return None
+
+
+def cmd_metrics(args):
+    errors = []
+    started = time.monotonic()
+    doc = _metrics(errors)
+    if doc is None:
+        print(f"dots-overview metrics: {errors[0]['msg']}", file=sys.stderr)
+        return 1
+    _put("metrics", doc)
+    if args.json:
+        import json
+        print(json.dumps(doc, indent=1, ensure_ascii=False))
+    else:
+        bad = [k for k, v in doc["sources"].items() if v["state"] != "ok"]
+        print(f"metrics: {len(doc['days'])} day(s), {int((time.monotonic() - started) * 1000)} ms"
+              + (f"; not ok: {', '.join(bad)}" if bad else ""))
     return 0
 
 
@@ -174,6 +209,8 @@ def main(argv=None):
 
     add("fast", cmd_fast, "ingest + local + attention in one process (the 60 s timer)").add_argument(
         "--apps", choices=["today", "all"], default="today", help="'all' also refreshes week/month/quarter app totals")
+    add("metrics", cmd_metrics, "timetrack/AW/git/taskwarrior -> metrics.json (the Time tab's numbers)").add_argument(
+        "--json", action="store_true", help="also print the document (it holds private health data)")
     add("ingest", lambda a: cmd_fast(a, ("ingest",)), "sessions + herdr + taskwarrior -> tasks, now.json")
     add("local", lambda a: cmd_fast(a, ("local",)), "timetrack/AW/taskwarrior -> activity.json, heatmap.json")
     add("attention", lambda a: cmd_fast(a, ("attention",)), "all sources -> attention.json")

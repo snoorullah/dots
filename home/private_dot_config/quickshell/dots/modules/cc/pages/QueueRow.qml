@@ -3,6 +3,7 @@ import QtQuick
 import QtQuick.Layouts
 import qs.modules.theme
 import qs.modules.common
+import qs.modules.cc.parts
 import "../js/Queue.js" as Q
 
 // One list row: age, status mark, title and who/sub, source. 56 px min, radius row.
@@ -12,7 +13,10 @@ Item {
   required property var item
   property bool current: false
   property bool dim: false
+  readonly property bool focused: current && CcState.pane === "list"
   signal picked()
+  signal revealed()
+  onCurrentChanged: if (current) r.revealed()
 
   implicitHeight: 56
   width: parent ? parent.width : 400
@@ -22,6 +26,7 @@ Item {
     radius: Theme.radius.row
     color: r.current ? Theme.color.surfaceContainer : (ma.containsMouse ? Qt.alpha(Theme.color.fg, Theme.alpha.hover) : "transparent")
   }
+  FocusRing { focused: r.focused; anchors.margins: 0; radius: Theme.radius.row }
   RowLayout {
     anchors.fill: parent
     anchors.margins: 8

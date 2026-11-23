@@ -1,0 +1,2738 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dots-overview metrics",
+  "description": "The Time tab's numbers (docs/shell/specs/cc-time-kpis.md). Private: health and screen time. A missing source omits its keys; nothing is null or NaN.",
+  "type": "object",
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "ts": {
+      "type": "integer"
+    },
+    "tz": {
+      "type": "string"
+    },
+    "today": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "days": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "working",
+              "weekend",
+              "holiday",
+              "leave_paid",
+              "leave_unpaid",
+              "absent",
+              "worked_unlogged"
+            ]
+          },
+          "targetMin": {
+            "type": "integer"
+          },
+          "workedMin": {
+            "type": "integer"
+          },
+          "spanMin": {
+            "type": "integer"
+          },
+          "loginTs": {
+            "type": "integer"
+          },
+          "logoutTs": {
+            "type": "integer"
+          },
+          "deductionMin": {
+            "type": "integer"
+          },
+          "breaks": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "focusMin": {
+            "type": "integer"
+          },
+          "deepWorkMin": {
+            "type": "integer"
+          },
+          "agentOnlyMin": {
+            "type": "integer"
+          },
+          "humanMin": {
+            "type": "integer"
+          },
+          "salahOnTime": {
+            "type": "integer"
+          },
+          "salahTotal": {
+            "type": "integer"
+          },
+          "contextSwitches": {
+            "type": "integer"
+          },
+          "interruptions": {
+            "type": "integer"
+          },
+          "tasksDone": {
+            "type": "integer"
+          },
+          "prsMerged": {
+            "type": "integer"
+          },
+          "prsReviewed": {
+            "type": "integer"
+          },
+          "ticketsClosed": {
+            "type": "integer"
+          },
+          "commits": {
+            "type": "integer"
+          },
+          "screenSec": {
+            "type": "integer"
+          },
+          "timeToFirstFocusMin": {
+            "type": "integer"
+          },
+          "topApps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "app": {
+                  "type": "string"
+                },
+                "sec": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "app",
+                "sec"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "day",
+          "kind",
+          "targetMin"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "periods": {
+      "type": "object",
+      "properties": {
+        "today": {
+          "type": "object",
+          "properties": {
+            "workedMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "targetMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "attainmentPct": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "focusMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "deepWorkMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "agentOnlyMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "humanMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "breakMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "daysWorked": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "avgLoginMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "avgLogoutMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "salahOnTimePct": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "contextSwitches": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "interruptions": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "tasksDone": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "prsMerged": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "prsReviewed": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "ticketsClosed": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "commits": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "screenSec": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                },
+                "days": {
+                  "type": "integer"
+                },
+                "of": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "topProjects": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  },
+                  "min": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "project",
+                  "min"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "topApps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "app": {
+                    "type": "string"
+                  },
+                  "sec": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "app",
+                  "sec"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "week": {
+          "type": "object",
+          "properties": {
+            "workedMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "targetMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "attainmentPct": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "focusMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "deepWorkMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "agentOnlyMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "humanMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "breakMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "daysWorked": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "avgLoginMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "avgLogoutMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "salahOnTimePct": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "contextSwitches": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "interruptions": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "tasksDone": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "prsMerged": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "prsReviewed": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "ticketsClosed": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "commits": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "screenSec": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                },
+                "days": {
+                  "type": "integer"
+                },
+                "of": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "topProjects": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  },
+                  "min": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "project",
+                  "min"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "topApps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "app": {
+                    "type": "string"
+                  },
+                  "sec": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "app",
+                  "sec"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "month": {
+          "type": "object",
+          "properties": {
+            "workedMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "targetMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "attainmentPct": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "focusMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "deepWorkMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "agentOnlyMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "humanMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "breakMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "daysWorked": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "avgLoginMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "avgLogoutMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "salahOnTimePct": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "contextSwitches": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "interruptions": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "tasksDone": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "prsMerged": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "prsReviewed": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "ticketsClosed": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "commits": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "screenSec": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                },
+                "days": {
+                  "type": "integer"
+                },
+                "of": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "topProjects": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  },
+                  "min": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "project",
+                  "min"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "topApps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "app": {
+                    "type": "string"
+                  },
+                  "sec": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "app",
+                  "sec"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "quarter": {
+          "type": "object",
+          "properties": {
+            "workedMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "targetMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "attainmentPct": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "focusMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "deepWorkMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "agentOnlyMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "humanMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "breakMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "daysWorked": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "avgLoginMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "avgLogoutMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "salahOnTimePct": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "contextSwitches": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "interruptions": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "tasksDone": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "prsMerged": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "prsReviewed": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "ticketsClosed": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "commits": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "screenSec": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                },
+                "days": {
+                  "type": "integer"
+                },
+                "of": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "topProjects": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "string"
+                  },
+                  "min": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "project",
+                  "min"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "topApps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "app": {
+                    "type": "string"
+                  },
+                  "sec": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "app",
+                  "sec"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "improve": {
+      "type": "object",
+      "properties": {
+        "trend7": {
+          "type": "object",
+          "properties": {
+            "workedMin": {
+              "type": "number"
+            },
+            "focusMin": {
+              "type": "number"
+            },
+            "deepWorkRatioPct": {
+              "type": "number"
+            },
+            "dir": {
+              "type": "object",
+              "properties": {
+                "workedMin": {
+                  "type": "string",
+                  "enum": [
+                    "up",
+                    "flat",
+                    "down"
+                  ]
+                },
+                "focusMin": {
+                  "type": "string",
+                  "enum": [
+                    "up",
+                    "flat",
+                    "down"
+                  ]
+                },
+                "deepWorkRatioPct": {
+                  "type": "string",
+                  "enum": [
+                    "up",
+                    "flat",
+                    "down"
+                  ]
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "trend30": {
+          "type": "object",
+          "properties": {
+            "workedMin": {
+              "type": "number"
+            },
+            "focusMin": {
+              "type": "number"
+            },
+            "deepWorkRatioPct": {
+              "type": "number"
+            },
+            "dir": {
+              "type": "object",
+              "properties": {
+                "workedMin": {
+                  "type": "string",
+                  "enum": [
+                    "up",
+                    "flat",
+                    "down"
+                  ]
+                },
+                "focusMin": {
+                  "type": "string",
+                  "enum": [
+                    "up",
+                    "flat",
+                    "down"
+                  ]
+                },
+                "deepWorkRatioPct": {
+                  "type": "string",
+                  "enum": [
+                    "up",
+                    "flat",
+                    "down"
+                  ]
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "streaks": {
+          "type": "object",
+          "properties": {
+            "targetMet": {
+              "type": "integer"
+            },
+            "onTimeLogin": {
+              "type": "integer"
+            },
+            "salahOnTime": {
+              "type": "integer"
+            },
+            "best": {
+              "type": "object",
+              "properties": {
+                "targetMet": {
+                  "type": "integer"
+                },
+                "onTimeLogin": {
+                  "type": "integer"
+                },
+                "salahOnTime": {
+                  "type": "integer"
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "bestDay": {
+          "type": "object",
+          "properties": {
+            "day": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "workedMin": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "day",
+            "workedMin"
+          ],
+          "additionalProperties": false
+        },
+        "worstDay": {
+          "type": "object",
+          "properties": {
+            "day": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "workedMin": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "day",
+            "workedMin"
+          ],
+          "additionalProperties": false
+        },
+        "punctuality": {
+          "type": "object",
+          "properties": {
+            "targetLoginMin": {
+              "type": "integer"
+            },
+            "avgLateMin": {
+              "type": "number"
+            },
+            "onTimeDays": {
+              "type": "integer"
+            },
+            "days": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "avgLateMin",
+            "onTimeDays",
+            "days"
+          ],
+          "additionalProperties": false
+        },
+        "deepWorkRatioPct": {
+          "type": "object",
+          "properties": {
+            "d7": {
+              "type": "number"
+            },
+            "d30": {
+              "type": "number"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "interruptionsPerHour": {
+          "type": "object",
+          "properties": {
+            "d7": {
+              "type": "number"
+            },
+            "d30": {
+              "type": "number"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "timeToFirstFocusMin": {
+          "type": "object",
+          "properties": {
+            "d7": {
+              "type": "number"
+            },
+            "d30": {
+              "type": "number"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "zones": {
+      "type": "object",
+      "properties": {
+        "current": {
+          "type": "object",
+          "properties": {
+            "zone": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "byDay": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "zone": {
+                  "type": "string"
+                },
+                "min": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "zone",
+                "min"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "byWeek": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "week": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              "zones": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "zone": {
+                      "type": "string"
+                    },
+                    "min": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "zone",
+                    "min"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "week",
+              "zones"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "projects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "project": {
+                "type": "string"
+              },
+              "min": {
+                "type": "integer"
+              },
+              "agentMin": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "project",
+              "min",
+              "agentMin"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "screen": {
+      "type": "object",
+      "properties": {
+        "todayActiveSec": {
+          "type": "integer"
+        },
+        "todayIdleSec": {
+          "type": "integer"
+        },
+        "weekActiveSec": {
+          "type": "integer"
+        },
+        "lateNightSec": {
+          "type": "integer"
+        },
+        "longestStretchMin": {
+          "type": "integer"
+        },
+        "bySession": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "openTs": {
+                "type": "integer"
+              },
+              "closeTs": {
+                "type": "integer"
+              },
+              "activeSec": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "openTs",
+              "activeSec"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "health": {
+      "type": "object",
+      "properties": {
+        "checkpoints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "day": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              "slot": {
+                "type": "string",
+                "enum": [
+                  "dose",
+                  "h1",
+                  "h3",
+                  "h6",
+                  "wrap"
+                ]
+              },
+              "score": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "outcome": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "day",
+              "slot",
+              "outcome"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "scoreAvg7": {
+          "type": "number"
+        },
+        "doses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "day": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+              },
+              "ts": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "day",
+              "ts"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "doseToFirstCheckpointMin": {
+          "type": "number"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "reminders": {
+      "type": "object",
+      "properties": {
+        "due": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": [
+                  "integer",
+                  "string"
+                ]
+              },
+              "desc": {
+                "type": "string"
+              },
+              "due": {
+                "type": "integer"
+              },
+              "overdue": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "desc",
+              "due",
+              "overdue"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "scheduled": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": [
+                  "integer",
+                  "string"
+                ]
+              },
+              "desc": {
+                "type": "string"
+              },
+              "scheduled": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "desc",
+              "scheduled"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "salahNext": {
+          "type": "object",
+          "properties": {
+            "prayer": {
+              "type": "string"
+            },
+            "iqamahTs": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "prayer",
+            "iqamahTs"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "sources": {
+      "type": "object",
+      "properties": {
+        "days": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "missing"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        "periods": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "missing"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        "improve": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "missing"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        "zones": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "missing"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        "screen": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "missing"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        "health": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "missing"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        "reminders": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "missing"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        "aw": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "missing"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "days"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "v",
+    "ts",
+    "tz",
+    "today",
+    "days",
+    "sources"
+  ],
+  "additionalProperties": false
+}

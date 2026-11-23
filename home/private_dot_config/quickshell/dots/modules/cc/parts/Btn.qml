@@ -15,6 +15,7 @@ Item {
   property bool small: false
   property bool quiet: false       // no fill, no border (tab-like)
   property bool stub: false
+  property bool focused: false     // keyboard focus ring (CcState.keyboard gates it)
   property bool blocked: false     // nothing to act on right now (no link, no pane)
   property string tip: stub ? "read-only for now" : (blocked ? "nothing to open here" : "")
   readonly property bool live: enabled && !stub && !blocked
@@ -39,6 +40,7 @@ Item {
     color: Qt.alpha(Theme.color.fg, ma.pressed ? Theme.alpha.pressed : Theme.alpha.hover)
     visible: b.live && (ma.containsMouse || ma.pressed)
   }
+  FocusRing { focused: b.focused; radius: (b.small ? Theme.radius.chip + 2 : Theme.radius.row) + 2 }
   Row {
     id: row
     anchors.centerIn: parent

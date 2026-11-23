@@ -1,0 +1,122 @@
+{
+ "answered": 6,
+ "byCategory": {},
+ "count": 11,
+ "gaps": [
+  {
+   "answered": true,
+   "category": "walk",
+   "day": "2025-10-30",
+   "endTs": 1761812550,
+   "label": "Walk / short break",
+   "minutes": 22.5,
+   "source": "declared",
+   "startTs": 1761811200
+  },
+  {
+   "answered": false,
+   "category": "misc",
+   "day": "2025-10-30",
+   "endTs": 1761819366,
+   "label": "misc",
+   "minutes": 6.1,
+   "source": "deduction",
+   "startTs": 1761819000
+  },
+  {
+   "answered": true,
+   "category": "lunch",
+   "day": "2025-10-30",
+   "endTs": 1761834300,
+   "label": "Lunch",
+   "minutes": 35.0,
+   "source": "asked",
+   "startTs": 1761832200
+  },
+  {
+   "answered": false,
+   "category": "misc",
+   "day": "2025-10-30",
+   "endTs": 1761844944,
+   "label": "misc",
+   "minutes": 12.4,
+   "source": "auto",
+   "startTs": 1761844200
+  },
+  {
+   "answered": true,
+   "category": "salah",
+   "day": "2025-10-29",
+   "endTs": 1761737580,
+   "label": "Salah",
+   "minutes": 18.0,
+   "source": "deduction",
+   "startTs": 1761736500
+  },
+  {
+   "answered": false,
+   "category": "misc",
+   "day": "2025-10-29",
+   "endTs": 1761738960,
+   "label": "misc",
+   "minutes": 41.0,
+   "source": "deduction",
+   "startTs": 1761736500
+  },
+  {
+   "answered": true,
+   "category": "washroom",
+   "day": "2025-10-28",
+   "endTs": 1761650640,
+   "label": "Washroom",
+   "minutes": 9.0,
+   "source": "deduction",
+   "startTs": 1761650100
+  },
+  {
+   "answered": false,
+   "category": "misc",
+   "day": "2025-10-27",
+   "endTs": 1761565200,
+   "label": "misc",
+   "minutes": 25.0,
+   "source": "deduction",
+   "startTs": 1761563700
+  },
+  {
+   "answered": true,
+   "category": "lunch",
+   "day": "2025-10-26",
+   "endTs": 1761480420,
+   "label": "Lunch",
+   "minutes": 52.0,
+   "source": "deduction",
+   "startTs": 1761477300
+  },
+  {
+   "answered": false,
+   "category": "misc",
+   "day": "2025-10-25",
+   "endTs": 1761391350,
+   "label": "misc",
+   "minutes": 7.5,
+   "source": "deduction",
+   "startTs": 1761390900
+  },
+  {
+   "answered": true,
+   "category": "salah",
+   "day": "2025-10-24",
+   "endTs": 1761305340,
+   "label": "Salah",
+   "minutes": 14.0,
+   "source": "deduction",
+   "startTs": 1761304500
+  }
+ ],
+ "spanDays": 7,
+ "totalMin": 242.5,
+ "ts": 1761846000,
+ "unanswered": 5,
+ "v": 1
+}
