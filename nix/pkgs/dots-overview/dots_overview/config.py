@@ -80,6 +80,13 @@ class Work:
             name, _, mode = tok.rpartition(":")
             if name and mode.lower() in ATTN_MODES:
                 self.attn_rules[name.lower()] = mode.lower()
+        # ATTN_REPO_MIN="repo:N ...": in that repo, PRs/issues numbered below N never reach attention
+        # (an old backlog that is not mine to clear).
+        self.attn_min = {}
+        for tok in _split(raw.get("ATTN_REPO_MIN", "")):
+            name, _, num = tok.rpartition(":")
+            if name and num.isdigit():
+                self.attn_min[name.lower()] = int(num)
         # Slack channels whose notifications are alerts, not messages (glob patterns)
         self.slack_alert_channels = [p.lower() for p in _split(raw.get("SLACK_ALERT_CHANNELS", "")) or ["*-alerts"]]
         try:
@@ -109,6 +116,15 @@ class Work:
             return None
         nwo = ref[3:].split("#", 1)[0].lower()
         return self.attn_rules.get(nwo) or self.attn_rules.get(nwo.rsplit("/", 1)[-1])
+
+    def attn_below_min(self, ref):
+        """True when a gh:owner/repo#N ref is numbered below its repo's ATTN_REPO_MIN cutoff."""
+        if not ref or not ref.startswith("gh:") or not self.attn_min or "#" not in ref:
+            return False
+        nwo, _, num = ref[3:].partition("#")
+        nwo = nwo.lower()
+        cut = self.attn_min.get(nwo) or self.attn_min.get(nwo.rsplit("/", 1)[-1])
+        return bool(cut) and num.isdigit() and int(num) < cut
 
     def attn_ignored(self, ref):
         """True when the repo of a gh ref is set to `block`."""
