@@ -1,0 +1,7 @@
+# Who answers a notification when nothing owns org.freedesktop.Notifications: the dots shell.
+# Without this, D-Bus auto-started the distro's swaync (/usr/share/dbus-1/services) the moment a
+# notification arrived while Quickshell was restarting, and swaync then kept the name for good.
+# User services take precedence over the system ones, so this one wins.
+[D-BUS Service]
+Name=org.freedesktop.Notifications
+Exec=/bin/sh -c 'exec "$HOME/.local/bin/dots-shell" start'
