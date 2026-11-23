@@ -42,8 +42,18 @@ heatmap has no holes.
 | `deductionMin` | min | `v_day_deduction.deduction_minutes` |
 | `focusMin` | min | sum of `focus_span` (`end_unix - start_unix`) with a `ticket_token` |
 | `deepWorkMin` | min | longest-run rule, section 4 |
-| `agentOnlyMin` | min | `ticket_minutes.agent_minutes` summed for the day |
-| `humanMin` | min | `ticket_minutes.human_minutes` summed for the day |
+| `humanMin` | min | union of human `run_start`/`run_stop` intervals of the day (headline number) |
+| `agentOnlyMin` | min | agent run union minus the human union, capped at 120 per day (dashboard only) |
+| `agentOnlyRawMin` | min | the same before the cap |
+| `tickets` | `[{ticket, humanMin, agentOnlyMin}]` max 8 | same maths per `clock_event.ticket`; omitted when no run carries one |
+
+Source of the split: `work.db` `clock_event` (all provenances; overlaps are unioned, so a
+backfill and a live row for one hour count once). Pairing is per session: `run_stop` carries
+no ticket or slot, so it closes the oldest open run of its actor; a `system` stop closes all.
+A run still open is closed at its session close, else at now if it began within 24 h, else
+dropped. `ticket_minutes` is only the fallback when `clock_event` has no runs. Agent-only
+time is never added to `workedMin` or any payroll figure. A day from the first run on with
+no runs reads 0; days before it omit the fields.
 | `salahOnTime`, `salahTotal` | count | `salah_log` rows `enforcement` in `logged`,`declared` vs all non-`disabled` |
 | `contextSwitches` | count | `focus_span` rows whose `ws_label` or `ticket_token` differs from the previous row |
 | `interruptions` | count | `prompt_log` rows `outcome='shown'` plus `salah_log.nudged_unix` not null |
@@ -69,7 +79,7 @@ Each KPI is `{ "value": n, "prev": n, "delta": n, "deltaPct": n }`.
 | `workedMin` | net worked | `days.workedMin` |
 | `targetMin` | expected | `days.targetMin` |
 | `attainmentPct` | worked / target | both |
-| `focusMin`, `deepWorkMin`, `agentOnlyMin`, `humanMin` | as section 2 | sums |
+| `focusMin`, `deepWorkMin`, `agentOnlyMin`, `agentOnlyRawMin`, `humanMin` | as section 2 | sums |
 | `breakMin` | total breaks | `days.deductionMin` |
 | `daysWorked` | days with `workedMin > 0` | count |
 | `avgLoginMin`, `avgLogoutMin` | minutes since local midnight | mean of `loginTs`, `logoutTs` |
@@ -78,7 +88,7 @@ Each KPI is `{ "value": n, "prev": n, "delta": n, "deltaPct": n }`.
 | `tasksDone`, `prsMerged`, `prsReviewed`, `ticketsClosed`, `commits` | sums | sums |
 | `screenSec` | sum | sums |
 
-Also per period: `topProjects` `[{project, min}]` and `topApps` `[{app, sec}]`, max 6 each
+Also per period: `topTickets` `[{ticket, humanMin, agentOnlyMin}]` (max 6, sums of `days.tickets`), `topProjects` `[{project, min}]` and `topApps` `[{app, sec}]`, max 6 each
 (from `term_day.project` and `zones`). The existing `activity.json` `buckets` stays for the
 bar and is not replaced.
 

@@ -94,6 +94,23 @@ def ticket_minutes(work, first):
     return None if rows is None else {r["day"]: (r["h"] or 0, r["a"] or 0) for r in rows}
 
 
+def run_events(work, first):
+    """([run events], {session: closed_unix or None}) from clock_event, oldest first.
+
+    Events are run_start / run_stop of every provenance: overlapping intervals are unioned
+    later, so a backfill and a live row for the same hour count once. None when the table is
+    absent. A read failure is not a gap of its own: the caller words one "no split" reason."""
+    quiet = Gaps()
+    rows = _q(work.conn, "SELECT id, session_id AS sid, attendance_day AS day, ts_unix AS ts, kind, actor, ticket"
+              " FROM clock_event WHERE kind IN ('run_start','run_stop') AND attendance_day >= ?"
+              " ORDER BY session_id, ts_unix, id", (first,), quiet, "timetrack", "clock_event")
+    if rows is None:
+        return None
+    sess = _q(work.conn, "SELECT id, closed_unix FROM work_session WHERE attendance_day >= ?", (first,),
+              quiet, "timetrack", "work_session")
+    return rows, {r["id"]: r["closed_unix"] for r in sess or []}
+
+
 def sessions_of(work, day):
     """[(opened, closed or None)] of the human sessions of one attendance day."""
     sql = "SELECT opened_unix, closed_unix FROM work_session WHERE attendance_day = ?"

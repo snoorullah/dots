@@ -125,6 +125,32 @@
               ],
               "additionalProperties": false
             }
+          },
+          "agentOnlyRawMin": {
+            "type": "integer"
+          },
+          "tickets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ticket": {
+                  "type": "string"
+                },
+                "humanMin": {
+                  "type": "integer"
+                },
+                "agentOnlyMin": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "ticket",
+                "humanMin",
+                "agentOnlyMin"
+              ],
+              "additionalProperties": false
+            }
           }
         },
         "required": [
@@ -604,6 +630,50 @@
                 ],
                 "additionalProperties": false
               }
+            },
+            "agentOnlyRawMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "topTickets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ticket": {
+                    "type": "string"
+                  },
+                  "humanMin": {
+                    "type": "integer"
+                  },
+                  "agentOnlyMin": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "ticket",
+                  "humanMin",
+                  "agentOnlyMin"
+                ],
+                "additionalProperties": false
+              }
             }
           },
           "required": [],
@@ -1072,6 +1142,50 @@
                 "required": [
                   "app",
                   "sec"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "agentOnlyRawMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "topTickets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ticket": {
+                    "type": "string"
+                  },
+                  "humanMin": {
+                    "type": "integer"
+                  },
+                  "agentOnlyMin": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "ticket",
+                  "humanMin",
+                  "agentOnlyMin"
                 ],
                 "additionalProperties": false
               }
@@ -1546,6 +1660,50 @@
                 ],
                 "additionalProperties": false
               }
+            },
+            "agentOnlyRawMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "topTickets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ticket": {
+                    "type": "string"
+                  },
+                  "humanMin": {
+                    "type": "integer"
+                  },
+                  "agentOnlyMin": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "ticket",
+                  "humanMin",
+                  "agentOnlyMin"
+                ],
+                "additionalProperties": false
+              }
             }
           },
           "required": [],
@@ -2014,6 +2172,50 @@
                 "required": [
                   "app",
                   "sec"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "agentOnlyRawMin": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "prev": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "deltaPct": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "topTickets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ticket": {
+                    "type": "string"
+                  },
+                  "humanMin": {
+                    "type": "integer"
+                  },
+                  "agentOnlyMin": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "ticket",
+                  "humanMin",
+                  "agentOnlyMin"
                 ],
                 "additionalProperties": false
               }

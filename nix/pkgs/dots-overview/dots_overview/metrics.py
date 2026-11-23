@@ -23,7 +23,7 @@ DEEP_MIN_SEC = 45 * 60
 DEEP_GAP_SEC = 5 * 60
 MAX_BREAK_WINDOW = 14
 
-KPI_SUMS = ("workedMin", "targetMin", "focusMin", "deepWorkMin", "agentOnlyMin", "humanMin", "contextSwitches",
+KPI_SUMS = ("workedMin", "targetMin", "focusMin", "deepWorkMin", "agentOnlyMin", "agentOnlyRawMin", "humanMin", "contextSwitches",
             "interruptions", "tasksDone", "prsMerged", "prsReviewed", "ticketsClosed", "commits", "screenSec")
 
 
@@ -106,6 +106,102 @@ class DayOf:
         return src.iso(ts)
 
 
+# -- human / agent split ---------------------------------------------------------------------
+
+AGENT_ONLY_CAP_MIN = 120        # owner rule: agent-only time is dashboard-only, at most 2 h a day
+STALE_RUN_SEC = 86400
+
+
+def union(iv):
+    """Merge [(a, b)] into sorted disjoint intervals."""
+    out = []
+    for a, b in sorted(x for x in iv if x[1] > x[0]):
+        if out and a <= out[-1][1]:
+            out[-1] = (out[-1][0], max(out[-1][1], b))
+        else:
+            out.append((a, b))
+    return out
+
+
+def subtract(iv, cut):
+    """Disjoint intervals iv minus disjoint intervals cut."""
+    out = []
+    for a, b in iv:
+        for c, d in cut:
+            if d <= a or c >= b:
+                continue
+            if c > a:
+                out.append((a, c))
+            a = max(a, d)
+            if a >= b:
+                break
+        if a < b:
+            out.append((a, b))
+    return out
+
+
+def total(iv):
+    return sum(b - a for a, b in iv)
+
+
+def run_intervals(events, closed, now):
+    """[(day, actor, ticket, start, end)] paired per session.
+
+    run_stop rows carry no ticket and no slot, so a stop closes the oldest open run of its
+    actor; a stop by 'system' (session end) closes every open run. A run still open at the
+    end is closed at its session's close, else at now when it began within a day, else it is
+    dropped (a run nobody closed for a day is a lost stop, not a day of work)."""
+    out = []
+    by_sid = {}
+    for e in events:
+        by_sid.setdefault(e["sid"], []).append(e)
+    for sid, evs in by_sid.items():
+        openr = {"human": [], "agent": []}
+        for e in evs:
+            if e["kind"] == "run_start" and e["actor"] in openr:
+                openr[e["actor"]].append(e)
+            elif e["kind"] == "run_stop":
+                for actor in (openr if e["actor"] == "system" else [e["actor"]]):
+                    q = openr.get(actor, [])
+                    for s in (list(q) if e["actor"] == "system" else q[:1]):
+                        q.remove(s)
+                        out.append((s["day"], actor, s["ticket"], s["ts"], e["ts"]))
+        end_sess = closed.get(sid)
+        for actor, q in openr.items():
+            for s in q:
+                if end_sess is not None:
+                    end = min(end_sess, now)
+                elif now - s["ts"] <= STALE_RUN_SEC:
+                    end = now
+                else:
+                    continue
+                out.append((s["day"], actor, s["ticket"], s["ts"], end))
+    return out
+
+
+def split_by_day(events, closed, now):
+    """{day: {human, agentOnly, agentRaw, tickets: {t: [human, agentOnly]}}} in minutes (agentOnly capped)."""
+    by = {}
+    for day, actor, tkt, a, b in run_intervals(events, closed, now):
+        d = by.setdefault(day, {"human": [], "agent": [], "t": {}})
+        d["human" if actor == "human" else "agent"].append((a, b))
+        if tkt:
+            d["t"].setdefault(tkt, {"human": [], "agent": []})["human" if actor == "human" else "agent"].append((a, b))
+    out = {}
+    for day, d in by.items():
+        hu = union(d["human"])
+        raw = total(subtract(union(d["agent"]), hu)) / 60
+        tickets = {}
+        for t, x in d["t"].items():
+            h = round(total(union(x["human"])) / 60)
+            ag = round(total(subtract(union(x["agent"]), hu)) / 60)
+            if h or ag:
+                tickets[t] = [h, ag]
+        out[day] = {"human": round(total(hu) / 60), "agentRaw": round(raw),
+                    "agentOnly": min(AGENT_ONLY_CAP_MIN, round(raw)), "tickets": tickets}
+    return out
+
+
 # -- per-day focus maths ---------------------------------------------------------------------
 
 def deep_work_sec(spans):
@@ -150,6 +246,9 @@ def build_days(ctx):
     spans = src.focus_spans(priv, t0, now)
     brk = src.breaks(priv, first)
     tm = src.ticket_minutes(work, first)
+    ev = src.run_events(work, first)
+    split = split_by_day(ev[0], ev[1], now) if ev and ev[0] else {}
+    split_since = min(e["day"] for e in ev[0]) if split else None
     sal = src.salah(priv, first, now)
     prm = src.prompts(priv, t0)
     log = src.logins(priv, first)
@@ -198,8 +297,8 @@ def build_days(ctx):
     focus_since = dayof(min(s["start"] for s in spans)) if spans else None
     sal_since = min(sal) if sal else None
     prm_since = min([x for x in ((dayof(min(prm)) if prm else None), sal_since) if x], default=None)
-    if tm is not None and not tm:
-        gaps.add("timetrack", "ticket_minutes is empty: no human/agent split")
+    if not split and not tm:
+        gaps.add("timetrack", "no human/agent split: clock_event has no runs and ticket_minutes is empty")
 
     out = []
     for r in rows:
@@ -222,7 +321,14 @@ def build_days(ctx):
             d["contextSwitches"] = switches(sp)
             if sp and r["first_unix"]:
                 d["timeToFirstFocusMin"] = max(0, round((sp[0]["start"] - r["first_unix"]) / 60))
-        if tm and day in tm:
+        if split:
+            if day >= split_since:      # a covered day with no runs really is 0
+                x = split.get(day, {"human": 0, "agentOnly": 0, "agentRaw": 0, "tickets": {}})
+                d["humanMin"], d["agentOnlyMin"], d["agentOnlyRawMin"] = x["human"], x["agentOnly"], x["agentRaw"]
+                if x["tickets"]:
+                    top = sorted(x["tickets"].items(), key=lambda kv: -sum(kv[1]))[:TOP_TICKETS]
+                    d["tickets"] = [{"ticket": t, "humanMin": h, "agentOnlyMin": a} for t, (h, a) in top]
+        elif tm and day in tm:
             d["humanMin"], d["agentOnlyMin"] = tm[day]
         if sal is not None and sal_since and day >= sal_since:
             ot, tot, _ = sal.get(day, (0, 0, 0))
@@ -340,6 +446,21 @@ def top_projects(term, a, b):
     return [{"project": p, "min": m} for p, m in top]
 
 
+TOP_TICKETS = 8
+
+
+def top_tickets(days):
+    """[{ticket, humanMin, agentOnlyMin}] summed over the window's days, busiest first, max 6."""
+    acc = {}
+    for d in days:
+        for t in d.get("tickets", []):
+            x = acc.setdefault(t["ticket"], [0, 0])
+            x[0] += t["humanMin"]
+            x[1] += t["agentOnlyMin"]
+    rows = sorted(acc.items(), key=lambda kv: -sum(kv[1]))[:6]
+    return [{"ticket": t, "humanMin": h, "agentOnlyMin": a} for t, (h, a) in rows]
+
+
 def top_apps(days):
     acc = {}
     for d in days:
@@ -368,6 +489,9 @@ def build_periods(ctx, days, term):
             p["screenSec"]["days"], p["screenSec"]["of"] = hc, nc
             if (hc, nc) != (hp, np_) or hc < nc or hp < np_:     # uneven coverage: a delta would lie
                 p["screenSec"] = {k: v for k, v in p["screenSec"].items() if k not in ("prev", "delta", "deltaPct")}
+        tt = top_tickets(wc)
+        if tt:
+            p["topTickets"] = tt
         tp = top_projects(term, a, b)
         if tp:
             p["topProjects"] = tp
