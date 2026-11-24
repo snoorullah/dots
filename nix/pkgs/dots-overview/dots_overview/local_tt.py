@@ -184,14 +184,38 @@ def worked_sec(t0, t1, now=None):
         sess = [(r["opened_unix"], _end(r, now)) for r in conn.execute(
             "SELECT opened_unix, closed_unix FROM work_session"
             f" WHERE {_human(conn)} AND opened_unix < ? AND COALESCE(closed_unix, ?) > ?", (t1, now, t0))]
+        has_day = "attendance_day" in {r[1] for r in conn.execute("PRAGMA table_info(deduction)")}
+        edited = _edited_days(conn) if has_day else {}
+        day_col = "attendance_day" if has_day else "NULL AS attendance_day"
         ded = [(r["start_unix"], r["end_unix"]) for r in conn.execute(
-            "SELECT start_unix, end_unix FROM deduction"
-            " WHERE end_unix IS NOT NULL AND start_unix < ? AND end_unix > ?", (t1, t0))]
+            f"SELECT start_unix, end_unix, {day_col} FROM deduction"
+            " WHERE end_unix IS NOT NULL AND start_unix < ? AND end_unix > ?", (t1, t0))
+            if r["attendance_day"] not in edited]
+        # A day whose breaks were corrected by hand (day_edit, the timesheet) counts its corrected
+        # total, the same figure timetrack's v_day_deduction uses -- not the raw break rows.
+        lump = 0
+        for day, minutes in edited.items():
+            rows = conn.execute("SELECT MIN(opened_unix) AS a FROM work_session"
+                                " WHERE attendance_day = ?", (day,)).fetchone()
+            if rows and rows["a"] is not None and t0 <= rows["a"] < t1:
+                lump += minutes * 60
     except sqlite3.Error:
         return 0
     finally:
         conn.close()
-    return _net(sess, ded, t0, t1)
+    return max(0, _net(sess, ded, t0, t1) - lump)
+
+
+def _edited_days(conn):
+    """{attendance_day: corrected deduction minutes} for days whose breaks were edited by hand."""
+    try:
+        return {r["attendance_day"]: int(r["deduction_minutes"] or 0) for r in conn.execute(
+            "SELECT v.attendance_day, v.deduction_minutes FROM v_day_deduction v"
+            " JOIN day_edit e ON e.day = v.attendance_day"
+            " WHERE COALESCE(e.salah, e.lunch, e.dinner, e.washroom, e.misc, e.call_personal, e.unsure)"
+            " IS NOT NULL")}
+    except sqlite3.Error:
+        return {}
 
 
 def ref_seconds(t0, t1):
