@@ -66,8 +66,10 @@ job_main() {
 
   out=$("$tt" doctor 2>&1); rc=$?
   summary=$(printf '%s' "$out" | tail -1)
+  # name what failed: "1 failed" alone left the 2026-11-24 post-reboot failure undiagnosable
+  local bad; bad=$(printf '%s\n' "$out" | awk '$1 == "FAIL" { printf "%s%s", sep, $2; sep = ", " }')
   if [ "$rc" -ne 0 ]; then
-    ops_state timetrack-capture fail "$summary"
+    ops_state timetrack-capture fail "$summary${bad:+ -- $bad}"
     return 0
   fi
   case $summary in
