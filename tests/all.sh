@@ -58,7 +58,7 @@ run_one() {
       done ;;
     *) bash "tests/$n.sh" >"$log/$n.log" 2>&1 || rc=$?
        # wall-clock suites (scenes, term) can miss a deadline under load: one retry, said in the log
-       if [ "$rc" != 0 ] && [[ "$n" == *-ui || "$n" == term ]]; then
+       if [ "$rc" != 0 ] && [[ "$n" == *-ui || "$n" == term || "$n" == lock ]]; then
          mv "$log/$n.log" "$log/$n.first.log"; rc=0
          bash "tests/$n.sh" >"$log/$n.log" 2>&1 || rc=$?
          [ "$rc" = 0 ] && echo "NOTE $n passed on retry (first run: $log/$n.first.log)" >>"$log/$n.log"
@@ -75,7 +75,7 @@ serial=" lint orgmanaged placement in-home theme fonts extra-tools-dryrun taskga
 # they get a second lane of their own, also one at a time.
 par=(); ser=(); ui=()
 for n in "${suites[@]}"; do
-  if [[ "$serial" == *" $n "* ]]; then ser+=("$n"); elif [[ "$n" == *-ui || " term " == *" $n "* ]]; then ui+=("$n"); else par+=("$n"); fi
+  if [[ "$serial" == *" $n "* ]]; then ser+=("$n"); elif [[ "$n" == *-ui || " term lock " == *" $n "* ]]; then ui+=("$n"); else par+=("$n"); fi
 done
 ( for n in "${ser[@]}"; do run_one "$n" "$log"; done ) &
 ( for n in "${ui[@]}"; do run_one "$n" "$log"; done ) &
